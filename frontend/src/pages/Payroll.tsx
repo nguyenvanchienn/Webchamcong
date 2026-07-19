@@ -1,0 +1,603 @@
+import React, { useState, useEffect } from 'react';
+import { collection, getDocs, query, where, doc, getDoc, addDoc } from 'firebase/firestore';
+import { db } from '../config/firebase';
+import { Wallet, CalendarDays } from 'lucide-react';
+import toast from 'react-hot-toast';
+
+interface EmployeeInfo {
+  id: string;
+  fullName: string;
+  employeeCode?: string;
+  branchName: string;
+  branchId?: string;
+  role: string;
+  salaryPerHour: number;
+  bankName?: string;
+  bankAccountNum?: string;
+  bankAccountName?: string;
+}
+
+interface PayrollItem {
+  date: string;
+  checkInStr: string;
+  checkOutStr: string;
+  hoursWorked: number;
+  earned: number;
+  status: string;
+}
+
+const formatHours = (decimalHours: number) => {
+  if (!decimalHours || decimalHours === 0) return '0h 0m 0s';
+  const totalSeconds = Math.round(decimalHours * 3600);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  return `${h}h ${m}m ${s}s`;
+};
+
+const Payroll: React.FC = () => {
+  const [loading, setLoading] = useState(true);
+  const [payrollData, setPayrollData] = useState<PayrollItem[]>([]);
+  const [totalEarned, setTotalEarned] = useState(0);
+  const [totalHours, setTotalHours] = useState(0);
+  const [activeShiftInTime, setActiveShiftInTime] = useState<Date | null>(null);
+  const [liveHours, setLiveHours] = useState(0);
+  const [salaryRate, setSalaryRate] = useState(0);
+  
+  const [month, setMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+  
+  // Dành cho Admin
+  const [adminPayroll, setAdminPayroll] = useState<any[]>([]);
+  const [paidStatus, setPaidStatus] = useState<Record<string, boolean>>({});
+  
+  const [filterBranchId, setFilterBranchId] = useState<string>('ALL');
+  const [branches, setBranches] = useState<any[]>([]);
+
+  const [paymentModalData, setPaymentModalData] = useState<{
+    employeeId: string;
+    amount: number;
+    bankName?: string;
+    bankAccountNum?: string;
+    bankAccountName?: string;
+    fullName: string;
+  } | null>(null);
+
+  const [activeTab, setActiveTab] = useState<'admin' | 'personal'>('admin');
+  const userRole = localStorage.getItem('userRole') || 'EMPLOYEE';
+  const currentEmployeeId = localStorage.getItem('employeeId');
+
+  useEffect(() => {
+    if (userRole === 'SUPER_ADMIN') {
+      const fetchBranches = async () => {
+        const snap = await getDocs(collection(db, 'branches'));
+        const br: any[] = [];
+        snap.forEach(d => br.push({ id: d.id, ...d.data() }));
+        setBranches(br);
+      };
+      fetchBranches();
+    }
+  }, [userRole]);
+
+  const fetchPayroll = async () => {
+    setLoading(true);
+    try {
+      const startDate = `${month}-01`;
+      const endDay = new Date(parseInt(month.split('-')[0]), parseInt(month.split('-')[1]), 0).getDate();
+      const endDate = `${month}-${endDay}`;
+
+      // --- PERSONAL PAYROLL ---
+      if (currentEmployeeId && (userRole === 'EMPLOYEE' || userRole === 'BRANCH_ADMIN')) {
+        // Lấy thông tin lương/giờ của NV
+        const empDoc = await getDoc(doc(db, 'employees', currentEmployeeId));
+        if (!empDoc.exists()) return;
+        const salaryPerHour = empDoc.data().salaryPerHour || 0;
+
+        // Lấy lịch làm việc của nhân viên này để tính đi muộn
+        const schedQuery = query(collection(db, 'schedules'), where('employeeId', '==', currentEmployeeId));
+        const schedSnap = await getDocs(schedQuery);
+        const schedulesMap: Record<string, string[]> = {};
+        schedSnap.forEach(d => {
+           const data = d.data();
+           if (!schedulesMap[data.date]) schedulesMap[data.date] = [];
+           schedulesMap[data.date].push(data.shift);
+        });
+
+        // ...
+
+
+        // Lấy các record chấm công
+        const attQuery = query(
+          collection(db, 'attendance'), 
+          where('employeeId', '==', currentEmployeeId)
+        );
+        const attSnap = await getDocs(attQuery);
+        
+        const records: PayrollItem[] = [];
+        let tHours = 0;
+        let tEarned = 0;
+        let activeIn: Date | null = null;
+
+        attSnap.forEach(d => {
+          const data = d.data();
+          if (data.date >= startDate && data.date <= endDate) {
+            if (data.checkIn) {
+              const inTime = data.checkIn.toDate();
+              let outTime = data.checkOut ? data.checkOut.toDate() : null;
+              
+              let roundedHours = 0;
+              let earned = 0;
+
+              if (outTime) {
+                const diffMs = outTime.getTime() - inTime.getTime();
+                const hours = diffMs / (1000 * 60 * 60);
+                roundedHours = hours;
+                earned = Math.round(hours * salaryPerHour);
+
+                tHours += roundedHours;
+                tEarned += earned;
+              } else {
+                activeIn = inTime;
+              }
+
+              // Tính trạng thái Đi muộn hay Đúng giờ
+              let isLate = false;
+              const shiftsToday = schedulesMap[data.date];
+              if (shiftsToday && shiftsToday.length > 0) {
+                // Tìm ca sớm nhất trong ngày của NV này
+                let earliestShiftM = 24 * 60;
+                shiftsToday.forEach(shiftStr => {
+                   const match = shiftStr.match(/\((\d{2}):(\d{2})/);
+                   if (match) {
+                      const m = parseInt(match[1]) * 60 + parseInt(match[2]);
+                      if (m < earliestShiftM) earliestShiftM = m;
+                   }
+                });
+                const inTotalM = inTime.getHours() * 60 + inTime.getMinutes();
+                if (inTotalM > earliestShiftM + 15) { // Cho phép trễ 15 phút
+                   isLate = true;
+                }
+              }
+
+              let status = '';
+              if (!outTime) {
+                 status = isLate ? 'Đang làm (Đi muộn)' : 'Đang làm (Đúng giờ)';
+              } else {
+                 status = isLate ? 'Hoàn thành (Đi muộn)' : 'Hoàn thành (Đúng giờ)';
+              }
+
+              records.push({
+                date: data.date,
+                checkInStr: inTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+                checkOutStr: outTime ? outTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '--:--',
+                hoursWorked: roundedHours,
+                earned: earned,
+                status: status
+              });
+            }
+          }
+        });
+
+        records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setPayrollData(records);
+        setTotalHours(tHours);
+        setTotalEarned(tEarned);
+        setActiveShiftInTime(activeIn);
+        setSalaryRate(salaryPerHour);
+      } 
+      
+      // --- ADMIN PAYROLL ---
+      if (userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') {
+        let currentUserBranchId = '';
+        let currentUserBranchName = '';
+
+        if (currentEmployeeId) {
+          const empDoc = await getDoc(doc(db, 'employees', currentEmployeeId));
+          if (empDoc.exists()) {
+            currentUserBranchId = empDoc.data().branchId;
+            currentUserBranchName = empDoc.data().branchName;
+          }
+        }
+
+        const empSnap = await getDocs(collection(db, 'employees'));
+        const allEmps: Record<string, EmployeeInfo> = {};
+
+        empSnap.forEach(d => {
+           allEmps[d.id] = { id: d.id, ...d.data() } as EmployeeInfo;
+           if (d.id === currentEmployeeId) {
+             currentUserBranchId = d.data().branchId;
+             currentUserBranchName = d.data().branchName;
+           }
+        });
+
+        // Lấy chấm công trong tháng
+        const attQuery = query(
+          collection(db, 'attendance'),
+          where('date', '>=', startDate),
+          where('date', '<=', endDate)
+        );
+        const attSnap = await getDocs(attQuery);
+        const summary: Record<string, any> = {};
+
+        // Lấy trạng thái đã thanh toán
+        const historyQuery = query(collection(db, 'payroll_history'), where('month', '==', month));
+        const historySnap = await getDocs(historyQuery);
+        const paidMap: Record<string, boolean> = {};
+        historySnap.forEach(d => {
+          paidMap[d.data().employeeId] = true;
+        });
+        setPaidStatus(paidMap);
+
+        attSnap.forEach(d => {
+          const data = d.data();
+          if (data.employeeId && allEmps[data.employeeId] && data.checkIn && data.checkOut) {
+            const empId = data.employeeId;
+            let belongsToAdmin = false;
+            
+            const employeeCurrentBranchId = allEmps[empId]?.branchId;
+
+            if (userRole === 'SUPER_ADMIN') {
+              if (filterBranchId === 'ALL') {
+                belongsToAdmin = true;
+              } else {
+                if (employeeCurrentBranchId === filterBranchId) belongsToAdmin = true;
+              }
+            } else if (userRole === 'BRANCH_ADMIN') {
+              if (data.branchId) {
+                if (data.branchId === currentUserBranchId) belongsToAdmin = true;
+              } else {
+                // Legacy records fallback
+                if (data.branchName === currentUserBranchName) {
+                  belongsToAdmin = true;
+                }
+              }
+            }
+
+            if (!belongsToAdmin) return;
+
+            const inTime = data.checkIn.toDate();
+            const outTime = data.checkOut.toDate();
+            const hours = (outTime.getTime() - inTime.getTime()) / (1000 * 60 * 60);
+            
+            const groupKey = empId;
+            
+            if (!summary[groupKey]) {
+              summary[groupKey] = {
+                employeeInfo: { ...allEmps[empId] },
+                branches: new Set<string>(),
+                totalHours: 0,
+                totalEarned: 0,
+                shiftsCount: 0
+              };
+            }
+
+            if (data.branchName) summary[groupKey].branches.add(data.branchName);
+            summary[groupKey].totalHours += hours;
+            summary[groupKey].shiftsCount += 1;
+            summary[groupKey].totalEarned += (hours * allEmps[empId].salaryPerHour);
+          }
+        });
+
+        const adminList = Object.values(summary).map(item => ({
+          ...item,
+          totalHours: Math.round(item.totalHours * 100) / 100
+        }));
+        setAdminPayroll(adminList);
+      }
+    } catch (error) {
+      console.error("Lỗi tính lương:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMarkAsPaid = async (employeeId: string, amount: number) => {
+    try {
+      await addDoc(collection(db, 'payroll_history'), {
+        employeeId,
+        month,
+        amount,
+        paidAt: new Date()
+      });
+      setPaidStatus(prev => ({ ...prev, [employeeId]: true }));
+      setPaymentModalData(null);
+      toast.success('Đã đánh dấu thanh toán!');
+    } catch (error) {
+      console.error(error);
+      toast.error('Lỗi cập nhật thanh toán');
+    }
+  };
+
+  useEffect(() => {
+    fetchPayroll();
+  }, [userRole, currentEmployeeId, month, filterBranchId]);
+
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+    if (activeShiftInTime) {
+      interval = setInterval(() => {
+        const now = new Date();
+        const diffMs = Math.max(0, now.getTime() - activeShiftInTime.getTime());
+        setLiveHours(diffMs / (1000 * 60 * 60));
+      }, 1000);
+    } else {
+      setLiveHours(0);
+    }
+    return () => clearInterval(interval);
+  }, [activeShiftInTime]);
+
+  if (loading) {
+    return <div className="p-8 text-center text-gray-500">Đang tính toán bảng lương...</div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      {userRole === 'BRANCH_ADMIN' && (
+        <div className="flex border-b border-gray-200 bg-white px-2 rounded-t-xl pt-2">
+          <button 
+            className={`py-3 px-6 font-medium text-sm border-b-2 transition-colors ${activeTab === 'admin' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+            onClick={() => setActiveTab('admin')}
+          >
+            Quản lý Lương Nhân viên
+          </button>
+          <button 
+            className={`py-3 px-6 font-medium text-sm border-b-2 transition-colors ${activeTab === 'personal' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+            onClick={() => setActiveTab('personal')}
+          >
+            Bảng lương Cá nhân
+          </button>
+        </div>
+      )}
+
+      {/* HEADER */}
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-gray-800 flex items-center">
+            <Wallet className="mr-2 text-green-600" /> Bảng Lương Tự Động
+          </h2>
+          <p className="text-sm text-gray-500 mt-1">
+            {(userRole === 'EMPLOYEE' || activeTab === 'personal') ? 'Lương được tính toán dựa trên số giờ Check-in/Check-out thực tế' : 'Tổng hợp lương nhân viên toàn hệ thống'}
+          </p>
+        </div>
+        {(userRole === 'EMPLOYEE' || (userRole === 'BRANCH_ADMIN' && activeTab === 'personal')) && (
+          <div className="bg-green-50 px-4 py-2 rounded-lg border border-green-200 text-right">
+            <p className="text-xs font-semibold text-green-800 uppercase tracking-wider">Tổng Thu Nhập Tạm Tính</p>
+            <p className="text-2xl font-bold text-green-600">
+              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(totalEarned + Math.round(liveHours * salaryRate))}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* TỔNG KẾT NHÂN VIÊN (Dành cho Admin) */}
+      {(userRole === 'SUPER_ADMIN' || (userRole === 'BRANCH_ADMIN' && activeTab === 'admin')) && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="p-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+            <h3 className="font-bold text-gray-800">Tổng hợp Bảng Lương Nhân Viên</h3>
+            <div className="flex items-center space-x-3">
+              {userRole === 'SUPER_ADMIN' && (
+                <select
+                  value={filterBranchId}
+                  onChange={(e) => setFilterBranchId(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 outline-none bg-gray-50 mr-2"
+                >
+                  <option value="ALL">Tất cả cơ sở</option>
+                  {branches.map(b => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              )}
+              <label className="text-sm font-medium text-gray-700">Chọn tháng:</label>
+              <input 
+                type="month" 
+                value={month}
+                onChange={e => setMonth(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 outline-none"
+              />
+            </div>
+          </div>
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="p-4 font-semibold text-gray-600 text-sm">Nhân viên</th>
+                <th className="p-4 font-semibold text-gray-600 text-sm">Cơ sở</th>
+                <th className="p-4 font-semibold text-gray-600 text-sm text-center">Số ca hoàn thành</th>
+                <th className="p-4 font-semibold text-gray-600 text-sm text-center">Tổng giờ làm</th>
+                <th className="p-4 font-semibold text-gray-600 text-sm text-right">Mức lương/giờ</th>
+                <th className="p-4 font-semibold text-gray-600 text-sm text-right">Thành tiền</th>
+                <th className="p-4 font-semibold text-gray-600 text-sm text-center">Trạng thái</th>
+              </tr>
+            </thead>
+            <tbody>
+              {adminPayroll.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-gray-500 italic">Chưa có dữ liệu chấm công nào được ghi nhận.</td>
+                </tr>
+              ) : (
+                adminPayroll.map((item, idx) => {
+                  const displayBranch = item.employeeInfo.branchName;
+                  return (
+                  <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                    <td className="p-4 text-sm font-bold text-gray-800">
+                      [{item.employeeInfo.employeeCode || 'No ID'}] {item.employeeInfo.fullName}
+                    </td>
+                    <td className="p-4 text-sm text-gray-600">{displayBranch as string}</td>
+                    <td className="p-4 text-sm text-center font-medium text-blue-600">{item.shiftsCount} ca</td>
+                    <td className="p-4 text-sm text-center text-gray-700">{formatHours(item.totalHours)}</td>
+                    <td className="p-4 text-sm text-right text-gray-500">
+                      {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.employeeInfo.salaryPerHour)}
+                    </td>
+                    <td className="p-4 text-sm text-right font-bold text-green-600">
+                      {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.totalEarned)}
+                    </td>
+                    <td className="p-4 text-sm text-center">
+                      {paidStatus[item.employeeInfo.id] ? (
+                        <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">Đã thanh toán</span>
+                      ) : (
+                        <button 
+                          onClick={() => setPaymentModalData({
+                            employeeId: item.employeeInfo.id,
+                            amount: item.totalEarned,
+                            bankName: item.employeeInfo.bankName,
+                            bankAccountNum: item.employeeInfo.bankAccountNum,
+                            bankAccountName: item.employeeInfo.bankAccountName,
+                            fullName: item.employeeInfo.fullName
+                          })}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                        >
+                          Xác nhận trả lương
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* CHI TIẾT CÁ NHÂN (Dành cho Nhân viên) */}
+      {(userRole === 'EMPLOYEE' || (userRole === 'BRANCH_ADMIN' && activeTab === 'personal')) && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="p-4 bg-gray-50 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <h3 className="font-bold text-gray-800 flex items-center">
+              <CalendarDays size={18} className="mr-2 text-gray-500" />
+              Chi tiết công làm việc
+            </h3>
+            <div className="flex items-center space-x-4">
+              <input 
+                type="month" 
+                value={month}
+                onChange={e => setMonth(e.target.value)}
+                className="px-3 py-1 border border-gray-300 rounded-md text-sm outline-none focus:border-blue-500"
+              />
+              <span className="text-sm font-medium text-gray-600 bg-white px-3 py-1 rounded-full border">
+                Tổng: {formatHours(totalHours + liveHours)}
+              </span>
+            </div>
+          </div>
+          
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="p-4 font-semibold text-gray-600 text-sm">Ngày làm việc</th>
+                <th className="p-4 font-semibold text-gray-600 text-sm">Thời gian làm việc</th>
+                <th className="p-4 font-semibold text-gray-600 text-sm">Trạng thái</th>
+                <th className="p-4 font-semibold text-gray-600 text-sm text-center">Số giờ</th>
+                <th className="p-4 font-semibold text-gray-600 text-sm text-right">Thu nhập</th>
+              </tr>
+            </thead>
+            <tbody>
+              {payrollData.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="p-8 text-center text-gray-500 italic">Chưa có ca làm việc nào được ghi nhận.</td>
+                </tr>
+              ) : (
+                payrollData.map((item, idx) => (
+                  <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                    <td className="p-4 text-sm font-medium text-gray-800">
+                      {new Date(item.date).toLocaleDateString('vi-VN')}
+                    </td>
+                    <td className="p-4 text-sm text-gray-600">
+                      Từ <span className="font-medium text-blue-600">{item.checkInStr}</span> đến <span className="font-medium text-blue-600">{item.checkOutStr}</span>
+                    </td>
+                    <td className="p-4 text-sm">
+                      <span className={`px-2 py-1 rounded-lg font-medium text-xs border ${
+                        item.status.includes('Đi muộn') 
+                          ? 'bg-orange-50 text-orange-700 border-orange-200' 
+                          : item.status.includes('Đang làm')
+                            ? 'bg-blue-50 text-blue-700 border-blue-200'
+                            : 'bg-green-50 text-green-700 border-green-200'
+                      }`}>
+                        {item.status}
+                      </span>
+                    </td>
+                    <td className="p-4 text-sm text-center text-gray-600">
+                      {item.hoursWorked > 0 ? (
+                        <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded-lg font-medium border border-blue-100">
+                          {formatHours(item.hoursWorked)}
+                        </span>
+                      ) : (
+                        <span className="bg-blue-50/50 text-blue-500 px-2 py-1 rounded-lg font-medium border border-blue-100/50 italic animate-pulse">
+                          {formatHours(liveHours)}
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-4 text-sm text-right font-bold text-green-600">
+                      {item.earned > 0 
+                        ? `+ ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.earned)}` 
+                        : <span className="opacity-70 animate-pulse">+ {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(Math.round(liveHours * salaryRate))}</span>
+                      }
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* PAYMENT MODAL */}
+      {paymentModalData && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-fade-in-up">
+            <div className="bg-blue-600 p-4 text-white flex justify-between items-center">
+              <h3 className="font-bold text-lg">Thông tin thanh toán</h3>
+              <button onClick={() => setPaymentModalData(null)} className="text-white/80 hover:text-white transition-colors">
+                ✕
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div className="text-center mb-6">
+                <p className="text-sm text-gray-500 mb-1">Thanh toán lương tháng {month} cho</p>
+                <p className="text-xl font-bold text-gray-800">{paymentModalData.fullName}</p>
+                <p className="text-3xl font-black text-green-600 mt-2">
+                  {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(paymentModalData.amount)}
+                </p>
+              </div>
+
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 space-y-3">
+                <h4 className="font-semibold text-gray-700 mb-2 border-b border-gray-200 pb-2">Tài khoản thụ hưởng</h4>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-500">Ngân hàng:</span>
+                  <span className="font-medium text-gray-800">{paymentModalData.bankName || 'Chưa cập nhật'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-500">Số tài khoản:</span>
+                  <span className="font-medium text-blue-600 tracking-wider">{paymentModalData.bankAccountNum || 'Chưa cập nhật'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-500">Chủ tài khoản:</span>
+                  <span className="font-medium text-gray-800 uppercase">{paymentModalData.bankAccountName || 'Chưa cập nhật'}</span>
+                </div>
+              </div>
+              
+              <div className="pt-4 flex gap-3">
+                <button 
+                  onClick={() => setPaymentModalData(null)}
+                  className="flex-1 py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition-colors"
+                >
+                  Hủy
+                </button>
+                <button 
+                  onClick={() => handleMarkAsPaid(paymentModalData.employeeId, paymentModalData.amount)}
+                  className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-colors flex items-center justify-center gap-2"
+                >
+                  <Wallet size={18} /> Đã thanh toán
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+};
+
+export default Payroll;
