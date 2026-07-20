@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, updateDoc, doc, addDoc, deleteDoc, orderBy } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import toast from 'react-hot-toast';
-import { useNavigate } from 'react-router-dom';
 import { Bell, Clock, UserCog, Wallet, Info, TrendingUp, TrendingDown, Megaphone, Plus, X, Edit2 } from 'lucide-react';
 
 interface Notification {
@@ -16,7 +15,6 @@ interface Notification {
 }
 
 const Notifications: React.FC = () => {
-  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const currentEmployeeId = localStorage.getItem('employeeId');
@@ -29,6 +27,8 @@ const Notifications: React.FC = () => {
   const [sending, setSending] = useState(false);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
+  
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
 
   useEffect(() => {
     if (userRole === 'SUPER_ADMIN') {
@@ -150,27 +150,8 @@ const Notifications: React.FC = () => {
       }
     }
     
-    // 2. Navigate based on type
-    switch (notif.type) {
-      case 'SCHEDULE_ASSIGNED':
-      case 'SCHEDULE_REGISTER':
-      case 'SCHEDULE_CANCEL':
-        navigate('/dashboard/schedules');
-        break;
-      case 'MONEY_ADD':
-      case 'MONEY_SUB':
-      case 'SALARY_UPDATE':
-        navigate('/dashboard/payroll');
-        break;
-      case 'PROFILE_UPDATE':
-        navigate('/dashboard/profile');
-        break;
-      case 'ANNOUNCEMENT':
-      case 'SYSTEM':
-      default:
-        navigate('/dashboard');
-        break;
-    }
+    // 2. Open detail modal
+    setSelectedNotification(notif);
   };
 
   const handleDeleteAnnouncement = async (id: string) => {
@@ -444,12 +425,52 @@ const Notifications: React.FC = () => {
                 </button>
               </div>
             </form>
+            </div>
           </div>
-        </div>
-      )}
-    </div>
-  );
-};
+        )}
+
+        {selectedNotification && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col">
+              <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-gray-50">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-white shadow-sm border border-gray-100">
+                    {getIcon(selectedNotification.type)}
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg text-gray-800 leading-tight">
+                      {selectedNotification.title}
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5 flex items-center">
+                      <Clock size={12} className="mr-1" />
+                      {selectedNotification.createdAt?.toDate ? selectedNotification.createdAt.toDate().toLocaleString('vi-VN') : ''}
+                    </p>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedNotification(null)} className="text-gray-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors">
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <div className="p-6 overflow-y-auto max-h-[60vh]">
+                <p className="text-gray-700 whitespace-pre-wrap leading-relaxed text-base">
+                  {selectedNotification.message}
+                </p>
+              </div>
+              
+              <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+                <button 
+                  onClick={() => setSelectedNotification(null)}
+                  className="px-5 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium transition-colors"
+                >
+                  Đóng
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
 export default Notifications;
-
