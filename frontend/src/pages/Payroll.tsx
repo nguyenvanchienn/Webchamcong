@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, doc, getDoc, addDoc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, getDoc, addDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { Wallet, CalendarDays, Clock, X, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -83,7 +83,6 @@ const Payroll: React.FC = () => {
   
   // Dành cho Admin
   const [adminPayroll, setAdminPayroll] = useState<any[]>([]);
-  const [paidStatus, setPaidStatus] = useState<Record<string, number>>({});
   
   const [filterBranchId, setFilterBranchId] = useState<string>('ALL');
   const [branches, setBranches] = useState<any[]>([]);
@@ -91,6 +90,9 @@ const Payroll: React.FC = () => {
   const [paymentModalData, setPaymentModalData] = useState<{
     employeeId: string;
     amount: number;
+    totalHours: number;
+    shiftsCount: number;
+    attendanceIds: string[];
     bankName?: string;
     bankAccountNum?: string;
     bankAccountName?: string;
@@ -274,20 +276,43 @@ const Payroll: React.FC = () => {
           where('date', '<=', endDate)
         );
         const attSnap = await getDocs(attQuery);
-        const summary: Record<string, any> = {};
-
-        // Lấy trạng thái đã thanh toán
+        const adminList: any[] = [];
+        
+        // 1. Dòng Đã thanh toán (Từ Lịch sử)
         const historyQuery = query(collection(db, 'payroll_history'), where('month', '==', month));
         const historySnap = await getDocs(historyQuery);
-        const paidMap: Record<string, number> = {};
         historySnap.forEach(d => {
-          paidMap[d.data().employeeId] = d.data().amount;
+          const historyData = d.data();
+          if (historyData.employeeId && allEmps[historyData.employeeId]) {
+            const empId = historyData.employeeId;
+            let belongsToAdmin = false;
+            const employeeCurrentBranchId = allEmps[empId]?.branchId;
+            if (userRole === 'SUPER_ADMIN') {
+              if (filterBranchId === 'ALL') belongsToAdmin = true;
+              else if (employeeCurrentBranchId === filterBranchId) belongsToAdmin = true;
+            } else if (userRole === 'BRANCH_ADMIN') {
+              if (employeeCurrentBranchId === currentUserBranchId) belongsToAdmin = true;
+            }
+            if (belongsToAdmin) {
+               adminList.push({
+                 groupKey: `paid_${d.id}`,
+                 employeeInfo: { ...allEmps[empId] },
+                 branches: new Set<string>(),
+                 totalHours: historyData.totalHours || 0,
+                 totalEarned: historyData.amount,
+                 shiftsCount: historyData.shiftsCount || 0,
+                 isPaid: true,
+                 historyId: d.id
+               });
+            }
+          }
         });
-        setPaidStatus(paidMap);
 
+        // 2. Dòng Chưa thanh toán (Nhóm các attendance chưa thanh toán)
+        const summary: Record<string, any> = {};
         attSnap.forEach(d => {
           const data = d.data();
-          if (data.employeeId && allEmps[data.employeeId] && data.checkIn && data.checkOut) {
+          if (data.employeeId && allEmps[data.employeeId] && data.checkIn && data.checkOut && !data.isPaid) {
             const empId = data.employeeId;
             let belongsToAdmin = false;
             
@@ -313,32 +338,36 @@ const Payroll: React.FC = () => {
             if (!belongsToAdmin) return;
 
             const hours = calculateHoursWorked(data);
-            
             const groupKey = empId;
             
             if (!summary[groupKey]) {
               summary[groupKey] = {
+                groupKey: `unpaid_${empId}`,
                 employeeInfo: { ...allEmps[empId] },
                 branches: new Set<string>(),
                 totalHours: 0,
                 totalEarned: 0,
-                shiftsCount: 0
+                shiftsCount: 0,
+                attendanceIds: [],
+                isPaid: false
               };
             }
 
             if (data.branchName) summary[groupKey].branches.add(data.branchName);
             summary[groupKey].totalHours += hours;
             summary[groupKey].shiftsCount += 1;
+            summary[groupKey].attendanceIds.push(d.id);
             const recordSalary = data.salaryPerHour !== undefined ? data.salaryPerHour : allEmps[empId].salaryPerHour;
             summary[groupKey].totalEarned += (hours * recordSalary);
           }
         });
 
-        const adminList = Object.values(summary).map(item => ({
+        const unpaidList = Object.values(summary).map(item => ({
           ...item,
           totalHours: Math.round(item.totalHours * 100) / 100
         }));
-        setAdminPayroll(adminList);
+        
+        setAdminPayroll([...adminList, ...unpaidList].sort((a, b) => a.employeeInfo.fullName.localeCompare(b.employeeInfo.fullName)));
       }
     } catch (error) {
       console.error("Lỗi tính lương:", error);
@@ -347,37 +376,53 @@ const Payroll: React.FC = () => {
     }
   };
 
-  const handleMarkAsPaid = async (employeeId: string, amount: number) => {
-      try {
-        await addDoc(collection(db, 'payroll_history'), {
-          employeeId,
-          month,
-          amount,
-          paidAt: new Date()
+  const handleMarkAsPaid = async () => {
+    if (!paymentModalData) return;
+    try {
+      const historyRef = await addDoc(collection(db, 'payroll_history'), {
+        employeeId: paymentModalData.employeeId,
+        month,
+        amount: paymentModalData.amount,
+        totalHours: paymentModalData.totalHours,
+        shiftsCount: paymentModalData.shiftsCount,
+        salaryPerHour: paymentModalData.amount / paymentModalData.totalHours, // for reference
+        paidAt: new Date()
+      });
+      
+      // Update attendance docs
+      for (const id of paymentModalData.attendanceIds) {
+        await updateDoc(doc(db, 'attendance', id), {
+          isPaid: true,
+          paymentId: historyRef.id
         });
-        setPaidStatus(prev => ({ ...prev, [employeeId]: amount }));
-        setPaymentModalData(null);
-        toast.success('Đã đánh dấu thanh toán!');
+      }
+
+      setPaymentModalData(null);
+      toast.success('Đã đánh dấu thanh toán!');
+      fetchPayroll(); // refresh
     } catch (error) {
       console.error(error);
       toast.error('Lỗi cập nhật thanh toán');
     }
   };
 
-  const handleCancelPayment = async (employeeId: string) => {
-    if (!window.confirm('Bạn có chắc chắn muốn hủy thanh toán cho nhân viên này? Số tiền sẽ được tính toán lại từ đầu.')) return;
+  const handleCancelPayment = async (historyId: string) => {
+    if (!window.confirm('Bạn có chắc chắn muốn hủy thanh toán đợt này? Số tiền sẽ được đưa về trạng thái Chưa thanh toán.')) return;
     try {
-      const historyQuery = query(collection(db, 'payroll_history'), where('month', '==', month), where('employeeId', '==', employeeId));
-      const historySnap = await getDocs(historyQuery);
-      for (const d of historySnap.docs) {
-        await deleteDoc(doc(db, 'payroll_history', d.id));
+      await deleteDoc(doc(db, 'payroll_history', historyId));
+      
+      // Remove paymentId and isPaid from attendance
+      const attQuery = query(collection(db, 'attendance'), where('paymentId', '==', historyId));
+      const attSnap = await getDocs(attQuery);
+      for (const d of attSnap.docs) {
+        await updateDoc(doc(db, 'attendance', d.id), {
+          isPaid: false,
+          paymentId: null
+        });
       }
-      setPaidStatus(prev => {
-        const newState = { ...prev };
-        delete newState[employeeId];
-        return newState;
-      });
-      toast.success('Đã hủy thanh toán!');
+      
+      toast.success('Đã hủy thanh toán đợt này!');
+      fetchPayroll(); // refresh
     } catch (error) {
       console.error(error);
       toast.error('Lỗi khi hủy thanh toán');
@@ -488,10 +533,10 @@ const Payroll: React.FC = () => {
                   <td colSpan={6} className="p-8 text-center text-gray-500 italic">Chưa có dữ liệu chấm công nào được ghi nhận.</td>
                 </tr>
               ) : (
-                adminPayroll.map((item, idx) => {
+                adminPayroll.map((item) => {
                   const displayBranch = item.employeeInfo.branchName;
                   return (
-                  <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                  <tr key={item.groupKey} className={`border-b border-gray-100 transition-colors ${item.isPaid ? 'bg-green-50/50 hover:bg-green-50' : 'hover:bg-gray-50'}`}>
                     <td className="p-4 text-sm font-bold text-gray-800">
                       [{item.employeeInfo.employeeCode || 'No ID'}] {item.employeeInfo.fullName}
                     </td>
@@ -509,14 +554,14 @@ const Payroll: React.FC = () => {
                         </div>
                       </td>
                     <td className="p-4 text-sm text-right font-bold text-green-600">
-                      {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(paidStatus[item.employeeInfo.id] !== undefined ? paidStatus[item.employeeInfo.id] : item.totalEarned)}
+                      {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.totalEarned)}
                     </td>
                     <td className="p-4 text-sm text-center">
-                      {paidStatus[item.employeeInfo.id] !== undefined ? (
+                      {item.isPaid ? (
                         <div className="flex items-center justify-center gap-2">
                           <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">Đã thanh toán</span>
                           <button 
-                            onClick={() => handleCancelPayment(item.employeeInfo.id)}
+                            onClick={() => handleCancelPayment(item.historyId)}
                             className="text-gray-400 hover:text-red-500 transition-colors"
                             title="Hủy thanh toán"
                           >
@@ -528,6 +573,9 @@ const Payroll: React.FC = () => {
                           onClick={() => setPaymentModalData({
                             employeeId: item.employeeInfo.id,
                             amount: item.totalEarned,
+                            totalHours: item.totalHours,
+                            shiftsCount: item.shiftsCount,
+                            attendanceIds: item.attendanceIds,
                             bankName: item.employeeInfo.bankName,
                             bankAccountNum: item.employeeInfo.bankAccountNum,
                             bankAccountName: item.employeeInfo.bankAccountName,
@@ -683,7 +731,7 @@ const Payroll: React.FC = () => {
                   Hủy
                 </button>
                 <button 
-                  onClick={() => handleMarkAsPaid(paymentModalData.employeeId, paymentModalData.amount)}
+                  onClick={() => handleMarkAsPaid()}
                   className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-colors flex items-center justify-center gap-2"
                 >
                   <Wallet size={18} /> Đã thanh toán

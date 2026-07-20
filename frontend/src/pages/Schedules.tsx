@@ -22,6 +22,7 @@ interface Schedule {
   shift: string;
   branchId?: string;
   branchName?: string;
+  salaryMultiplier?: number;
 }
 
 const generateShiftName = (start: string, end: string) => {
@@ -988,7 +989,7 @@ const Schedules: React.FC = () => {
                                   <div>
                                     <div className="font-bold text-[11px] text-gray-800 flex items-center gap-1 flex-wrap">
                                       {getShiftName(shiftType)}
-                                      {shiftsInSlot[0]?.salaryMultiplier > 1 && (
+                                      {(shiftsInSlot[0]?.salaryMultiplier || 1) > 1 && (
                                         <span className="text-[9px] bg-red-500 text-white px-1 rounded-sm shadow-sm">
                                           x{shiftsInSlot[0].salaryMultiplier}
                                         </span>
