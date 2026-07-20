@@ -3,8 +3,9 @@ import { collection, query, where, getDocs, addDoc, doc, updateDoc } from 'fireb
 import { db } from '../config/firebase';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Clock, LogOut, CheckCircle, Search, User } from 'lucide-react';
+import { Clock, LogOut, CheckCircle, Search, User, X } from 'lucide-react';
 import { auth } from '../config/firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 
 interface Employee {
   id: string;
@@ -31,6 +32,12 @@ const Kiosk: React.FC = () => {
   const [selectedEmp, setSelectedEmp] = useState<Employee | null>(null);
   const [todayAttendance, setTodayAttendance] = useState<Attendance | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Modal Đăng xuất
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [logoutPassword, setLogoutPassword] = useState('');
+  const [logoutError, setLogoutError] = useState('');
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Cập nhật đồng hồ
   useEffect(() => {
@@ -143,10 +150,35 @@ const Kiosk: React.FC = () => {
     }
   };
 
-  const handleLogout = async () => {
-    await auth.signOut();
-    localStorage.clear();
-    navigate('/login');
+  const handleLogout = () => {
+    setShowLogoutModal(true);
+    setLogoutPassword('');
+    setLogoutError('');
+  };
+
+  const confirmLogout = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLogoutError('');
+    setIsLoggingOut(true);
+
+    try {
+      const email = localStorage.getItem('userEmail') || auth.currentUser?.email;
+      if (!email) throw new Error('Không tìm thấy thông tin tài khoản');
+      
+      await signInWithEmailAndPassword(auth, email, logoutPassword);
+      
+      await auth.signOut();
+      localStorage.clear();
+      navigate('/login');
+    } catch (err: any) {
+      if (err.code === 'auth/invalid-credential') {
+        setLogoutError('Mật khẩu không đúng!');
+      } else {
+        setLogoutError('Có lỗi xảy ra khi xác thực!');
+      }
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   const filteredEmployees = employees.filter(e => 
@@ -277,6 +309,68 @@ const Kiosk: React.FC = () => {
           )}
         </div>
       </main>
+
+      {/* Logout Password Modal */}
+      {showLogoutModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+              <h3 className="text-xl font-bold text-gray-800">Xác nhận đăng xuất</h3>
+              <button 
+                onClick={() => setShowLogoutModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors p-1"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            <form onSubmit={confirmLogout} className="p-6 space-y-4">
+              <p className="text-sm text-gray-600">
+                Vui lòng nhập mật khẩu của tài khoản Kiosk/Admin để đăng xuất khỏi máy chấm công.
+              </p>
+              
+              {logoutError && (
+                <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-100 flex items-start gap-2">
+                  <div className="mt-0.5"><LogOut size={14} /></div>
+                  {logoutError}
+                </div>
+              )}
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Mật khẩu</label>
+                <input
+                  type="password"
+                  required
+                  autoFocus
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  value={logoutPassword}
+                  onChange={(e) => setLogoutPassword(e.target.value)}
+                  placeholder="Nhập mật khẩu..."
+                />
+              </div>
+              
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowLogoutModal(false)}
+                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={isLoggingOut}
+                  className={`flex-1 px-4 py-2 rounded-lg text-white font-medium transition-colors ${
+                    isLoggingOut ? 'bg-red-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'
+                  }`}
+                >
+                  {isLoggingOut ? 'Đang xử lý...' : 'Đăng xuất'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       <style>{`
         .custom-scrollbar::-webkit-scrollbar {
