@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, doc, getDoc, addDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, getDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { Wallet, CalendarDays, Clock, X, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -364,6 +364,26 @@ const Payroll: React.FC = () => {
     }
   };
 
+  const handleCancelPayment = async (employeeId: string) => {
+    if (!window.confirm('Bạn có chắc chắn muốn hủy thanh toán cho nhân viên này? Số tiền sẽ được tính toán lại từ đầu.')) return;
+    try {
+      const historyQuery = query(collection(db, 'payroll_history'), where('month', '==', month), where('employeeId', '==', employeeId));
+      const historySnap = await getDocs(historyQuery);
+      for (const d of historySnap.docs) {
+        await deleteDoc(doc(db, 'payroll_history', d.id));
+      }
+      setPaidStatus(prev => {
+        const newState = { ...prev };
+        delete newState[employeeId];
+        return newState;
+      });
+      toast.success('Đã hủy thanh toán!');
+    } catch (error) {
+      console.error(error);
+      toast.error('Lỗi khi hủy thanh toán');
+    }
+  };
+
   useEffect(() => {
     fetchPayroll();
   }, [userRole, currentEmployeeId, month, filterBranchId]);
@@ -493,7 +513,16 @@ const Payroll: React.FC = () => {
                     </td>
                     <td className="p-4 text-sm text-center">
                       {paidStatus[item.employeeInfo.id] !== undefined ? (
-                        <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">Đã thanh toán</span>
+                        <div className="flex items-center justify-center gap-2">
+                          <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">Đã thanh toán</span>
+                          <button 
+                            onClick={() => handleCancelPayment(item.employeeInfo.id)}
+                            className="text-gray-400 hover:text-red-500 transition-colors"
+                            title="Hủy thanh toán"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
                       ) : (
                         <button 
                           onClick={() => setPaymentModalData({
