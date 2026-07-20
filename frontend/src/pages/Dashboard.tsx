@@ -7,8 +7,10 @@ import EmployeeDashboard from './EmployeeDashboard';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'admin' | 'personal'>('personal');
   const userRole = localStorage.getItem('userRole');
+  const [activeTab, setActiveTab] = useState<'admin' | 'personal'>(
+    userRole === 'BRANCH_ADMIN' ? 'personal' : 'admin'
+  );
 
   const [stats, setStats] = useState<any[]>([
     { title: 'Tổng số cơ sở', value: 0, icon: <Building2 className="text-blue-500" size={32} /> },

@@ -6,7 +6,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { 
   LayoutDashboard, Building2, Users, UserCog, 
   Clock, CalendarDays, ClipboardList, Wallet, 
-  BarChart3, FileSpreadsheet, Settings, LogOut, UserCircle, Bell, ChevronLeft, ChevronRight
+  BarChart3, FileSpreadsheet, Settings, LogOut, UserCircle, Bell, ChevronLeft, ChevronRight, Menu, X
 } from 'lucide-react';
 
 const DashboardLayout: React.FC = () => {
@@ -19,6 +19,7 @@ const DashboardLayout: React.FC = () => {
 
   const [displayName, setDisplayName] = useState(userEmail);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   useEffect(() => {
@@ -73,19 +74,41 @@ const DashboardLayout: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-gray-100">
+      {/* Mobile overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden transition-opacity"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <div className={`${isSidebarCollapsed ? 'w-20' : 'w-64'} bg-white shadow-lg flex flex-col transition-all duration-300 relative`}>
-        {/* Toggle Button */}
+      <div className={`
+        fixed md:static inset-y-0 left-0 z-50 transform 
+        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
+        md:translate-x-0 transition-transform duration-300 ease-in-out
+        ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64'} 
+        w-64 bg-white shadow-lg flex flex-col h-full
+      `}>
+        {/* Mobile close button */}
+        <button
+          className="md:hidden absolute top-4 right-4 text-gray-500 hover:text-gray-800"
+          onClick={() => setIsMobileMenuOpen(false)}
+        >
+          <X size={24} />
+        </button>
+
+        {/* Toggle Button for Desktop */}
         <button 
           onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          className="absolute -right-3 top-6 bg-white border border-gray-200 rounded-full p-1 shadow-md text-gray-500 hover:text-blue-600 z-50 flex items-center justify-center"
+          className="hidden md:flex absolute -right-3 top-6 bg-white border border-gray-200 rounded-full p-1 shadow-md text-gray-500 hover:text-blue-600 z-50 items-center justify-center"
         >
           {isSidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>
 
-        <div className="h-16 flex flex-col items-center justify-center border-b border-gray-200">
+        <div className="h-16 flex flex-col items-center justify-center border-b border-gray-200 mt-2 md:mt-0">
           {isSidebarCollapsed ? (
-            <h1 className="text-xl font-bold text-blue-600">CC</h1>
+            <h1 className="hidden md:block text-xl font-bold text-blue-600">CC</h1>
           ) : (
             <>
               <h1 className="text-xl font-bold text-blue-600">Chấm Công Pro</h1>
@@ -103,16 +126,17 @@ const DashboardLayout: React.FC = () => {
                   key={item.path}
                   to={item.path}
                   title={isSidebarCollapsed ? item.name : ''}
+                  onClick={() => setIsMobileMenuOpen(false)}
                   className={`flex items-center py-3 text-sm font-medium rounded-lg transition-colors ${
                     isActive 
                       ? 'bg-blue-50 text-blue-700' 
                       : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-                  } ${isSidebarCollapsed ? 'justify-center px-0' : 'px-4'}`}
+                  } ${isSidebarCollapsed ? 'md:justify-center px-4 md:px-0' : 'px-4'}`}
                 >
-                  <span className={`${isSidebarCollapsed ? '' : 'mr-3'} ${isActive ? 'text-blue-700' : 'text-gray-400'}`}>
+                  <span className={`${isSidebarCollapsed ? 'md:mr-0 mr-3' : 'mr-3'} ${isActive ? 'text-blue-700' : 'text-gray-400'}`}>
                     {item.icon}
                   </span>
-                  {!isSidebarCollapsed && <span>{item.name}</span>}
+                  <span className={`${isSidebarCollapsed ? 'md:hidden' : ''}`}>{item.name}</span>
                 </Link>
               );
             })}
@@ -123,49 +147,57 @@ const DashboardLayout: React.FC = () => {
           <button
             onClick={handleLogout}
             title={isSidebarCollapsed ? "Đăng xuất" : ""}
-            className={`flex items-center w-full py-2 text-sm font-medium text-red-600 rounded-lg hover:bg-red-50 transition-colors ${isSidebarCollapsed ? 'justify-center px-0' : 'px-4'}`}
+            className={`flex items-center w-full py-2 text-sm font-medium text-red-600 rounded-lg hover:bg-red-50 transition-colors ${isSidebarCollapsed ? 'md:justify-center px-4 md:px-0' : 'px-4'}`}
           >
-            <LogOut size={20} className={isSidebarCollapsed ? '' : 'mr-3'} />
-            {!isSidebarCollapsed && <span>Đăng xuất</span>}
+            <LogOut size={20} className={isSidebarCollapsed ? 'md:mr-0 mr-3' : 'mr-3'} />
+            <span className={`${isSidebarCollapsed ? 'md:hidden' : ''}`}>Đăng xuất</span>
           </button>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-16 bg-white shadow-sm flex items-center justify-between px-6 z-10">
-          <h2 className="text-lg font-semibold text-gray-800">
-            {menuItems.find(i => i.path === location.pathname)?.name || 'Hệ thống'}
-          </h2>
-          <div className="flex items-center space-x-4">
-            <span className="text-sm font-medium text-gray-600">{displayName}</span>
-            <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold uppercase">
+      <div className="flex-1 flex flex-col overflow-hidden w-full">
+        <header className="h-16 bg-white shadow-sm flex items-center justify-between px-4 md:px-6 z-10">
+          <div className="flex items-center">
+            <button 
+              className="md:hidden mr-3 text-gray-600 hover:text-blue-600 focus:outline-none"
+              onClick={() => setIsMobileMenuOpen(true)}
+            >
+              <Menu size={24} />
+            </button>
+            <h2 className="text-lg font-semibold text-gray-800 truncate max-w-[150px] sm:max-w-xs md:max-w-none">
+              {menuItems.find(i => i.path === location.pathname)?.name || 'Hệ thống'}
+            </h2>
+          </div>
+          <div className="flex items-center space-x-2 md:space-x-4">
+            <span className="text-sm font-medium text-gray-600 hidden sm:block">{displayName}</span>
+            <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold uppercase shrink-0">
               {displayName.charAt(0)}
             </div>
           </div>
         </header>
         
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-4 md:p-6">
           <Outlet />
         </main>
       </div>
 
       {/* Logout Confirmation Modal */}
       {showLogoutModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all">
-          <div className="bg-white rounded-2xl p-6 w-[400px] shadow-2xl scale-100 transform transition-transform">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all px-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl scale-100 transform transition-transform">
             <h3 className="text-xl font-bold text-gray-800 mb-2">Đăng xuất khỏi hệ thống</h3>
-            <p className="text-gray-600 mb-6">Bạn có chắc chắn muốn đăng xuất không? Phiên làm việc của bạn sẽ được đóng lại.</p>
+            <p className="text-gray-600 mb-6 text-sm md:text-base">Bạn có chắc chắn muốn đăng xuất không? Phiên làm việc của bạn sẽ được đóng lại.</p>
             <div className="flex justify-end space-x-3">
               <button 
                 onClick={() => setShowLogoutModal(false)}
-                className="px-5 py-2.5 rounded-xl font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
+                className="px-4 py-2 md:px-5 md:py-2.5 rounded-xl font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors text-sm md:text-base"
               >
                 Hủy bỏ
               </button>
               <button 
                 onClick={confirmLogout}
-                className="px-5 py-2.5 rounded-xl font-medium text-white bg-red-600 hover:bg-red-700 transition-colors shadow-md shadow-red-200"
+                className="px-4 py-2 md:px-5 md:py-2.5 rounded-xl font-medium text-white bg-red-600 hover:bg-red-700 transition-colors shadow-md shadow-red-200 text-sm md:text-base"
               >
                 Đăng xuất
               </button>
