@@ -10,6 +10,7 @@ interface Employee {
   employeeCode?: string;
   branchName: string;
   branchId?: string;
+  salaryPerHour?: number;
 }
 
 interface AttendanceRecord {
@@ -277,6 +278,7 @@ const Attendance: React.FC = () => {
           checkIn: checkInTime,
           checkOut: null,
           status: 'PRESENT',
+          salaryPerHour: emp.salaryPerHour || 0,
           logs: [{ action: 'CHECK_IN', time: checkInTime }]
         });
         toast.success(`Đã Check-in cho ${emp.fullName}!`);

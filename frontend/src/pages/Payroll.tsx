@@ -165,7 +165,8 @@ const Payroll: React.FC = () => {
               if (outTime) {
                 const hours = calculateHoursWorked(data);
                 roundedHours = hours;
-                earned = Math.round(hours * salaryPerHour);
+                const recordSalary = data.salaryPerHour !== undefined ? data.salaryPerHour : salaryPerHour;
+                earned = Math.round(hours * recordSalary);
 
                 tHours += roundedHours;
                 tEarned += earned;
@@ -239,7 +240,7 @@ const Payroll: React.FC = () => {
         setTotalHours(tHours);
         setTotalEarned(tEarned);
         setActiveShiftData(activeData);
-        setSalaryRate(salaryPerHour);
+        setSalaryRate(activeData && activeData.salaryPerHour !== undefined ? activeData.salaryPerHour : salaryPerHour);
       } 
       
       // --- ADMIN PAYROLL ---
@@ -328,7 +329,8 @@ const Payroll: React.FC = () => {
             if (data.branchName) summary[groupKey].branches.add(data.branchName);
             summary[groupKey].totalHours += hours;
             summary[groupKey].shiftsCount += 1;
-            summary[groupKey].totalEarned += (hours * allEmps[empId].salaryPerHour);
+            const recordSalary = data.salaryPerHour !== undefined ? data.salaryPerHour : allEmps[empId].salaryPerHour;
+            summary[groupKey].totalEarned += (hours * recordSalary);
           }
         });
 

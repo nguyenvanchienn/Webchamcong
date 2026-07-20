@@ -12,6 +12,7 @@ interface Employee {
   fullName: string;
   employeeCode?: string;
   branchName: string;
+  salaryPerHour?: number;
 }
 
 interface Attendance {
@@ -163,6 +164,7 @@ const Kiosk: React.FC = () => {
           checkIn: checkInTime,
           checkOut: null,
           status: 'PRESENT',
+          salaryPerHour: selectedEmp.salaryPerHour || 0,
           logs: [{ action: 'CHECK_IN', time: checkInTime }]
         });
         setTodayAttendance({
