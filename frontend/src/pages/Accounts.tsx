@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, setDoc } from 'firebase/firestore';
 import { db, firebaseConfig } from '../config/firebase';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, updatePassword } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword, updatePassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
 import { Plus, Trash2, X, ShieldAlert, Eye, EyeOff, Edit2, Key, LogOut } from 'lucide-react';
@@ -110,18 +110,21 @@ const Accounts: React.FC = () => {
     }
 
     try {
-      // Gọi API Backend để tạo Firebase Auth User
-      const response = await fetch('http://localhost:5000/api/users/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+      const secondaryApp = initializeApp(firebaseConfig, 'SecondaryAppCreateUser-' + Date.now());
+      const secondaryAuth = getAuth(secondaryApp);
+      
+      const userCredential = await createUserWithEmailAndPassword(secondaryAuth, formData.email, formData.password);
+      
+      await setDoc(doc(db, 'users', userCredential.user.uid), {
+        email: formData.email,
+        role: formData.role,
+        employeeId: formData.employeeId || null,
+        branchId: formData.branchId || null,
+        status: 'ACTIVE',
+        createdAt: new Date().toISOString()
       });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.message);
-      }
+      
+      await secondaryAuth.signOut();
 
       toast.success('Tạo tài khoản thành công!');
       closeModal();
