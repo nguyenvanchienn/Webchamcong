@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { ClipboardList, Calendar, ChevronDown, ChevronUp, Clock } from 'lucide-react';
+import { ClipboardList, Calendar, ChevronDown, ChevronUp, Clock, CheckCircle, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface AttendanceRecord {
@@ -14,6 +14,7 @@ interface AttendanceRecord {
   checkIn: any;
   checkOut: any;
   status: string;
+  logs?: any[];
 }
 
 interface TimesheetSummary {
@@ -58,6 +59,7 @@ const calculateHoursWorked = (data: any): number => {
 
 const Timesheets: React.FC = () => {
   const [loading, setLoading] = useState(true);
+  const [selectedLogs, setSelectedLogs] = useState<any[] | null>(null);
   const [month, setMonth] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -298,11 +300,19 @@ const Timesheets: React.FC = () => {
                                         <div className="flex items-center"><Clock size={12} className="mr-1 text-gray-400"/> In: {inTime}</div>
                                         <div className="flex items-center"><Clock size={12} className="mr-1 text-gray-400"/> Out: {outTime}</div>
                                       </div>
-                                      {rowHours > 0 && (
-                                        <div className="mt-2 text-right text-xs font-semibold text-blue-600">
+                                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
+                                        <div className="text-xs font-medium text-blue-600">
                                           +{formatHours(rowHours)}
                                         </div>
-                                      )}
+                                        {r.logs && r.logs.length > 0 && (
+                                          <button 
+                                            onClick={() => setSelectedLogs(r.logs!)}
+                                            className="text-[10px] text-blue-600 hover:text-blue-800 underline transition-colors"
+                                          >
+                                            Chi tiết
+                                          </button>
+                                        )}
+                                      </div>
                                     </div>
                                   );
                                 })}
@@ -320,6 +330,54 @@ const Timesheets: React.FC = () => {
           </div>
         )}
       </div>
+
+      {selectedLogs && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 transition-opacity">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50">
+              <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                <Clock className="w-5 h-5 text-blue-600" />
+                Lịch sử Ra/Vào ca
+              </h3>
+              <button onClick={() => setSelectedLogs(null)} className="text-gray-400 hover:text-gray-600 p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 max-h-[60vh] overflow-y-auto">
+              <div className="space-y-3 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-gray-200 before:to-transparent">
+                {selectedLogs.map((log, index) => {
+                  const logTime = log.time?.toDate ? log.time.toDate() : new Date(log.time);
+                  return (
+                    <div key={index} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                      <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-blue-100 text-blue-600 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
+                        {log.action === 'CHECK_IN' ? <CheckCircle className="w-4 h-4 text-green-500" /> : <X className="w-4 h-4 text-orange-500" />}
+                      </div>
+                      <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-3 rounded-lg border border-gray-100 bg-white shadow-sm">
+                        <div className="flex items-center justify-between space-x-2 mb-1">
+                          <div className="font-bold text-gray-800 text-sm">
+                            {log.action === 'CHECK_IN' ? 'Check-In' : 'Check-Out'}
+                          </div>
+                          <time className="font-mono text-xs font-medium text-indigo-500">
+                            {logTime.toLocaleTimeString('vi-VN')}
+                          </time>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+              <button 
+                onClick={() => setSelectedLogs(null)}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
