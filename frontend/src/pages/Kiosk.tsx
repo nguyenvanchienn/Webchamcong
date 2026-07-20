@@ -19,6 +19,7 @@ interface Attendance {
   employeeId: string;
   checkIn: Date | null;
   checkOut: Date | null;
+  logs?: any[];
 }
 
 const Kiosk: React.FC = () => {
@@ -119,7 +120,8 @@ const Kiosk: React.FC = () => {
             id: docData.id,
             employeeId: data.employeeId,
             checkIn: data.checkIn ? data.checkIn.toDate() : null,
-            checkOut: data.checkOut ? data.checkOut.toDate() : null
+            checkOut: data.checkOut ? data.checkOut.toDate() : null,
+            logs: data.logs?.map((l: any) => ({ action: l.action, time: l.time?.toDate ? l.time.toDate() : new Date(l.time) })) || []
           });
         } else {
           setTodayAttendance(null);
@@ -167,26 +169,28 @@ const Kiosk: React.FC = () => {
           id: docRef.id,
           employeeId: selectedEmp.id,
           checkIn: checkInTime,
-          checkOut: null
+          checkOut: null,
+          logs: [{ action: 'CHECK_IN', time: checkInTime }]
         });
         toast.success(`Check-in thành công cho ${selectedEmp.fullName}`);
       } else if (todayAttendance && !todayAttendance.checkOut) {
         // Đã check in => Check Out
-        const checkOutTime = new Date();
+        const newLog = { action: 'CHECK_OUT', time: checkOutTime };
         await updateDoc(doc(db, 'attendance', todayAttendance.id), {
           checkOut: checkOutTime,
-          logs: arrayUnion({ action: 'CHECK_OUT', time: checkOutTime })
+          logs: arrayUnion(newLog)
         });
-        setTodayAttendance({ ...todayAttendance, checkOut: checkOutTime });
+        setTodayAttendance({ ...todayAttendance, checkOut: checkOutTime, logs: [...(todayAttendance.logs || []), newLog] });
         toast.success(`Check-out thành công cho ${selectedEmp.fullName}`);
         setCheckoutSuccess(true);
       } else if (todayAttendance && todayAttendance.checkOut) {
         // Check in lại
+        const newLog = { action: 'CHECK_IN', time: new Date() };
         await updateDoc(doc(db, 'attendance', todayAttendance.id), {
           checkOut: null,
-          logs: arrayUnion({ action: 'CHECK_IN', time: new Date() })
+          logs: arrayUnion(newLog)
         });
-        setTodayAttendance({ ...todayAttendance, checkOut: null });
+        setTodayAttendance({ ...todayAttendance, checkOut: null, logs: [...(todayAttendance.logs || []), newLog] });
         toast.success(`Tiếp tục ca làm thành công cho ${selectedEmp.fullName}`);
       }
       
@@ -364,7 +368,27 @@ const Kiosk: React.FC = () => {
                     })()
                   ) : todayAttendance && !todayAttendance.checkOut ? (
                     (() => {
-                      const diffMs = currentTime.getTime() - (todayAttendance.checkIn?.getTime() || currentTime.getTime());
+                      const calculateTotalMs = () => {
+                        let total = 0;
+                        if (todayAttendance.logs && todayAttendance.logs.length > 0) {
+                          let lastIn: Date | null = null;
+                          for (const log of todayAttendance.logs) {
+                            if (log.action === 'CHECK_IN') {
+                              lastIn = log.time;
+                            } else if (log.action === 'CHECK_OUT' && lastIn) {
+                              total += log.time.getTime() - lastIn.getTime();
+                              lastIn = null;
+                            }
+                          }
+                          if (lastIn && !todayAttendance.checkOut) {
+                            total += currentTime.getTime() - lastIn.getTime();
+                          }
+                        } else {
+                          total = currentTime.getTime() - (todayAttendance.checkIn?.getTime() || currentTime.getTime());
+                        }
+                        return total;
+                      };
+                      const diffMs = calculateTotalMs();
                       const validDiff = diffMs > 0 ? diffMs : 0;
                       const hours = Math.floor(validDiff / (1000 * 60 * 60));
                       const minutes = Math.floor((validDiff % (1000 * 60 * 60)) / (1000 * 60));
