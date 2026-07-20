@@ -151,24 +151,33 @@ const Kiosk: React.FC = () => {
       
       if (!todayAttendance) {
         // Chưa có => Check In
-        await addDoc(collection(db, 'attendance'), {
+        const checkInTime = new Date();
+        const docRef = await addDoc(collection(db, 'attendance'), {
           employeeId: selectedEmp.id,
           employeeName: selectedEmp.fullName,
           branchName: selectedEmp.branchName,
           branchId: branchId || null,
           date: todayStr,
-          checkIn: new Date(),
+          checkIn: checkInTime,
           checkOut: null,
           status: 'PRESENT',
-          logs: [{ action: 'CHECK_IN', time: new Date() }]
+          logs: [{ action: 'CHECK_IN', time: checkInTime }]
+        });
+        setTodayAttendance({
+          id: docRef.id,
+          employeeId: selectedEmp.id,
+          checkIn: checkInTime,
+          checkOut: null
         });
         toast.success(`Check-in thành công cho ${selectedEmp.fullName}`);
       } else if (todayAttendance && !todayAttendance.checkOut) {
         // Đã check in => Check Out
+        const checkOutTime = new Date();
         await updateDoc(doc(db, 'attendance', todayAttendance.id), {
-          checkOut: new Date(),
-          logs: arrayUnion({ action: 'CHECK_OUT', time: new Date() })
+          checkOut: checkOutTime,
+          logs: arrayUnion({ action: 'CHECK_OUT', time: checkOutTime })
         });
+        setTodayAttendance({ ...todayAttendance, checkOut: checkOutTime });
         toast.success(`Check-out thành công cho ${selectedEmp.fullName}`);
         setCheckoutSuccess(true);
       } else if (todayAttendance && todayAttendance.checkOut) {
@@ -177,6 +186,7 @@ const Kiosk: React.FC = () => {
           checkOut: null,
           logs: arrayUnion({ action: 'CHECK_IN', time: new Date() })
         });
+        setTodayAttendance({ ...todayAttendance, checkOut: null });
         toast.success(`Tiếp tục ca làm thành công cho ${selectedEmp.fullName}`);
       }
       
