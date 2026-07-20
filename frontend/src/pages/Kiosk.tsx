@@ -338,7 +338,7 @@ const Kiosk: React.FC = () => {
                     ) : null;
                   })()}
 
-                  {!todayAttendance ? (
+                  {!todayAttendance?.checkIn ? (
                     (() => {
                       let canCheckIn = false;
                       if (todayShifts.length > 0) {
@@ -376,7 +376,7 @@ const Kiosk: React.FC = () => {
                         </div>
                       );
                     })()
-                  ) : todayAttendance && !todayAttendance.checkOut ? (
+                  ) : todayAttendance?.checkIn && !todayAttendance?.checkOut ? (
                     (() => {
                       const calculateTotalMs = () => {
                         let total = 0;

@@ -254,7 +254,8 @@ const Attendance: React.FC = () => {
 
     // Kiểm tra xem đã check-in hôm nay nhưng chưa check-out chưa
     const today = new Date().toLocaleDateString('en-CA');
-    const existing = records.find(r => r.employeeId === selectedEmp && r.date === today && !r.checkOut);
+    const existing = records.find(r => r.employeeId === selectedEmp && r.date === today && r.checkIn && !r.checkOut);
+    const absentRecord = records.find(r => r.employeeId === selectedEmp && r.date === today && !r.checkIn);
     
     try {
       if (existing) {
@@ -284,18 +285,27 @@ const Attendance: React.FC = () => {
         const finalSalary = (emp.salaryPerHour || 0) * maxMultiplier;
         
         const checkInTime = new Date();
-        await addDoc(collection(db, 'attendance'), {
-          employeeId: emp.id,
-          employeeName: emp.fullName,
-          branchName: emp.branchName,
-          branchId: emp.branchId || null,
-          date: today,
-          checkIn: checkInTime,
-          checkOut: null,
-          status: 'PRESENT',
-          salaryPerHour: finalSalary,
-          logs: [{ action: 'CHECK_IN', time: checkInTime }]
-        });
+        if (absentRecord) {
+           await updateDoc(doc(db, 'attendance', absentRecord.id), {
+              checkIn: checkInTime,
+              status: 'PRESENT',
+              salaryPerHour: finalSalary,
+              logs: [...(absentRecord.logs || []), { action: 'CHECK_IN', time: checkInTime }]
+           });
+        } else {
+           await addDoc(collection(db, 'attendance'), {
+             employeeId: emp.id,
+             employeeName: emp.fullName,
+             branchName: emp.branchName,
+             branchId: emp.branchId || null,
+             date: today,
+             checkIn: checkInTime,
+             checkOut: null,
+             status: 'PRESENT',
+             salaryPerHour: finalSalary,
+             logs: [{ action: 'CHECK_IN', time: checkInTime }]
+           });
+        }
         toast.success(`Đã Check-in cho ${emp.fullName}!`);
       }
       fetchAttendance();
@@ -448,13 +458,13 @@ const Attendance: React.FC = () => {
             onClick={handleAction}
             className={`px-4 py-2 rounded-lg font-medium shadow-sm transition-colors text-white ${(() => {
               const today = new Date().toLocaleDateString('en-CA');
-              const existing = records.find(r => r.employeeId === selectedEmp && r.date === today && !r.checkOut);
+              const existing = records.find(r => r.employeeId === selectedEmp && r.date === today && r.checkIn && !r.checkOut);
               return existing ? 'bg-orange-600 hover:bg-orange-700' : 'bg-blue-600 hover:bg-blue-700';
             })()}`}
           >
             {(() => {
               const today = new Date().toLocaleDateString('en-CA');
-              const existing = records.find(r => r.employeeId === selectedEmp && r.date === today && !r.checkOut);
+              const existing = records.find(r => r.employeeId === selectedEmp && r.date === today && r.checkIn && !r.checkOut);
               return existing ? 'Check-Out Ngay' : 'Check-In Ngay';
             })()}
           </button>
