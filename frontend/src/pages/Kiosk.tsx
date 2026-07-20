@@ -190,12 +190,8 @@ const Kiosk: React.FC = () => {
         toast.success(`Tiếp tục ca làm thành công cho ${selectedEmp.fullName}`);
       }
       
-      // Reset về trạng thái ban đầu
-      setTimeout(() => {
-        setSelectedEmp(null);
-        setSearchTerm('');
-        setCheckoutSuccess(false);
-      }, 3000);
+      // Bỏ tự động thoát ra để nhân viên có thể xem đồng hồ bấm giờ
+      // setTimeout(() => { ... }, 3000);
     } catch (err) {
       console.error(err);
       toast.error('Có lỗi xảy ra!');
