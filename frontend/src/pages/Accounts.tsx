@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, updateDoc, doc } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { collection, query, where, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { db, firebaseConfig } from '../config/firebase';
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInWithEmailAndPassword, updatePassword } from 'firebase/auth';
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
 import { Plus, Trash2, X, ShieldAlert, Eye, EyeOff, Edit2, Key, LogOut } from 'lucide-react';
@@ -40,7 +42,7 @@ const Accounts: React.FC = () => {
 
   // Đổi mật khẩu Modal
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
-  const [passwordFormData, setPasswordFormData] = useState({ id: '', email: '', password: '', confirmPassword: '' });
+  const [passwordFormData, setPasswordFormData] = useState({ id: '', email: '', oldPassword: '', password: '', confirmPassword: '' });
 
   const fetchData = async () => {
     setLoading(true);
@@ -177,7 +179,7 @@ const Accounts: React.FC = () => {
   };
 
   const openPasswordModal = (acc: UserAccount) => {
-    setPasswordFormData({ id: acc.id, email: acc.email, password: '', confirmPassword: '' });
+    setPasswordFormData({ id: acc.id, email: acc.email, oldPassword: '', password: '', confirmPassword: '' });
     setIsPasswordModalOpen(true);
   };
 
@@ -191,20 +193,29 @@ const Accounts: React.FC = () => {
       toast.error('Mật khẩu phải có ít nhất 6 ký tự!');
       return;
     }
+    if (!passwordFormData.oldPassword) {
+      toast.error('Vui lòng nhập mật khẩu cũ!');
+      return;
+    }
     
     try {
-      const response = await fetch(`http://localhost:5000/api/users/password/${passwordFormData.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: passwordFormData.password })
-      });
-      if (!response.ok) throw new Error('Không thể đổi mật khẩu trên server');
+      // Dùng secondary app để đổi mật khẩu ngay trên frontend (bỏ qua Backend)
+      const secondaryApp = initializeApp(firebaseConfig, 'SecondaryAppForPasswordChange');
+      const secondaryAuth = getAuth(secondaryApp);
+      
+      const userCred = await signInWithEmailAndPassword(secondaryAuth, passwordFormData.email, passwordFormData.oldPassword);
+      await updatePassword(userCred.user, passwordFormData.password);
+      await secondaryAuth.signOut();
       
       toast.success('Đã đổi mật khẩu thành công!');
       setIsPasswordModalOpen(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Lỗi đổi mật khẩu:", error);
-      toast.error('Lỗi khi đổi mật khẩu!');
+      if (error.code === 'auth/invalid-credential') {
+        toast.error('Mật khẩu cũ không chính xác!');
+      } else {
+        toast.error('Lỗi khi đổi mật khẩu!');
+      }
     }
   };
 
@@ -501,6 +512,27 @@ const Accounts: React.FC = () => {
 
             <form onSubmit={handlePasswordSubmit} className="p-6 space-y-4">
               <p className="text-sm text-gray-600 mb-4">Đổi mật khẩu cho tài khoản: <strong>{passwordFormData.email}</strong></p>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Mật khẩu hiện tại (Cũ)</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all pr-10"
+                    value={passwordFormData.oldPassword}
+                    onChange={(e) => setPasswordFormData({...passwordFormData, oldPassword: e.target.value})}
+                    placeholder="Nhập mật khẩu hiện tại..."
+                  />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Mật khẩu mới</label>
