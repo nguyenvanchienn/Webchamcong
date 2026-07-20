@@ -16,12 +16,14 @@ interface Schedule {
   employeeName: string;
   date: string;
   shift: string;
+  salaryMultiplier?: number;
 }
 
 interface EnhancedSchedule {
   id: string;
   date: string;
   shift: string;
+  salaryMultiplier?: number;
   status: 'PENDING' | 'PRESENT' | 'WORKING' | 'ABSENT' | 'FUTURE';
   attendance: Attendance | null;
   coworkers: { name: string; statusStr: string; isMe: boolean }[];
@@ -250,12 +252,11 @@ const EmployeeDashboard: React.FC = () => {
         }
 
         return {
-          id: myShift.id,
-          date: myShift.date,
-          shift: myShift.shift,
-          status,
+          ...myShift,
           attendance: att || null,
-          coworkers
+          status,
+          coworkers,
+          salaryMultiplier: myShift.salaryMultiplier || 1
         };
       });
 
@@ -583,7 +584,14 @@ const EmployeeDashboard: React.FC = () => {
                                 className={`absolute left-1 right-1 rounded-md p-2 overflow-hidden shadow-sm flex flex-col z-10 hover:z-20 transition-all cursor-pointer hover:shadow-md ${bgClass}`}
                                 style={{ top: style.top, height: style.height, minHeight: '40px' }}
                               >
-                                <div className="font-bold text-xs truncate">{getShiftName(sch.shift)}</div>
+                                <div className="font-bold text-xs truncate flex items-center gap-1">
+                                  {getShiftName(sch.shift)}
+                                  {(sch.salaryMultiplier && sch.salaryMultiplier > 1) && (
+                                    <span className="text-[9px] bg-red-500 text-white px-1 rounded-sm shadow-sm ml-1 flex-shrink-0">
+                                      x{sch.salaryMultiplier}
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="text-[10px] opacity-80 truncate">{getShiftTime(sch.shift)}</div>
                                 
                                 <div className="mt-auto flex justify-between items-end">

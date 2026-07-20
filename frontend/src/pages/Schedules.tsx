@@ -70,7 +70,8 @@ const Schedules: React.FC = () => {
     date: new Date().toLocaleDateString('en-CA'),
     startTime: '08:00',
     endTime: '12:00',
-    slots: 1
+    slots: 1,
+    salaryMultiplier: 1
   });
 
   const [myBranchId, setMyBranchId] = useState('');
@@ -229,7 +230,8 @@ const Schedules: React.FC = () => {
             date: processDate,
             shift: shiftStr,
             branchId: bId,
-            branchName: bName
+            branchName: bName,
+            salaryMultiplier: formData.salaryMultiplier
           }));
           promises.push(addDoc(collection(db, 'notifications'), {
             employeeId: empId,
@@ -252,8 +254,9 @@ const Schedules: React.FC = () => {
                 date: processDate,
                 shift: shiftStr,
                 branchId: bId,
-                branchName: bName
-              })
+                branchName: bName,
+                salaryMultiplier: formData.salaryMultiplier
+              }),
             );
           }
         }
@@ -684,7 +687,7 @@ const Schedules: React.FC = () => {
               <CalendarDays className="mr-2 text-blue-600" /> Quản lý Ca làm việc
             </h2>
             <form onSubmit={handleAddSchedule} className="space-y-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div className="md:col-span-1">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Nhân viên nhận ca</label>
                   <select 
@@ -753,6 +756,16 @@ const Schedules: React.FC = () => {
                       className="w-full px-2 py-2 border border-gray-300 rounded-lg outline-none"
                     />
                   </div>
+                </div>
+
+                <div className="md:col-span-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Hệ số lương (Tùy chọn)</label>
+                  <input 
+                    type="number" step="0.1" min="1" max="10"
+                    value={formData.salaryMultiplier}
+                    onChange={(e) => setFormData({...formData, salaryMultiplier: parseFloat(e.target.value) || 1})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none bg-yellow-50 focus:border-yellow-500 focus:ring-yellow-500 font-semibold text-yellow-700"
+                  />
                 </div>
               </div>
                 <div className="md:col-span-2 flex items-center h-full pt-6 space-x-4">
@@ -973,7 +986,14 @@ const Schedules: React.FC = () => {
                               >
                                 <div className="flex justify-between items-start">
                                   <div>
-                                    <div className="font-bold text-[11px] text-gray-800">{getShiftName(shiftType)}</div>
+                                    <div className="font-bold text-[11px] text-gray-800 flex items-center gap-1 flex-wrap">
+                                      {getShiftName(shiftType)}
+                                      {shiftsInSlot[0]?.salaryMultiplier > 1 && (
+                                        <span className="text-[9px] bg-red-500 text-white px-1 rounded-sm shadow-sm">
+                                          x{shiftsInSlot[0].salaryMultiplier}
+                                        </span>
+                                      )}
+                                    </div>
                                     <div className="text-[9px] text-gray-500 mb-1">{getShiftTime(shiftType)}</div>
                                   </div>
                                   {(userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') && (

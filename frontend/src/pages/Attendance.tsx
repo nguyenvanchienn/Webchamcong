@@ -268,6 +268,21 @@ const Attendance: React.FC = () => {
         toast.success(`Đã Check-out cho ${emp.fullName}!`);
       } else {
         // Chưa check-in => Thực hiện check-in
+        const schedQ = query(
+          collection(db, 'schedules'),
+          where('employeeId', '==', emp.id),
+          where('date', '==', today)
+        );
+        const schedSnap = await getDocs(schedQ);
+        let maxMultiplier = 1;
+        schedSnap.forEach(d => {
+          const s = d.data();
+          if (s.salaryMultiplier && s.salaryMultiplier > maxMultiplier) {
+            maxMultiplier = s.salaryMultiplier;
+          }
+        });
+        const finalSalary = (emp.salaryPerHour || 0) * maxMultiplier;
+        
         const checkInTime = new Date();
         await addDoc(collection(db, 'attendance'), {
           employeeId: emp.id,
@@ -278,7 +293,7 @@ const Attendance: React.FC = () => {
           checkIn: checkInTime,
           checkOut: null,
           status: 'PRESENT',
-          salaryPerHour: emp.salaryPerHour || 0,
+          salaryPerHour: finalSalary,
           logs: [{ action: 'CHECK_IN', time: checkInTime }]
         });
         toast.success(`Đã Check-in cho ${emp.fullName}!`);

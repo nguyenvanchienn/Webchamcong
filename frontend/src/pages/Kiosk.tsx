@@ -153,8 +153,15 @@ const Kiosk: React.FC = () => {
       const todayStr = new Date().toLocaleDateString('en-CA');
       
       if (!todayAttendance) {
-        // Chưa có => Check In
+        let maxMultiplier = 1;
+        todayShifts.forEach(s => {
+          if (s.salaryMultiplier && s.salaryMultiplier > maxMultiplier) {
+            maxMultiplier = s.salaryMultiplier;
+          }
+        });
+        const finalSalary = (selectedEmp.salaryPerHour || 0) * maxMultiplier;
         const checkInTime = new Date();
+
         const docRef = await addDoc(collection(db, 'attendance'), {
           employeeId: selectedEmp.id,
           employeeName: selectedEmp.fullName,
@@ -164,7 +171,7 @@ const Kiosk: React.FC = () => {
           checkIn: checkInTime,
           checkOut: null,
           status: 'PRESENT',
-          salaryPerHour: selectedEmp.salaryPerHour || 0,
+          salaryPerHour: finalSalary,
           logs: [{ action: 'CHECK_IN', time: checkInTime }]
         });
         setTodayAttendance({
