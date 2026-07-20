@@ -329,6 +329,18 @@ const Attendance: React.FC = () => {
       }
       
       if (Object.keys(updates).length > 0) {
+        const finalCheckIn = updates.checkIn || record.checkIn;
+        const finalCheckOut = updates.checkOut || record.checkOut;
+        
+        const newLogs = [];
+        if (finalCheckIn) {
+          newLogs.push({ action: 'CHECK_IN', time: finalCheckIn });
+        }
+        if (finalCheckOut) {
+          newLogs.push({ action: 'CHECK_OUT', time: finalCheckOut });
+        }
+        updates.logs = newLogs;
+
         await updateDoc(doc(db, 'attendance', record.id), updates);
         toast.success('Cập nhật giờ thành công!');
         fetchAttendance();
