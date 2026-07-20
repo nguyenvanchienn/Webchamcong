@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, addDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, doc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Clock, CheckCircle, Search, User, X } from 'lucide-react';
+import { Clock, CheckCircle, Search, User } from 'lucide-react';
 import { auth } from '../config/firebase';
-import { onSnapshot } from 'firebase/firestore';
 
 interface Employee {
   id: string;
@@ -293,4 +292,5 @@ const Kiosk: React.FC = () => {
 };
 
 export default Kiosk;
+
 
