@@ -152,6 +152,11 @@ const Kiosk: React.FC = () => {
     } catch (err) {
       console.error(err);
       toast.error('Có lỗi xảy ra!');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const filteredEmployees = employees.filter(e => 
     e.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || 
     (e.employeeCode && e.employeeCode.includes(searchTerm))
