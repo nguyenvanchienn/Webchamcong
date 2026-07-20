@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, query, where, doc, getDoc, addDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { Wallet, CalendarDays } from 'lucide-react';
+import { Wallet, CalendarDays, Clock, X, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface EmployeeInfo {
@@ -24,6 +24,7 @@ interface PayrollItem {
   hoursWorked: number;
   earned: number;
   status: string;
+  logs?: any[];
 }
 
 const formatHours = (decimalHours: number) => {
@@ -77,6 +78,8 @@ const Payroll: React.FC = () => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
+  
+  const [selectedLogs, setSelectedLogs] = useState<any[] | null>(null);
   
   // Dành cho Admin
   const [adminPayroll, setAdminPayroll] = useState<any[]>([]);
@@ -172,20 +175,35 @@ const Payroll: React.FC = () => {
 
               // Tính trạng thái Đi muộn hay Đúng giờ
               let isLate = false;
+              let isEarly = false;
               const shiftsToday = schedulesMap[data.date];
               if (shiftsToday && shiftsToday.length > 0) {
                 // Tìm ca sớm nhất trong ngày của NV này
                 let earliestShiftM = 24 * 60;
+                let latestEndM = 0;
                 shiftsToday.forEach(shiftStr => {
                    const match = shiftStr.match(/\((\d{2}):(\d{2})/);
                    if (match) {
-                      const m = parseInt(match[1]) * 60 + parseInt(match[2]);
-                      if (m < earliestShiftM) earliestShiftM = m;
+                      const startM = parseInt(match[1]) * 60 + parseInt(match[2]);
+                      if (startM < earliestShiftM) earliestShiftM = startM;
+                   }
+                   const matchEnd = shiftStr.match(/-\s*(\d{2}):(\d{2})/);
+                   if (matchEnd && match) {
+                      const startM = parseInt(match[1]) * 60 + parseInt(match[2]);
+                      let endM = parseInt(matchEnd[1]) * 60 + parseInt(matchEnd[2]);
+                      if (endM < startM) endM += 24 * 60;
+                      if (endM > latestEndM) latestEndM = endM;
                    }
                 });
                 const inTotalM = inTime.getHours() * 60 + inTime.getMinutes();
                 if (inTotalM > earliestShiftM + 15) { // Cho phép trễ 15 phút
                    isLate = true;
+                }
+                if (outTime) {
+                   const outTotalM = outTime.getHours() * 60 + outTime.getMinutes();
+                   if (outTotalM < latestEndM) {
+                      isEarly = true;
+                   }
                 }
               }
 
@@ -193,7 +211,14 @@ const Payroll: React.FC = () => {
               if (!outTime) {
                  status = isLate ? 'Đang làm (Đi muộn)' : 'Đang làm (Đúng giờ)';
               } else {
-                 status = isLate ? 'Hoàn thành (Đi muộn)' : 'Hoàn thành (Đúng giờ)';
+                 if (isLate && isEarly) status = 'Hoàn thành (Muộn/Sớm)';
+                 else if (isLate) status = 'Hoàn thành (Đi muộn)';
+                 else if (isEarly) status = 'Hoàn thành (Về sớm)';
+                 else status = 'Hoàn thành (Đúng giờ)';
+              }
+
+              if (data.logs && data.logs.length > 3) {
+                 status += ' - Ngắt quãng';
               }
 
               records.push({
@@ -202,7 +227,8 @@ const Payroll: React.FC = () => {
                 checkOutStr: outTime ? outTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '--:--',
                 hoursWorked: roundedHours,
                 earned: earned,
-                status: status
+                status: status,
+                logs: data.logs?.map((l: any) => ({ action: l.action, time: l.time?.toDate ? l.time.toDate() : new Date(l.time) }))
               });
             }
           }
@@ -529,17 +555,27 @@ const Payroll: React.FC = () => {
                     <td className="p-4 text-sm text-gray-600">
                       Từ <span className="font-medium text-blue-600">{item.checkInStr}</span> đến <span className="font-medium text-blue-600">{item.checkOutStr}</span>
                     </td>
-                    <td className="p-4 text-sm">
-                      <span className={`px-2 py-1 rounded-lg font-medium text-xs border ${
-                        item.status.includes('Đi muộn') 
-                          ? 'bg-orange-50 text-orange-700 border-orange-200' 
-                          : item.status.includes('Đang làm')
-                            ? 'bg-blue-50 text-blue-700 border-blue-200'
-                            : 'bg-green-50 text-green-700 border-green-200'
-                      }`}>
-                        {item.status}
-                      </span>
-                    </td>
+                    <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                            item.status.includes('Đang làm') 
+                              ? 'bg-blue-50 text-blue-700 border-blue-200' 
+                              : item.status.includes('Muộn') || item.status.includes('Sớm') || item.status.includes('Ngắt quãng')
+                              ? 'bg-orange-50 text-orange-700 border-orange-200'
+                              : 'bg-green-50 text-green-700 border-green-200'
+                          }`}>
+                            {item.status}
+                          </span>
+                          {item.logs && item.logs.length > 0 && (
+                            <button 
+                              onClick={() => setSelectedLogs(item.logs!)}
+                              className="text-xs text-blue-600 hover:text-blue-800 underline transition-colors"
+                            >
+                              Chi tiết
+                            </button>
+                          )}
+                        </div>
+                      </td>
                     <td className="p-4 text-sm text-center text-gray-600">
                       {item.hoursWorked > 0 ? (
                         <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded-lg font-medium border border-blue-100">
@@ -620,6 +656,50 @@ const Payroll: React.FC = () => {
         </div>
       )}
 
+      {selectedLogs && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 transition-opacity">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50">
+              <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                <Clock className="w-5 h-5 text-blue-600" />
+                Lịch sử Ra/Vào ca
+              </h3>
+              <button onClick={() => setSelectedLogs(null)} className="text-gray-400 hover:text-gray-600 p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 max-h-[60vh] overflow-y-auto">
+              <div className="space-y-3 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-gray-200 before:to-transparent">
+                {selectedLogs.map((log, index) => (
+                  <div key={index} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-blue-100 text-blue-600 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
+                      {log.action === 'CHECK_IN' ? <CheckCircle className="w-4 h-4 text-green-500" /> : <X className="w-4 h-4 text-orange-500" />}
+                    </div>
+                    <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-3 rounded-lg border border-gray-100 bg-white shadow-sm">
+                      <div className="flex items-center justify-between space-x-2 mb-1">
+                        <div className="font-bold text-gray-800 text-sm">
+                          {log.action === 'CHECK_IN' ? 'Check-In' : 'Check-Out'}
+                        </div>
+                        <time className="font-mono text-xs font-medium text-indigo-500">
+                          {log.time.toLocaleTimeString('vi-VN')}
+                        </time>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+              <button 
+                onClick={() => setSelectedLogs(null)}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
