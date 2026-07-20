@@ -373,7 +373,7 @@ const Payroll: React.FC = () => {
 
       {/* TỔNG KẾT NHÂN VIÊN (Dành cho Admin) */}
       {(userRole === 'SUPER_ADMIN' || (userRole === 'BRANCH_ADMIN' && activeTab === 'admin')) && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto overflow-y-hidden">
           <div className="p-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
             <h3 className="font-bold text-gray-800">Tổng hợp Bảng Lương Nhân Viên</h3>
             <div className="flex items-center space-x-3">
@@ -398,7 +398,7 @@ const Payroll: React.FC = () => {
               />
             </div>
           </div>
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="p-4 font-semibold text-gray-600 text-sm">Nhân viên</th>
@@ -462,7 +462,7 @@ const Payroll: React.FC = () => {
 
       {/* CHI TIẾT CÁ NHÂN (Dành cho Nhân viên) */}
       {(userRole === 'EMPLOYEE' || (userRole === 'BRANCH_ADMIN' && activeTab === 'personal')) && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto overflow-y-hidden">
           <div className="p-4 bg-gray-50 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <h3 className="font-bold text-gray-800 flex items-center">
               <CalendarDays size={18} className="mr-2 text-gray-500" />
@@ -481,7 +481,7 @@ const Payroll: React.FC = () => {
             </div>
           </div>
           
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="p-4 font-semibold text-gray-600 text-sm">Ngày làm việc</th>
@@ -601,3 +601,4 @@ const Payroll: React.FC = () => {
 };
 
 export default Payroll;
+

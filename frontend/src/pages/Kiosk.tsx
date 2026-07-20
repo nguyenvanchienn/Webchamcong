@@ -295,3 +295,4 @@ const Kiosk: React.FC = () => {
 };
 
 export default Kiosk;
+

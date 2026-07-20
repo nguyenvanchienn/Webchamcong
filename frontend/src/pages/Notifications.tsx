@@ -251,7 +251,7 @@ const Notifications: React.FC = () => {
         </div>
       )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto overflow-y-hidden">
         {loading ? (
           <div className="p-8 text-center text-gray-500">Đang tải thông báo...</div>
         ) : notifications.length === 0 ? (
@@ -390,3 +390,4 @@ const Notifications: React.FC = () => {
 };
 
 export default Notifications;
+

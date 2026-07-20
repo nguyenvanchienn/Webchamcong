@@ -198,11 +198,11 @@ const Accounts: React.FC = () => {
         </button>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto overflow-y-hidden">
         {loading ? (
           <div className="p-8 text-center text-gray-500">Đang tải dữ liệu...</div>
         ) : (
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="p-4 font-semibold text-gray-600 text-sm">Tài khoản (Email)</th>
@@ -412,3 +412,4 @@ const Accounts: React.FC = () => {
 };
 
 export default Accounts;
+

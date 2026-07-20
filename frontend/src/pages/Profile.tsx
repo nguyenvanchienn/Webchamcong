@@ -365,7 +365,7 @@ const Profile: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto overflow-y-hidden">
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 h-32 relative">
           <div className="absolute top-4 right-4 flex space-x-2">
             <button 
@@ -920,3 +920,4 @@ const Profile: React.FC = () => {
 };
 
 export default Profile;
+
