@@ -35,6 +35,27 @@ const formatHours = (decimalHours: number) => {
   return `${h}h ${m}m`;
 };
 
+const calculateHoursWorked = (data: any): number => {
+  if (!data.checkIn || !data.checkOut) return 0;
+  if (data.logs && data.logs.length > 0) {
+    let totalMs = 0;
+    let lastIn: Date | null = null;
+    for (const log of data.logs) {
+      if (log.action === 'CHECK_IN') {
+        lastIn = log.time?.toDate ? log.time.toDate() : new Date(log.time);
+      } else if (log.action === 'CHECK_OUT' && lastIn) {
+        const outTime = log.time?.toDate ? log.time.toDate() : new Date(log.time);
+        totalMs += outTime.getTime() - lastIn.getTime();
+        lastIn = null;
+      }
+    }
+    return totalMs / (1000 * 60 * 60);
+  }
+  const inTime = data.checkIn.toDate ? data.checkIn.toDate() : new Date(data.checkIn);
+  const outTime = data.checkOut.toDate ? data.checkOut.toDate() : new Date(data.checkOut);
+  return (outTime.getTime() - inTime.getTime()) / (1000 * 60 * 60);
+};
+
 const Timesheets: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState(() => {
@@ -143,9 +164,7 @@ const Timesheets: React.FC = () => {
         summaryMap[groupKey].shiftsPresent += 1;
 
         if (r.checkIn && r.checkOut) {
-          const inTime = r.checkIn.toDate();
-          const outTime = r.checkOut.toDate();
-          const hours = (outTime.getTime() - inTime.getTime()) / (1000 * 60 * 60);
+          const hours = calculateHoursWorked(r);
           summaryMap[groupKey].totalHours += hours;
         }
       });
@@ -259,7 +278,7 @@ const Timesheets: React.FC = () => {
                                   
                                   let rowHours = 0;
                                   if (r.checkIn && r.checkOut) {
-                                    rowHours = (r.checkOut.toDate().getTime() - r.checkIn.toDate().getTime()) / (1000 * 60 * 60);
+                                    rowHours = calculateHoursWorked(r);
                                   }
 
                                   return (

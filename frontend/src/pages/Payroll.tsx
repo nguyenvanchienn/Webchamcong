@@ -35,6 +35,27 @@ const formatHours = (decimalHours: number) => {
   return `${h}h ${m}m ${s}s`;
 };
 
+const calculateHoursWorked = (data: any): number => {
+  if (!data.checkIn || !data.checkOut) return 0;
+  if (data.logs && data.logs.length > 0) {
+    let totalMs = 0;
+    let lastIn: Date | null = null;
+    for (const log of data.logs) {
+      if (log.action === 'CHECK_IN') {
+        lastIn = log.time?.toDate ? log.time.toDate() : new Date(log.time);
+      } else if (log.action === 'CHECK_OUT' && lastIn) {
+        const outTime = log.time?.toDate ? log.time.toDate() : new Date(log.time);
+        totalMs += outTime.getTime() - lastIn.getTime();
+        lastIn = null;
+      }
+    }
+    return totalMs / (1000 * 60 * 60);
+  }
+  const inTime = data.checkIn.toDate();
+  const outTime = data.checkOut.toDate();
+  return (outTime.getTime() - inTime.getTime()) / (1000 * 60 * 60);
+};
+
 const Payroll: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [payrollData, setPayrollData] = useState<PayrollItem[]>([]);
@@ -131,8 +152,7 @@ const Payroll: React.FC = () => {
               let earned = 0;
 
               if (outTime) {
-                const diffMs = outTime.getTime() - inTime.getTime();
-                const hours = diffMs / (1000 * 60 * 60);
+                const hours = calculateHoursWorked(data);
                 roundedHours = hours;
                 earned = Math.round(hours * salaryPerHour);
 
@@ -257,9 +277,7 @@ const Payroll: React.FC = () => {
 
             if (!belongsToAdmin) return;
 
-            const inTime = data.checkIn.toDate();
-            const outTime = data.checkOut.toDate();
-            const hours = (outTime.getTime() - inTime.getTime()) / (1000 * 60 * 60);
+            const hours = calculateHoursWorked(data);
             
             const groupKey = empId;
             
