@@ -35,8 +35,9 @@ const formatHours = (decimalHours: number) => {
   return `${h}h ${m}m ${s}s`;
 };
 
-const calculateHoursWorked = (data: any): number => {
-  if (!data.checkIn || !data.checkOut) return 0;
+const calculateHoursWorked = (data: any, isLive = false): number => {
+  if (!data.checkIn) return 0;
+  if (!data.checkOut && !isLive) return 0;
   if (data.logs && data.logs.length > 0) {
     let totalMs = 0;
     let lastIn: Date | null = null;
@@ -49,11 +50,18 @@ const calculateHoursWorked = (data: any): number => {
         lastIn = null;
       }
     }
+    if (lastIn && !data.checkOut && isLive) {
+      totalMs += Date.now() - lastIn.getTime();
+    }
     return totalMs / (1000 * 60 * 60);
   }
-  const inTime = data.checkIn.toDate();
-  const outTime = data.checkOut.toDate();
-  return (outTime.getTime() - inTime.getTime()) / (1000 * 60 * 60);
+  const inTime = data.checkIn?.toDate ? data.checkIn.toDate() : new Date(data.checkIn);
+  if (!data.checkOut) {
+    if (isLive) return Math.max(0, Date.now() - inTime.getTime()) / (1000 * 60 * 60);
+    return 0;
+  }
+  const outTime = data.checkOut?.toDate ? data.checkOut.toDate() : new Date(data.checkOut);
+  return Math.max(0, outTime.getTime() - inTime.getTime()) / (1000 * 60 * 60);
 };
 
 const Payroll: React.FC = () => {
@@ -61,7 +69,7 @@ const Payroll: React.FC = () => {
   const [payrollData, setPayrollData] = useState<PayrollItem[]>([]);
   const [totalEarned, setTotalEarned] = useState(0);
   const [totalHours, setTotalHours] = useState(0);
-  const [activeShiftInTime, setActiveShiftInTime] = useState<Date | null>(null);
+  const [activeShiftData, setActiveShiftData] = useState<any | null>(null);
   const [liveHours, setLiveHours] = useState(0);
   const [salaryRate, setSalaryRate] = useState(0);
   
@@ -139,7 +147,7 @@ const Payroll: React.FC = () => {
         const records: PayrollItem[] = [];
         let tHours = 0;
         let tEarned = 0;
-        let activeIn: Date | null = null;
+        let activeData: any | null = null;
 
         attSnap.forEach(d => {
           const data = d.data();
@@ -159,7 +167,7 @@ const Payroll: React.FC = () => {
                 tHours += roundedHours;
                 tEarned += earned;
               } else {
-                activeIn = inTime;
+                activeData = data;
               }
 
               // Tính trạng thái Đi muộn hay Đúng giờ
@@ -204,7 +212,7 @@ const Payroll: React.FC = () => {
         setPayrollData(records);
         setTotalHours(tHours);
         setTotalEarned(tEarned);
-        setActiveShiftInTime(activeIn);
+        setActiveShiftData(activeData);
         setSalaryRate(salaryPerHour);
       } 
       
@@ -334,17 +342,15 @@ const Payroll: React.FC = () => {
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
-    if (activeShiftInTime) {
+    if (activeShiftData) {
       interval = setInterval(() => {
-        const now = new Date();
-        const diffMs = Math.max(0, now.getTime() - activeShiftInTime.getTime());
-        setLiveHours(diffMs / (1000 * 60 * 60));
+        setLiveHours(calculateHoursWorked(activeShiftData, true));
       }, 1000);
     } else {
       setLiveHours(0);
     }
     return () => clearInterval(interval);
-  }, [activeShiftInTime]);
+  }, [activeShiftData]);
 
   if (loading) {
     return <div className="p-8 text-center text-gray-500">Đang tính toán bảng lương...</div>;
