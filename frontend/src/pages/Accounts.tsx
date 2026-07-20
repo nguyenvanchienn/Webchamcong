@@ -504,26 +504,44 @@ const Accounts: React.FC = () => {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Mật khẩu mới</label>
-                <input
-                  type="password"
-                  required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                  value={passwordFormData.password}
-                  onChange={(e) => setPasswordFormData({...passwordFormData, password: e.target.value})}
-                  placeholder="Nhập mật khẩu mới..."
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all pr-10"
+                    value={passwordFormData.password}
+                    onChange={(e) => setPasswordFormData({...passwordFormData, password: e.target.value})}
+                    placeholder="Nhập mật khẩu mới..."
+                  />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Xác nhận mật khẩu</label>
-                <input
-                  type="password"
-                  required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                  value={passwordFormData.confirmPassword}
-                  onChange={(e) => setPasswordFormData({...passwordFormData, confirmPassword: e.target.value})}
-                  placeholder="Nhập lại mật khẩu mới..."
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all pr-10"
+                    value={passwordFormData.confirmPassword}
+                    onChange={(e) => setPasswordFormData({...passwordFormData, confirmPassword: e.target.value})}
+                    placeholder="Nhập lại mật khẩu mới..."
+                  />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 mt-6">
