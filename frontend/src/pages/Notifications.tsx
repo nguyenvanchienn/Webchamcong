@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, getDocs, updateDoc, doc, addDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, doc, addDoc, deleteDoc, orderBy } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import toast from 'react-hot-toast';
-import { Bell, Check, Clock, UserCog, Wallet, Info, TrendingUp, TrendingDown, Megaphone, Plus, X, Edit2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Bell, Clock, UserCog, Wallet, Info, TrendingUp, TrendingDown, Megaphone, Plus, X, Edit2 } from 'lucide-react';
 
 interface Notification {
   id: string;
@@ -15,6 +16,7 @@ interface Notification {
 }
 
 const Notifications: React.FC = () => {
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const currentEmployeeId = localStorage.getItem('employeeId');
@@ -137,12 +139,37 @@ const Notifications: React.FC = () => {
     fetchNotifications();
   }, [currentEmployeeId, userRole, currentUserBranchId]);
 
-  const markAsRead = async (id: string) => {
-    try {
-      await updateDoc(doc(db, 'notifications', id), { read: true });
-      setNotifications(notifications.map(n => n.id === id ? { ...n, read: true } : n));
-    } catch (error) {
-      console.error('Error marking as read:', error);
+  const handleNotificationClick = async (notif: Notification) => {
+    // 1. Mark as read
+    if (!notif.read && notif.type !== 'ANNOUNCEMENT') {
+      try {
+        await updateDoc(doc(db, 'notifications', notif.id), { read: true });
+        setNotifications(notifications.map(n => n.id === notif.id ? { ...n, read: true } : n));
+      } catch (error) {
+        console.error('Error marking as read:', error);
+      }
+    }
+    
+    // 2. Navigate based on type
+    switch (notif.type) {
+      case 'SCHEDULE_ASSIGNED':
+      case 'SCHEDULE_REGISTER':
+      case 'SCHEDULE_CANCEL':
+        navigate('/dashboard/schedules');
+        break;
+      case 'MONEY_ADD':
+      case 'MONEY_SUB':
+      case 'SALARY_UPDATE':
+        navigate('/dashboard/payroll');
+        break;
+      case 'PROFILE_UPDATE':
+        navigate('/dashboard/profile');
+        break;
+      case 'ANNOUNCEMENT':
+      case 'SYSTEM':
+      default:
+        navigate('/dashboard');
+        break;
     }
   };
 
@@ -307,7 +334,8 @@ const Notifications: React.FC = () => {
             {notifications.map(notif => (
               <div 
                 key={notif.id} 
-                className={`p-5 flex gap-4 transition-colors ${notif.read ? 'bg-white' : 'bg-blue-50/50'}`}
+                onClick={() => handleNotificationClick(notif)}
+                className={`p-5 flex gap-4 transition-colors cursor-pointer hover:bg-gray-50 ${notif.read ? 'bg-white' : 'bg-blue-50/50'}`}
               >
                 <div className={`p-3 rounded-full h-fit flex-shrink-0 ${notif.read ? 'bg-gray-100' : 'bg-white shadow-sm'}`}>
                   {getIcon(notif.type)}
@@ -325,15 +353,6 @@ const Notifications: React.FC = () => {
                   <p className={`mt-1 text-sm ${notif.read ? 'text-gray-500' : 'text-gray-700'}`}>
                     {notif.message}
                   </p>
-                  
-                  {!notif.read && (
-                    <button 
-                      onClick={() => markAsRead(notif.id)}
-                      className="mt-3 text-sm flex items-center text-blue-600 hover:text-blue-800 font-medium transition-colors"
-                    >
-                      <Check size={16} className="mr-1" /> Đánh dấu đã đọc
-                    </button>
-                  )}
                 </div>
               </div>
             ))}

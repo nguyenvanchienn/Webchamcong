@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { auth, db } from '../config/firebase';
 import { signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { 
   LayoutDashboard, Building2, Users, UserCog, 
   Clock, CalendarDays, ClipboardList, Wallet, 
@@ -21,6 +21,20 @@ const DashboardLayout: React.FC = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (!employeeId) return;
+    const q = query(
+      collection(db, 'notifications'), 
+      where('employeeId', '==', employeeId), 
+      where('read', '==', false)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      setUnreadCount(snap.docs.length);
+    });
+    return () => unsub();
+  }, [employeeId]);
 
   useEffect(() => {
     const fetchName = async () => {
@@ -127,16 +141,24 @@ const DashboardLayout: React.FC = () => {
                   to={item.path}
                   title={isSidebarCollapsed ? item.name : ''}
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className={`flex items-center py-3 text-sm font-medium rounded-lg transition-colors ${
+                  className={`flex items-center py-3 text-sm font-medium rounded-lg transition-colors relative ${
                     isActive 
                       ? 'bg-blue-50 text-blue-700' 
                       : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                   } ${isSidebarCollapsed ? 'md:justify-center px-4 md:px-0' : 'px-4'}`}
                 >
-                  <span className={`${isSidebarCollapsed ? 'md:mr-0 mr-3' : 'mr-3'} ${isActive ? 'text-blue-700' : 'text-gray-400'}`}>
+                  <span className={`${isSidebarCollapsed ? 'md:mr-0 mr-3' : 'mr-3'} relative ${isActive ? 'text-blue-700' : 'text-gray-400'}`}>
                     {item.icon}
+                    {item.path === '/dashboard/notifications' && unreadCount > 0 && isSidebarCollapsed && (
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
+                    )}
                   </span>
-                  <span className={`${isSidebarCollapsed ? 'md:hidden' : ''}`}>{item.name}</span>
+                  <span className={`${isSidebarCollapsed ? 'md:hidden' : ''} flex-1`}>{item.name}</span>
+                  {item.path === '/dashboard/notifications' && unreadCount > 0 && !isSidebarCollapsed && (
+                    <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full ml-auto md:mr-0 mr-2 shadow-sm">
+                      {unreadCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}
