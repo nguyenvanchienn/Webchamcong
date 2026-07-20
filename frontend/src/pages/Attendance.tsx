@@ -24,6 +24,8 @@ interface AttendanceRecord {
   checkOut: Date | null;
   status: string;
   shiftStr?: string;
+  logs?: any[];
+  totalMs?: number;
 }
 
 const Attendance: React.FC = () => {
@@ -98,11 +100,13 @@ const Attendance: React.FC = () => {
       
       const rawAtts: any[] = [];
       attSnap.forEach(d => {
+        const data = d.data();
         rawAtts.push({ 
           id: d.id, 
-          ...d.data(), 
-          checkIn: d.data().checkIn?.toDate(), 
-          checkOut: d.data().checkOut?.toDate() 
+          ...data, 
+          checkIn: data.checkIn?.toDate(), 
+          checkOut: data.checkOut?.toDate(),
+          logs: data.logs?.map((l: any) => ({ action: l.action, time: l.time?.toDate() })) || []
         });
       });
 
@@ -154,12 +158,55 @@ const Attendance: React.FC = () => {
               }
             } else {
               let isLate = false;
+              let isEarly = false;
               if (att.checkIn) {
                 const inM = att.checkIn.getHours() * 60 + att.checkIn.getMinutes();
                 if (inM > shiftStartM + 15) isLate = true;
               }
+              if (att.checkOut) {
+                const outM = att.checkOut.getHours() * 60 + att.checkOut.getMinutes();
+                let shiftEndM = 0;
+                const matchEnd = shift.shift.match(/-\s*(\d{2}):(\d{2})/);
+                if (matchEnd) {
+                  shiftEndM = parseInt(matchEnd[1]) * 60 + parseInt(matchEnd[2]);
+                  if (shiftEndM < shiftStartM) shiftEndM += 24 * 60;
+                }
+                if (outM < shiftEndM) isEarly = true;
+              }
+
               if (!att.checkOut) calcStatus = isLate ? 'Đang làm (Đi muộn)' : 'Đang làm (Đúng giờ)';
-              else calcStatus = isLate ? 'Hoàn thành (Đi muộn)' : 'Hoàn thành (Đúng giờ)';
+              else {
+                if (isLate && isEarly) calcStatus = 'Hoàn thành (Muộn/Sớm)';
+                else if (isLate) calcStatus = 'Hoàn thành (Đi muộn)';
+                else if (isEarly) calcStatus = 'Hoàn thành (Về sớm)';
+                else calcStatus = 'Hoàn thành (Đúng giờ)';
+              }
+              
+              if (att.logs && att.logs.length > 3) { // Multiple IN/OUTs
+                calcStatus += ' - Ngắt quãng';
+              }
+            }
+          }
+
+          let totalMs = 0;
+          if (att) {
+            if (att.logs && att.logs.length > 0) {
+              let lastIn: Date | null = null;
+              for (const log of att.logs) {
+                if (log.action === 'CHECK_IN') {
+                  lastIn = log.time;
+                } else if (log.action === 'CHECK_OUT' && lastIn) {
+                  totalMs += log.time.getTime() - lastIn.getTime();
+                  lastIn = null;
+                }
+              }
+              if (lastIn && filterDate === todayStr) {
+                totalMs += new Date().getTime() - lastIn.getTime();
+              }
+            } else if (att.checkIn && att.checkOut) {
+              totalMs = att.checkOut.getTime() - att.checkIn.getTime();
+            } else if (att.checkIn && filterDate === todayStr) {
+              totalMs = new Date().getTime() - att.checkIn.getTime();
             }
           }
 
@@ -174,7 +221,9 @@ const Attendance: React.FC = () => {
             checkIn: att?.checkIn || null,
             checkOut: att?.checkOut || null,
             status: calcStatus,
-            shiftStr: shift ? shift.shift : 'Không có ca'
+            shiftStr: shift ? shift.shift : 'Không có ca',
+            logs: att?.logs,
+            totalMs
           });
         }
       });
@@ -433,8 +482,8 @@ const Attendance: React.FC = () => {
                     </td>
                     <td className="p-4 text-sm text-blue-600 font-medium">
                       {(() => {
-                        if (record.checkIn && record.checkOut) {
-                          const diff = record.checkOut.getTime() - record.checkIn.getTime();
+                        if (record.totalMs) {
+                          const diff = record.totalMs;
                           const hrs = Math.floor(diff / (1000 * 60 * 60));
                           const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
                           const secs = Math.floor((diff % (1000 * 60)) / 1000);
@@ -448,10 +497,10 @@ const Attendance: React.FC = () => {
                         let colorClass = 'bg-green-100 text-green-700';
                         if (record.status.includes('Vắng mặt')) colorClass = 'bg-red-100 text-red-700';
                         else if (record.status.includes('Chưa') || record.status.includes('Không')) colorClass = 'bg-gray-100 text-gray-700';
-                        else if (record.status.includes('muộn')) colorClass = 'bg-orange-100 text-orange-700';
+                        else if (record.status.includes('muộn') || record.status.includes('sớm') || record.status.includes('Muộn/Sớm') || record.status.includes('Ngắt quãng')) colorClass = 'bg-yellow-100 text-yellow-700';
                         
                         return (
-                          <span className={`px-2 py-1 rounded-full text-xs font-semibold flex items-center w-max ${colorClass}`}>
+                          <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${colorClass}`}>
                             {record.status}
                           </span>
                         );
