@@ -33,6 +33,7 @@ const Kiosk: React.FC = () => {
   const [todayAttendance, setTodayAttendance] = useState<Attendance | null>(null);
   const [todayShifts, setTodayShifts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [checkoutSuccess, setCheckoutSuccess] = useState(false);
 
   // Lắng nghe lệnh đăng xuất từ xa
   useEffect(() => {
@@ -169,6 +170,7 @@ const Kiosk: React.FC = () => {
           logs: arrayUnion({ action: 'CHECK_OUT', time: new Date() })
         });
         toast.success(`Check-out thành công cho ${selectedEmp.fullName}`);
+        setCheckoutSuccess(true);
       } else if (todayAttendance && todayAttendance.checkOut) {
         // Check in lại
         await updateDoc(doc(db, 'attendance', todayAttendance.id), {
@@ -179,8 +181,11 @@ const Kiosk: React.FC = () => {
       }
       
       // Reset về trạng thái ban đầu
-      setSelectedEmp(null);
-      setSearchTerm('');
+      setTimeout(() => {
+        setSelectedEmp(null);
+        setSearchTerm('');
+        setCheckoutSuccess(false);
+      }, 3000);
     } catch (err) {
       console.error(err);
       toast.error('Có lỗi xảy ra!');
@@ -267,7 +272,7 @@ const Kiosk: React.FC = () => {
           ) : (
             <div className="p-8 text-center">
               <button 
-                onClick={() => { setSelectedEmp(null); setSearchTerm(''); }}
+                onClick={() => { setSelectedEmp(null); setSearchTerm(''); setCheckoutSuccess(false); }}
                 className="text-blue-500 hover:text-blue-700 font-medium text-sm mb-6 inline-flex items-center"
               >
                 ← Quay lại danh sách
@@ -344,7 +349,7 @@ const Kiosk: React.FC = () => {
                         <div className="py-6 bg-gray-50 border border-gray-200 rounded-xl">
                           <div className="text-gray-600 flex flex-col items-center justify-center gap-2">
                             <span className="text-lg font-medium text-center px-4">
-                              Bạn không có ca làm việc lúc này, hoặc chưa đến giờ điểm danh.<br/>
+                              Bạn không có ca làm việc lúc này, hoặc đã hết ca.<br/>
                               <span className="text-sm">(Chỉ hiển thị nút Bắt Đầu trước giờ làm 30 phút)</span>
                             </span>
                           </div>
@@ -427,11 +432,20 @@ const Kiosk: React.FC = () => {
                             TIẾP TỤC CA LÀM (CHECK-IN LẠI)
                           </button>
                         </div>
-                      ) : (
+                      ) : checkoutSuccess ? (
                         <div className="py-6 bg-green-50 border border-green-200 rounded-xl">
                           <div className="text-green-600 font-bold flex flex-col items-center justify-center gap-2">
                             <CheckCircle size={40} />
                             <span className="text-xl">BẠN ĐÃ HOÀN THÀNH CA LÀM HÔM NAY</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="py-6 bg-gray-50 border border-gray-200 rounded-xl">
+                          <div className="text-gray-600 flex flex-col items-center justify-center gap-2">
+                            <span className="text-lg font-medium text-center px-4">
+                              Bạn không có ca làm việc lúc này, hoặc đã hết ca.<br/>
+                              <span className="text-sm">(Chỉ hiển thị nút trước giờ làm 30 phút)</span>
+                            </span>
                           </div>
                         </div>
                       );
