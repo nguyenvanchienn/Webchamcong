@@ -182,10 +182,13 @@ const DashboardLayout: React.FC = () => {
         <header className="h-16 bg-white shadow-sm flex items-center justify-between px-4 md:px-6 z-10">
           <div className="flex items-center">
             <button 
-              className="md:hidden mr-3 text-gray-600 hover:text-blue-600 focus:outline-none"
+              className="md:hidden mr-3 text-gray-600 hover:text-blue-600 focus:outline-none relative"
               onClick={() => setIsMobileMenuOpen(true)}
             >
               <Menu size={24} />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
+              )}
             </button>
             <h2 className="text-lg font-semibold text-gray-800 truncate max-w-[150px] sm:max-w-xs md:max-w-none">
               {menuItems.find(i => i.path === location.pathname)?.name || 'Hệ thống'}
