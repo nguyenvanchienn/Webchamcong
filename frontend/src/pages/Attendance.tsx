@@ -240,7 +240,7 @@ const Attendance: React.FC = () => {
     fetchAttendance();
   }, [filterDate]);
 
-  const handleCheckIn = async () => {
+  const handleAction = async () => {
     if (!selectedEmp) {
       toast.error('Vui lòng chọn nhân viên!');
       return;
@@ -253,27 +253,35 @@ const Attendance: React.FC = () => {
     const today = new Date().toLocaleDateString('en-CA');
     const existing = records.find(r => r.employeeId === selectedEmp && r.date === today && !r.checkOut);
     
-    if (existing) {
-      toast.error('Nhân viên này đang trong ca làm việc, chưa Check-out!');
-      return;
-    }
-
     try {
-      await addDoc(collection(db, 'attendance'), {
-        employeeId: emp.id,
-        employeeName: emp.fullName,
-        branchName: emp.branchName,
-        branchId: emp.branchId || null,
-        date: today,
-        checkIn: new Date(),
-        checkOut: null,
-        status: 'PRESENT' // Có mặt
-      });
-      toast.success('Check-in thành công!');
+      if (existing) {
+        // Đã check-in => Thực hiện check-out
+        const checkOutTime = new Date();
+        const logs = existing.logs || [];
+        await updateDoc(doc(db, 'attendance', existing.id), {
+          checkOut: checkOutTime,
+          logs: [...logs, { action: 'CHECK_OUT', time: checkOutTime }]
+        });
+        toast.success(`Đã Check-out cho ${emp.fullName}!`);
+      } else {
+        // Chưa check-in => Thực hiện check-in
+        const checkInTime = new Date();
+        await addDoc(collection(db, 'attendance'), {
+          employeeId: emp.id,
+          employeeName: emp.fullName,
+          branchName: emp.branchName,
+          branchId: emp.branchId || null,
+          date: today,
+          checkIn: checkInTime,
+          checkOut: null,
+          status: 'PRESENT',
+          logs: [{ action: 'CHECK_IN', time: checkInTime }]
+        });
+        toast.success(`Đã Check-in cho ${emp.fullName}!`);
+      }
       fetchAttendance();
     } catch (error) {
-      toast.error('Lỗi Check-in!');
-      toast.error('Lỗi Check-in!');
+      toast.error('Có lỗi xảy ra!');
       console.error(error);
     }
   };
@@ -406,10 +414,18 @@ const Attendance: React.FC = () => {
               ))}
           </select>
           <button 
-            onClick={handleCheckIn}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition-colors"
+            onClick={handleAction}
+            className={`px-4 py-2 rounded-lg font-medium shadow-sm transition-colors text-white ${(() => {
+              const today = new Date().toLocaleDateString('en-CA');
+              const existing = records.find(r => r.employeeId === selectedEmp && r.date === today && !r.checkOut);
+              return existing ? 'bg-orange-600 hover:bg-orange-700' : 'bg-blue-600 hover:bg-blue-700';
+            })()}`}
           >
-            Check-In Ngay
+            {(() => {
+              const today = new Date().toLocaleDateString('en-CA');
+              const existing = records.find(r => r.employeeId === selectedEmp && r.date === today && !r.checkOut);
+              return existing ? 'Check-Out Ngay' : 'Check-In Ngay';
+            })()}
           </button>
         </div>
       </div>
