@@ -15,6 +15,7 @@ interface AttendanceRecord {
   checkOut: any;
   status: string;
   logs?: any[];
+  shiftStr?: string;
 }
 
 interface TimesheetSummary {
@@ -99,10 +100,28 @@ const Timesheets: React.FC = () => {
       );
 
       const snap = await getDocs(attQuery);
-      const records: AttendanceRecord[] = [];
+      const recordsMap = new Map<string, any>();
       snap.forEach(doc => {
-        records.push({ id: doc.id, ...doc.data() } as AttendanceRecord);
+        recordsMap.set(doc.id, { id: doc.id, ...doc.data() });
       });
+
+      const schedQuery = query(
+        collection(db, 'schedules'),
+        where('date', '>=', startDate),
+        where('date', '<=', endDate)
+      );
+      const schedSnap = await getDocs(schedQuery);
+      const schedulesMap: Record<string, string> = {};
+      schedSnap.forEach(d => {
+        const data = d.data();
+        schedulesMap[`${data.employeeId}_${data.date}`] = data.shift;
+      });
+
+      const records: AttendanceRecord[] = [];
+      for (const data of recordsMap.values()) {
+        const shiftStr = schedulesMap[`${data.employeeId}_${data.date}`] || 'Không có ca';
+        records.push({ ...data, shiftStr } as AttendanceRecord);
+      }
 
       const empSnap = await getDocs(collection(db, 'employees'));
       const empMap: Record<string, string> = {};
@@ -288,7 +307,7 @@ const Timesheets: React.FC = () => {
                                       <div className="flex justify-between items-center mb-2">
                                         <div className="flex flex-col">
                                           <span className="text-xs font-bold text-gray-800">{new Date(r.date).toLocaleDateString('vi-VN')}</span>
-                                          <span className="text-[10px] text-gray-500">{r.branchName}</span>
+                                          <span className="text-[10px] text-gray-500">{r.branchName} • {r.shiftStr}</span>
                                         </div>
                                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
                                           r.status.includes('Đi muộn') ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'
