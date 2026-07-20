@@ -16,6 +16,7 @@ interface AttendanceRecord {
   status: string;
   logs?: any[];
   shiftStr?: string;
+  salaryPerHour?: number;
 }
 
 interface TimesheetSummary {
@@ -320,8 +321,15 @@ const Timesheets: React.FC = () => {
                                         <div className="flex items-center"><Clock size={12} className="mr-1 text-gray-400"/> Out: {outTime}</div>
                                       </div>
                                       <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
-                                        <div className="text-xs font-medium text-blue-600">
-                                          +{formatHours(rowHours)}
+                                        <div className="flex flex-col">
+                                          <span className="text-xs font-medium text-blue-600">
+                                            +{formatHours(rowHours)}
+                                          </span>
+                                          {r.salaryPerHour !== undefined && (
+                                            <span className="text-[10px] text-green-600 font-semibold mt-0.5" title="Thành tiền của ca làm">
+                                              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(Math.round(rowHours * r.salaryPerHour))}
+                                            </span>
+                                          )}
                                         </div>
                                         {r.logs && r.logs.length > 0 && (
                                           <button 
