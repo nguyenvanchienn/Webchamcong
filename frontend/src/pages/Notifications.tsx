@@ -69,20 +69,64 @@ const Notifications: React.FC = () => {
 
   useEffect(() => {
     const fetchNotifications = async () => {
-      if (!currentEmployeeId) {
+      if (!currentEmployeeId && userRole !== 'SUPER_ADMIN') {
         setLoading(false);
         return;
       }
       
       try {
-        const q = query(
-          collection(db, 'notifications'),
-          where('employeeId', '==', currentEmployeeId),
-          orderBy('createdAt', 'desc')
-        );
-        const snap = await getDocs(q);
         const list: Notification[] = [];
-        snap.forEach(d => list.push({ id: d.id, ...d.data() } as Notification));
+        
+        // Fetch personal notifications
+        if (currentEmployeeId) {
+          const q = query(
+            collection(db, 'notifications'),
+            where('employeeId', '==', currentEmployeeId),
+            orderBy('createdAt', 'desc')
+          );
+          const snap = await getDocs(q);
+          snap.forEach(d => list.push({ id: d.id, ...d.data() } as Notification));
+        }
+
+        // Fetch announcements
+        const qAnn = query(collection(db, 'announcements'), orderBy('createdAt', 'desc'));
+        const snapAnn = await getDocs(qAnn);
+        
+        const now = new Date();
+        snapAnn.forEach(d => {
+          const data = d.data();
+          
+          // Check expiration
+          let isExpired = false;
+          if (data.expiresAt) {
+            const expDate = data.expiresAt.toDate ? data.expiresAt.toDate() : new Date(data.expiresAt);
+            if (now > expDate) isExpired = true;
+          }
+          if (isExpired) return;
+
+          // Check branch target (for employees and branch admins)
+          if (userRole !== 'SUPER_ADMIN') {
+             if (data.targetBranchId !== 'ALL' && data.targetBranchId !== currentUserBranchId) return;
+          }
+          
+          list.push({
+            id: d.id,
+            employeeId: currentEmployeeId || 'admin',
+            title: data.title,
+            message: data.message,
+            type: 'ANNOUNCEMENT',
+            read: true, // Announcements are always "read"
+            createdAt: data.createdAt
+          });
+        });
+
+        // Sort combined list by createdAt desc
+        list.sort((a, b) => {
+          const dateA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt).getTime();
+          const dateB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt).getTime();
+          return dateB - dateA;
+        });
+
         setNotifications(list);
       } catch (error) {
         console.error('Error fetching notifications:', error);
@@ -92,7 +136,7 @@ const Notifications: React.FC = () => {
     };
 
     fetchNotifications();
-  }, [currentEmployeeId]);
+  }, [currentEmployeeId, userRole, currentUserBranchId]);
 
   const markAsRead = async (id: string) => {
     try {
