@@ -157,19 +157,19 @@ const Kiosk: React.FC = () => {
   return (
     <div className="min-h-screen bg-blue-50 flex flex-col">
       {/* Header */}
-      <header className="bg-white shadow-sm p-4 flex justify-between items-center">
+      <header className="bg-white shadow-sm p-3 md:p-4 flex flex-col sm:flex-row justify-between items-center gap-3 sm:gap-0">
         <div className="flex items-center gap-3">
-          <div className="bg-blue-600 text-white p-2 rounded-lg">
+          <div className="bg-blue-600 text-white p-2 rounded-lg hidden sm:block">
             <CheckCircle size={24} />
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-gray-800">Hệ Thống Điểm Danh Tự Động</h1>
-            <p className="text-sm text-gray-500">Thiết bị điểm danh dùng chung</p>
+          <div className="text-center sm:text-left">
+            <h1 className="text-lg md:text-xl font-bold text-gray-800">Hệ Thống Điểm Danh Tự Động</h1>
+            <p className="text-xs md:text-sm text-gray-500">Thiết bị điểm danh dùng chung</p>
           </div>
         </div>
         <button 
           onClick={handleLogout}
-          className="flex items-center gap-2 text-gray-500 hover:text-red-500 transition-colors bg-gray-100 hover:bg-red-50 px-4 py-2 rounded-lg font-medium"
+          className="flex items-center gap-2 text-gray-500 hover:text-red-500 transition-colors bg-gray-100 hover:bg-red-50 px-3 py-1.5 md:px-4 md:py-2 rounded-lg font-medium text-sm md:text-base w-full sm:w-auto justify-center"
         >
           <LogOut size={18} /> Đăng xuất máy
         </button>
@@ -178,12 +178,12 @@ const Kiosk: React.FC = () => {
       {/* Main Content */}
       <main className="flex-1 flex flex-col items-center justify-center p-4">
         {/* Đồng hồ */}
-        <div className="text-center mb-12">
-          <div className="text-7xl font-mono font-bold text-blue-900 drop-shadow-sm flex items-center justify-center gap-4">
-            <Clock size={64} className="text-blue-500" />
+        <div className="text-center mb-8 md:mb-12">
+          <div className="text-5xl sm:text-6xl md:text-7xl font-mono font-bold text-blue-900 drop-shadow-sm flex flex-col sm:flex-row items-center justify-center gap-2 md:gap-4">
+            <Clock className="text-blue-500 w-12 h-12 md:w-16 md:h-16 hidden sm:block" />
             {currentTime.toLocaleTimeString('vi-VN', { hour12: false })}
           </div>
-          <div className="text-2xl text-gray-600 mt-4 font-medium uppercase tracking-wide">
+          <div className="text-sm sm:text-lg md:text-2xl text-gray-600 mt-2 md:mt-4 font-medium uppercase tracking-wide px-2">
             {currentTime.toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </div>
         </div>
