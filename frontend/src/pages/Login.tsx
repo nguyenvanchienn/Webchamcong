@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
+import React, { useState, useEffect, useRef } from 'react';
+import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence, onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { useNavigate } from 'react-router-dom';
@@ -12,11 +12,27 @@ const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const navigate = useNavigate();
+  const isSubmitting = useRef(false);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user && !isSubmitting.current) {
+        const role = localStorage.getItem('userRole');
+        if (role === 'KIOSK') {
+          navigate('/kiosk');
+        } else if (role) {
+          navigate('/dashboard');
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, [navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
+    isSubmitting.current = true;
 
     try {
       const persistenceType = rememberMe ? browserLocalPersistence : browserSessionPersistence;
@@ -148,4 +164,5 @@ const Login: React.FC = () => {
 };
 
 export default Login;
+
 
