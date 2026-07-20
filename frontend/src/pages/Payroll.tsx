@@ -83,7 +83,7 @@ const Payroll: React.FC = () => {
   
   // Dành cho Admin
   const [adminPayroll, setAdminPayroll] = useState<any[]>([]);
-  const [paidStatus, setPaidStatus] = useState<Record<string, boolean>>({});
+  const [paidStatus, setPaidStatus] = useState<Record<string, number>>({});
   
   const [filterBranchId, setFilterBranchId] = useState<string>('ALL');
   const [branches, setBranches] = useState<any[]>([]);
@@ -279,9 +279,9 @@ const Payroll: React.FC = () => {
         // Lấy trạng thái đã thanh toán
         const historyQuery = query(collection(db, 'payroll_history'), where('month', '==', month));
         const historySnap = await getDocs(historyQuery);
-        const paidMap: Record<string, boolean> = {};
+        const paidMap: Record<string, number> = {};
         historySnap.forEach(d => {
-          paidMap[d.data().employeeId] = true;
+          paidMap[d.data().employeeId] = d.data().amount;
         });
         setPaidStatus(paidMap);
 
@@ -348,16 +348,16 @@ const Payroll: React.FC = () => {
   };
 
   const handleMarkAsPaid = async (employeeId: string, amount: number) => {
-    try {
-      await addDoc(collection(db, 'payroll_history'), {
-        employeeId,
-        month,
-        amount,
-        paidAt: new Date()
-      });
-      setPaidStatus(prev => ({ ...prev, [employeeId]: true }));
-      setPaymentModalData(null);
-      toast.success('Đã đánh dấu thanh toán!');
+      try {
+        await addDoc(collection(db, 'payroll_history'), {
+          employeeId,
+          month,
+          amount,
+          paidAt: new Date()
+        });
+        setPaidStatus(prev => ({ ...prev, [employeeId]: amount }));
+        setPaymentModalData(null);
+        toast.success('Đã đánh dấu thanh toán!');
     } catch (error) {
       console.error(error);
       toast.error('Lỗi cập nhật thanh toán');
@@ -489,10 +489,10 @@ const Payroll: React.FC = () => {
                         </div>
                       </td>
                     <td className="p-4 text-sm text-right font-bold text-green-600">
-                      {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.totalEarned)}
+                      {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(paidStatus[item.employeeInfo.id] !== undefined ? paidStatus[item.employeeInfo.id] : item.totalEarned)}
                     </td>
                     <td className="p-4 text-sm text-center">
-                      {paidStatus[item.employeeInfo.id] ? (
+                      {paidStatus[item.employeeInfo.id] !== undefined ? (
                         <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">Đã thanh toán</span>
                       ) : (
                         <button 
