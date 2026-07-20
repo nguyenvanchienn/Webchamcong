@@ -274,6 +274,36 @@ const Kiosk: React.FC = () => {
                 <div className="py-4 text-gray-500 font-medium">Đang kiểm tra dữ liệu...</div>
               ) : (
                 <div className="space-y-4">
+                  {(() => {
+                    let activeShiftName = null;
+                    if (todayShifts.length > 0) {
+                      const now = new Date();
+                      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                      let minDiff = Infinity;
+                      for (const s of todayShifts) {
+                        if (!s.shift) continue;
+                        const match = s.shift.match(/\(([\d:]+)\s*-/);
+                        if (match) {
+                          const [h, m] = match[1].split(':').map(Number);
+                          const startMinutes = h * 60 + m;
+                          const diff = Math.abs(currentMinutes - startMinutes);
+                          if (diff < minDiff) {
+                            minDiff = diff;
+                            activeShiftName = s.shift;
+                          }
+                        }
+                      }
+                      if (!activeShiftName && todayShifts[0]) activeShiftName = todayShifts[0].shift;
+                    }
+
+                    return activeShiftName ? (
+                      <div className="bg-blue-50 border border-blue-100 text-blue-800 px-4 py-3 rounded-xl flex items-center justify-center gap-2 font-medium mb-2">
+                        <Clock size={20} className="text-blue-600" />
+                        <span>Ca của bạn: <strong className="text-blue-900">{activeShiftName}</strong></span>
+                      </div>
+                    ) : null;
+                  })()}
+
                   {!todayAttendance ? (
                     (() => {
                       let canCheckIn = false;
