@@ -31,6 +31,7 @@ const Kiosk: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEmp, setSelectedEmp] = useState<Employee | null>(null);
   const [todayAttendance, setTodayAttendance] = useState<Attendance | null>(null);
+  const [todayShifts, setTodayShifts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Lắng nghe lệnh đăng xuất từ xa
@@ -122,6 +123,16 @@ const Kiosk: React.FC = () => {
         } else {
           setTodayAttendance(null);
         }
+
+        // Fetch Shifts
+        const schedQ = query(
+          collection(db, 'schedules'),
+          where('employeeId', '==', selectedEmp.id),
+          where('date', '==', todayStr)
+        );
+        const schedSnap = await getDocs(schedQ);
+        setTodayShifts(schedSnap.docs.map(d => d.data()));
+        
       } catch (err) {
         console.error(err);
       } finally {
@@ -264,12 +275,43 @@ const Kiosk: React.FC = () => {
               ) : (
                 <div className="space-y-4">
                   {!todayAttendance ? (
-                    <button 
-                      onClick={handleAction}
-                      className="w-full py-5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl text-2xl font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1"
-                    >
-                      BẮT ĐẦU CA LÀM (CHECK-IN)
-                    </button>
+                    (() => {
+                      let canCheckIn = false;
+                      if (todayShifts.length > 0) {
+                        const now = new Date();
+                        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                        for (const s of todayShifts) {
+                          if (!s.shift) continue;
+                          const match = s.shift.match(/\(([\d:]+)\s*-/);
+                          if (match) {
+                            const [h, m] = match[1].split(':').map(Number);
+                            const startMinutes = h * 60 + m;
+                            if (currentMinutes >= startMinutes - 30) {
+                              canCheckIn = true;
+                              break;
+                            }
+                          }
+                        }
+                      }
+
+                      return canCheckIn ? (
+                        <button 
+                          onClick={handleAction}
+                          className="w-full py-5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl text-2xl font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1"
+                        >
+                          BẮT ĐẦU CA LÀM (CHECK-IN)
+                        </button>
+                      ) : (
+                        <div className="py-6 bg-gray-50 border border-gray-200 rounded-xl">
+                          <div className="text-gray-600 flex flex-col items-center justify-center gap-2">
+                            <span className="text-lg font-medium text-center px-4">
+                              Bạn không có ca làm việc lúc này, hoặc chưa đến giờ điểm danh.<br/>
+                              <span className="text-sm">(Chỉ hiển thị nút Bắt Đầu trước giờ làm 30 phút)</span>
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()
                   ) : todayAttendance && !todayAttendance.checkOut ? (
                     <button 
                       onClick={handleAction}
