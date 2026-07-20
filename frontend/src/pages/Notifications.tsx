@@ -81,8 +81,7 @@ const Notifications: React.FC = () => {
         if (currentEmployeeId) {
           const q = query(
             collection(db, 'notifications'),
-            where('employeeId', '==', currentEmployeeId),
-            orderBy('createdAt', 'desc')
+            where('employeeId', '==', currentEmployeeId)
           );
           const snap = await getDocs(q);
           snap.forEach(d => list.push({ id: d.id, ...d.data() } as Notification));

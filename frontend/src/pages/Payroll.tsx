@@ -396,6 +396,16 @@ const Payroll: React.FC = () => {
           paymentId: historyRef.id
         });
       }
+      
+      // Send notification to employee
+      await addDoc(collection(db, 'notifications'), {
+        employeeId: paymentModalData.employeeId,
+        title: 'Nhận thanh toán lương',
+        message: `Tài khoản của bạn vừa được cộng thêm ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(paymentModalData.amount)} từ đợt thanh toán lương tháng ${month}.`,
+        type: 'MONEY_ADD',
+        read: false,
+        createdAt: new Date()
+      });
 
       setPaymentModalData(null);
       toast.success('Đã đánh dấu thanh toán!');
@@ -422,6 +432,22 @@ const Payroll: React.FC = () => {
       }
       
       toast.success('Đã hủy thanh toán đợt này!');
+      
+      // Get history doc to know employee ID and amount
+      const historyDoc = await getDoc(doc(db, 'payroll_history', historyId));
+      if (historyDoc.exists()) {
+         const data = historyDoc.data();
+         await addDoc(collection(db, 'notifications'), {
+           employeeId: data.employeeId,
+           title: 'Hủy thanh toán lương',
+           message: `Đợt thanh toán lương tháng ${data.month} trị giá ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(data.amount)} của bạn vừa bị hủy và đưa về trạng thái chờ xử lý.`,
+           type: 'MONEY_SUB',
+           read: false,
+           createdAt: new Date()
+         });
+      }
+
+      await deleteDoc(doc(db, 'payroll_history', historyId));
       fetchPayroll(); // refresh
     } catch (error) {
       console.error(error);
