@@ -292,6 +292,7 @@ const Schedules: React.FC = () => {
 
   const handleUpdateSlot = async (scheduleId: string, newEmployeeId: string) => {
     try {
+      const sch = schedules.find(s => s.id === scheduleId);
       if (newEmployeeId === '') {
         await updateDoc(doc(db, 'schedules', scheduleId), {
           employeeId: null,
@@ -304,6 +305,17 @@ const Schedules: React.FC = () => {
             employeeId: emp.id,
             employeeName: emp.fullName
           });
+          
+          if (sch && sch.employeeId !== emp.id) {
+            await addDoc(collection(db, 'notifications'), {
+              employeeId: emp.id,
+              title: 'Lịch làm việc mới',
+              message: `Bạn đã được quản lý phân công vào ${sch.shift} ngày ${new Date(sch.date).toLocaleDateString('vi-VN')}.`,
+              type: 'SCHEDULE_ASSIGNED',
+              read: false,
+              createdAt: new Date()
+            });
+          }
         }
       }
       toast.success('Đã cập nhật ca làm việc!');
