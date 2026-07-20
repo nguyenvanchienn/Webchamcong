@@ -49,4 +49,19 @@ router.delete('/:uid', async (req, res) => {
   }
 });
 
+// Đổi mật khẩu
+router.put('/password/:uid', async (req, res) => {
+  const { uid } = req.params;
+  const { password } = req.body;
+  if (!password || password.length < 6) {
+    return res.status(400).json({ message: 'Mật khẩu phải có ít nhất 6 ký tự' });
+  }
+  try {
+    await auth.updateUser(uid, { password });
+    res.json({ message: 'Đổi mật khẩu thành công' });
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
 export default router;

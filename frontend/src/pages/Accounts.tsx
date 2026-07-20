@@ -3,7 +3,7 @@ import { collection, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
-import { Plus, Trash2, X, ShieldAlert, Eye, EyeOff, Edit2 } from 'lucide-react';
+import { Plus, Trash2, X, ShieldAlert, Eye, EyeOff, Edit2, Key, LogOut } from 'lucide-react';
 
 interface UserAccount {
   id: string;
@@ -37,6 +37,10 @@ const Accounts: React.FC = () => {
     branchId: ''
   });
   const [showPassword, setShowPassword] = useState(false);
+
+  // Đổi mật khẩu Modal
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [passwordFormData, setPasswordFormData] = useState({ id: '', email: '', password: '', confirmPassword: '' });
 
   const fetchData = async () => {
     setLoading(true);
@@ -151,6 +155,59 @@ const Accounts: React.FC = () => {
     }
   };
 
+  const handleForceLogout = async (id: string, email: string) => {
+    const result = await Swal.fire({
+      title: 'Đăng xuất thiết bị?',
+      text: `Bạn có chắc chắn muốn ép đăng xuất tài khoản ${email} trên tất cả thiết bị?`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Đăng xuất',
+      cancelButtonText: 'Hủy'
+    });
+
+    if (result.isConfirmed) {
+      try {
+        await updateDoc(doc(db, 'users', id), { forceLogout: true });
+        toast.success(`Đã gửi lệnh đăng xuất tới ${email}`);
+      } catch (error) {
+        console.error("Lỗi đăng xuất từ xa:", error);
+        toast.error('Lỗi khi gửi lệnh đăng xuất!');
+      }
+    }
+  };
+
+  const openPasswordModal = (acc: UserAccount) => {
+    setPasswordFormData({ id: acc.id, email: acc.email, password: '', confirmPassword: '' });
+    setIsPasswordModalOpen(true);
+  };
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwordFormData.password !== passwordFormData.confirmPassword) {
+      toast.error('Mật khẩu nhập lại không khớp!');
+      return;
+    }
+    if (passwordFormData.password.length < 6) {
+      toast.error('Mật khẩu phải có ít nhất 6 ký tự!');
+      return;
+    }
+    
+    try {
+      const response = await fetch(`http://localhost:5000/api/users/password/${passwordFormData.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: passwordFormData.password })
+      });
+      if (!response.ok) throw new Error('Không thể đổi mật khẩu trên server');
+      
+      toast.success('Đã đổi mật khẩu thành công!');
+      setIsPasswordModalOpen(false);
+    } catch (error) {
+      console.error("Lỗi đổi mật khẩu:", error);
+      toast.error('Lỗi khi đổi mật khẩu!');
+    }
+  };
+
   const openModal = (acc?: UserAccount) => {
     if (acc) {
       setEditingAccount(acc);
@@ -240,6 +297,20 @@ const Accounts: React.FC = () => {
                           title="Sửa quyền hạn"
                         >
                           <Edit2 size={18} />
+                        </button>
+                        <button 
+                          onClick={() => openPasswordModal(acc)}
+                          className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                          title="Đổi mật khẩu"
+                        >
+                          <Key size={18} />
+                        </button>
+                        <button 
+                          onClick={() => handleForceLogout(acc.id, acc.email)}
+                          className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                          title="Đăng xuất thiết bị"
+                        >
+                          <LogOut size={18} />
                         </button>
                         <button 
                           onClick={() => handleDelete(acc.id)}
@@ -401,6 +472,67 @@ const Accounts: React.FC = () => {
                   className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg font-medium"
                 >
                   {editingAccount ? 'Cập nhật' : 'Tạo tài khoản'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Change Password Modal */}
+      {isPasswordModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+              <h3 className="text-xl font-bold text-gray-800">Đổi Mật Khẩu</h3>
+              <button 
+                onClick={() => setIsPasswordModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handlePasswordSubmit} className="p-6 space-y-4">
+              <p className="text-sm text-gray-600 mb-4">Đổi mật khẩu cho tài khoản: <strong>{passwordFormData.email}</strong></p>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Mật khẩu mới</label>
+                <input
+                  type="password"
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  value={passwordFormData.password}
+                  onChange={(e) => setPasswordFormData({...passwordFormData, password: e.target.value})}
+                  placeholder="Nhập mật khẩu mới..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Xác nhận mật khẩu</label>
+                <input
+                  type="password"
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  value={passwordFormData.confirmPassword}
+                  onChange={(e) => setPasswordFormData({...passwordFormData, confirmPassword: e.target.value})}
+                  placeholder="Nhập lại mật khẩu mới..."
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setIsPasswordModalOpen(false)}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+                >
+                  Lưu thay đổi
                 </button>
               </div>
             </form>
