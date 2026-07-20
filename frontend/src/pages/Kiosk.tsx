@@ -358,7 +358,7 @@ const Kiosk: React.FC = () => {
                     })()
                   ) : todayAttendance && !todayAttendance.checkOut ? (
                     (() => {
-                      const diffMs = currentTime.getTime() - todayAttendance.checkIn.getTime();
+                      const diffMs = currentTime.getTime() - (todayAttendance.checkIn?.getTime() || currentTime.getTime());
                       const validDiff = diffMs > 0 ? diffMs : 0;
                       const hours = Math.floor(validDiff / (1000 * 60 * 60));
                       const minutes = Math.floor((validDiff % (1000 * 60 * 60)) / (1000 * 60));
@@ -373,7 +373,7 @@ const Kiosk: React.FC = () => {
                               <div>
                                 <p className="text-sm text-orange-600 mb-1 font-medium">Giờ vào ca</p>
                                 <p className="text-xl font-bold text-orange-800">
-                                  {todayAttendance.checkIn.toLocaleTimeString('vi-VN', { hour12: false })}
+                                  {todayAttendance.checkIn?.toLocaleTimeString('vi-VN', { hour12: false }) || '--:--:--'}
                                 </p>
                               </div>
                               <div>
