@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Clock, CheckCircle, Search, User } from 'lucide-react';
 import { auth } from '../config/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 interface Employee {
   id: string;
@@ -34,16 +35,27 @@ const Kiosk: React.FC = () => {
 
   // Lắng nghe lệnh đăng xuất từ xa
   useEffect(() => {
-    if (!auth.currentUser) return;
-    const unsub = onSnapshot(doc(db, 'users', auth.currentUser.uid), async (docSnap) => {
-      if (docSnap.exists() && docSnap.data().forceLogout) {
-        await updateDoc(docSnap.ref, { forceLogout: false });
-        await auth.signOut();
-        localStorage.clear();
-        navigate('/login');
+    let unsubSnapshot: (() => void) | undefined;
+    
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        unsubSnapshot = onSnapshot(doc(db, 'users', user.uid), async (docSnap) => {
+          if (docSnap.exists() && docSnap.data().forceLogout) {
+            await updateDoc(docSnap.ref, { forceLogout: false });
+            await auth.signOut();
+            localStorage.clear();
+            navigate('/login');
+          }
+        });
+      } else {
+        if (unsubSnapshot) unsubSnapshot();
       }
     });
-    return () => unsub();
+
+    return () => {
+      unsubAuth();
+      if (unsubSnapshot) unsubSnapshot();
+    };
   }, [navigate]);
 
   // Cập nhật đồng hồ

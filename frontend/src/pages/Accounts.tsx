@@ -298,20 +298,26 @@ const Accounts: React.FC = () => {
                         >
                           <Edit2 size={18} />
                         </button>
-                        <button 
-                          onClick={() => openPasswordModal(acc)}
-                          className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                          title="Đổi mật khẩu"
-                        >
-                          <Key size={18} />
-                        </button>
-                        <button 
-                          onClick={() => handleForceLogout(acc.id, acc.email)}
-                          className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
-                          title="Đăng xuất thiết bị"
-                        >
-                          <LogOut size={18} />
-                        </button>
+                        
+                        {acc.role === 'KIOSK' && (
+                          <>
+                            <button 
+                              onClick={() => openPasswordModal(acc)}
+                              className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                              title="Đổi mật khẩu"
+                            >
+                              <Key size={18} />
+                            </button>
+                            <button 
+                              onClick={() => handleForceLogout(acc.id, acc.email)}
+                              className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                              title="Đăng xuất thiết bị"
+                            >
+                              <LogOut size={18} />
+                            </button>
+                          </>
+                        )}
+
                         <button 
                           onClick={() => handleDelete(acc.id)}
                           className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
