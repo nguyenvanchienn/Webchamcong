@@ -478,9 +478,16 @@ const Payroll: React.FC = () => {
                     <td className="p-4 text-sm text-gray-600">{displayBranch as string}</td>
                     <td className="p-4 text-sm text-center font-medium text-blue-600">{item.shiftsCount} ca</td>
                     <td className="p-4 text-sm text-center text-gray-700">{formatHours(item.totalHours)}</td>
-                    <td className="p-4 text-sm text-right text-gray-500">
-                      {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.employeeInfo.salaryPerHour)}
-                    </td>
+                      <td className="p-4 text-sm text-right text-gray-500">
+                        <div className="flex flex-col items-end gap-1">
+                          <span>{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.employeeInfo.salaryPerHour)}</span>
+                          {Math.abs(item.totalEarned - Math.round(item.totalHours * item.employeeInfo.salaryPerHour)) > 1000 && (
+                            <span className="text-[9px] text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-100" title="Thành tiền bao gồm các ca làm có mức lương/hệ số khác nhau">
+                              Biến động theo ca
+                            </span>
+                          )}
+                        </div>
+                      </td>
                     <td className="p-4 text-sm text-right font-bold text-green-600">
                       {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.totalEarned)}
                     </td>
