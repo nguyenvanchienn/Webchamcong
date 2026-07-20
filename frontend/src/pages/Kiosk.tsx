@@ -313,12 +313,42 @@ const Kiosk: React.FC = () => {
                       );
                     })()
                   ) : todayAttendance && !todayAttendance.checkOut ? (
-                    <button 
-                      onClick={handleAction}
-                      className="w-full py-5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-xl text-2xl font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1"
-                    >
-                      KẾT THÚC CA (CHECK-OUT)
-                    </button>
+                    (() => {
+                      const diffMs = currentTime.getTime() - todayAttendance.checkIn.getTime();
+                      const validDiff = diffMs > 0 ? diffMs : 0;
+                      const hours = Math.floor(validDiff / (1000 * 60 * 60));
+                      const minutes = Math.floor((validDiff % (1000 * 60 * 60)) / (1000 * 60));
+                      const seconds = Math.floor((validDiff % (1000 * 60)) / 1000);
+                      const h = hours.toString().padStart(2, '0');
+                      const m = minutes.toString().padStart(2, '0');
+                      const s = seconds.toString().padStart(2, '0');
+                      return (
+                        <div className="space-y-4 w-full">
+                          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+                            <div className="grid grid-cols-2 gap-4 text-center">
+                              <div>
+                                <p className="text-sm text-orange-600 mb-1 font-medium">Giờ vào ca</p>
+                                <p className="text-xl font-bold text-orange-800">
+                                  {todayAttendance.checkIn.toLocaleTimeString('vi-VN', { hour12: false })}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-sm text-orange-600 mb-1 font-medium">Thời gian làm</p>
+                                <p className="text-xl font-bold text-orange-800 font-mono">
+                                  {h}:{m}:{s}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={handleAction}
+                            className="w-full py-5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-xl text-2xl font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1"
+                          >
+                            KẾT THÚC CA (CHECK-OUT)
+                          </button>
+                        </div>
+                      );
+                    })()
                   ) : (
                     <div className="py-6 bg-green-50 border border-green-200 rounded-xl">
                       <div className="text-green-600 font-bold flex flex-col items-center justify-center gap-2">
