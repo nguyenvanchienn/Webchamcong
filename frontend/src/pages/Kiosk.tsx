@@ -175,6 +175,7 @@ const Kiosk: React.FC = () => {
         toast.success(`Check-in thành công cho ${selectedEmp.fullName}`);
       } else if (todayAttendance && !todayAttendance.checkOut) {
         // Đã check in => Check Out
+        const checkOutTime = new Date();
         const newLog = { action: 'CHECK_OUT', time: checkOutTime };
         await updateDoc(doc(db, 'attendance', todayAttendance.id), {
           checkOut: checkOutTime,
