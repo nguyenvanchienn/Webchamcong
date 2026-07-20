@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, addDoc, doc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, doc, updateDoc, onSnapshot, arrayUnion } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -158,15 +158,24 @@ const Kiosk: React.FC = () => {
           date: todayStr,
           checkIn: new Date(),
           checkOut: null,
-          status: 'PRESENT'
+          status: 'PRESENT',
+          logs: [{ action: 'CHECK_IN', time: new Date() }]
         });
         toast.success(`Check-in thành công cho ${selectedEmp.fullName}`);
       } else if (todayAttendance && !todayAttendance.checkOut) {
         // Đã check in => Check Out
         await updateDoc(doc(db, 'attendance', todayAttendance.id), {
-          checkOut: new Date()
+          checkOut: new Date(),
+          logs: arrayUnion({ action: 'CHECK_OUT', time: new Date() })
         });
         toast.success(`Check-out thành công cho ${selectedEmp.fullName}`);
+      } else if (todayAttendance && todayAttendance.checkOut) {
+        // Check in lại
+        await updateDoc(doc(db, 'attendance', todayAttendance.id), {
+          checkOut: null,
+          logs: arrayUnion({ action: 'CHECK_IN', time: new Date() })
+        });
+        toast.success(`Tiếp tục ca làm thành công cho ${selectedEmp.fullName}`);
       }
       
       // Reset về trạng thái ban đầu
@@ -380,12 +389,53 @@ const Kiosk: React.FC = () => {
                       );
                     })()
                   ) : (
-                    <div className="py-6 bg-green-50 border border-green-200 rounded-xl">
-                      <div className="text-green-600 font-bold flex flex-col items-center justify-center gap-2">
-                        <CheckCircle size={40} />
-                        <span className="text-xl">BẠN ĐĐ HOÀN THÀNH CA LÀM HÔM NAY</span>
-                      </div>
-                    </div>
+                    (() => {
+                      let canCheckIn = false;
+                      if (todayShifts.length > 0) {
+                        const now = new Date();
+                        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                        for (const s of todayShifts) {
+                          if (!s.shift) continue;
+                          const match = s.shift.match(/\(([\d:]+)\s*-/);
+                          const matchEnd = s.shift.match(/-\s*([\d:]+)\)/);
+                          if (match && matchEnd) {
+                            const [h1, m1] = match[1].split(':').map(Number);
+                            const startMinutes = h1 * 60 + m1;
+                            const [h2, m2] = matchEnd[1].split(':').map(Number);
+                            let endMinutes = h2 * 60 + m2;
+                            if (endMinutes < startMinutes) endMinutes += 24 * 60;
+                            if (currentMinutes >= startMinutes - 30 && currentMinutes <= endMinutes) {
+                              canCheckIn = true;
+                              break;
+                            }
+                          }
+                        }
+                      }
+
+                      return canCheckIn ? (
+                        <div className="space-y-4">
+                          <div className="py-6 bg-orange-50 border border-orange-200 rounded-xl">
+                            <div className="text-orange-600 font-bold flex flex-col items-center justify-center gap-2">
+                              <span className="text-xl text-center px-4">BẠN ĐÃ CHECK-OUT SỚM!</span>
+                              <span className="text-sm font-normal text-center px-4">Ca làm việc của bạn vẫn chưa kết thúc. Bạn có thể tiếp tục ca làm.</span>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={handleAction}
+                            className="w-full py-5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl text-2xl font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1"
+                          >
+                            TIẾP TỤC CA LÀM (CHECK-IN LẠI)
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="py-6 bg-green-50 border border-green-200 rounded-xl">
+                          <div className="text-green-600 font-bold flex flex-col items-center justify-center gap-2">
+                            <CheckCircle size={40} />
+                            <span className="text-xl">BẠN ĐÃ HOÀN THÀNH CA LÀM HÔM NAY</span>
+                          </div>
+                        </div>
+                      );
+                    })()
                   )}
                 </div>
               )}
