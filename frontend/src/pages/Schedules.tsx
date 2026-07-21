@@ -241,8 +241,8 @@ const Schedules: React.FC = () => {
         }
       } else {
         if (userRole === 'SUPER_ADMIN') {
-          if (!viewBranchId) {
-            toast.error('Vui lòng chọn cơ sở cho ca trống!');
+          if (!viewBranchId || viewBranchId === 'ALL') {
+            toast.error('Vui lòng chọn một cơ sở cụ thể để tạo ca trống!');
             return;
           }
         }
