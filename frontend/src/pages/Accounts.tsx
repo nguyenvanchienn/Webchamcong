@@ -20,6 +20,7 @@ interface Employee {
   id: string;
   fullName: string;
   employeeCode?: string;
+  branchId?: string;
 }
 
 const Accounts: React.FC = () => {
@@ -29,6 +30,7 @@ const Accounts: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<UserAccount | null>(null);
+  const [filterBranchId, setFilterBranchId] = useState<string>('all');
 
   const [formData, setFormData] = useState({
     email: '',
@@ -65,7 +67,8 @@ const Accounts: React.FC = () => {
         empList.push({ 
           id: doc.id, 
           fullName: doc.data().fullName, 
-          employeeCode: doc.data().employeeCode 
+          employeeCode: doc.data().employeeCode,
+          branchId: doc.data().branchId
         });
       });
       setEmployees(empList);
@@ -268,13 +271,25 @@ const Accounts: React.FC = () => {
           <h2 className="text-xl font-bold text-gray-800">Quản lý Tài khoản</h2>
           <p className="text-sm text-gray-500">Cấp tài khoản đăng nhập cho Quản lý cơ sở và Nhân viên</p>
         </div>
-        <button 
-          onClick={() => openModal()}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center text-sm font-medium transition-colors"
-        >
-          <Plus size={18} className="mr-2" />
-          Cấp Tài khoản
-        </button>
+        <div className="flex items-center space-x-4">
+          <select
+            value={filterBranchId}
+            onChange={(e) => setFilterBranchId(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg outline-none focus:border-blue-500"
+          >
+            <option value="all">Tất cả cơ sở</option>
+            {branches.map(b => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+          <button 
+            onClick={() => openModal()}
+            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus size={20} className="mr-2" />
+            Cấp Tài khoản
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto overflow-y-hidden">
@@ -291,7 +306,28 @@ const Accounts: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {accounts.map((acc) => (
+              {accounts.filter(acc => {
+                if (filterBranchId === 'all') return true;
+                if (acc.branchId && acc.branchId === filterBranchId) return true;
+                if (acc.employeeId) {
+                  const emp = employees.find(e => e.id === acc.employeeId);
+                  if (emp && emp.branchId === filterBranchId) return true;
+                }
+                return false;
+              }).length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="p-8 text-center text-gray-500">Chưa có tài khoản nào.</td>
+                </tr>
+              ) : (
+                accounts.filter(acc => {
+                  if (filterBranchId === 'all') return true;
+                  if (acc.branchId && acc.branchId === filterBranchId) return true;
+                  if (acc.employeeId) {
+                    const emp = employees.find(e => e.id === acc.employeeId);
+                    if (emp && emp.branchId === filterBranchId) return true;
+                  }
+                  return false;
+                }).map((acc) => (
                 <tr key={acc.id} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="p-4 text-sm font-medium text-gray-800">{acc.email}</td>
                   <td className="p-4">
@@ -354,7 +390,7 @@ const Accounts: React.FC = () => {
                     )}
                   </td>
                 </tr>
-              ))}
+              )))}
             </tbody>
           </table>
         )}
