@@ -222,12 +222,14 @@ const Revenue: React.FC = () => {
         const existingOrder = orders.find(o => o.id === editingExpenseId);
         const newCount = (existingOrder?.editCount || 0) + 1;
         
+        const editorName = userRole === 'SUPER_ADMIN' ? 'Admin' : `${localStorage.getItem('employeeId') || ''} - ${cashierNameMap[auth.currentUser?.email || ''] || 'Quản lý'}`.replace(/^ - | - $/g, '');
+        
         await updateDoc(expenseRef, {
           items: [{ name: expenseReason, quantity: 1, price: Number(expenseAmount) }],
           totalAmount: Number(expenseAmount),
           note: expenseNote,
           editCount: newCount,
-          lastEditedBy: auth.currentUser?.email || 'Unknown'
+          lastEditedBy: editorName
         });
         toast.success('Đã cập nhật phiếu chi');
       } else {
@@ -290,14 +292,16 @@ const Revenue: React.FC = () => {
     try {
       const newTotal = billEditItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
       const newEditCount = (billModalData.editCount || 0) + 1;
+      const editorName = userRole === 'SUPER_ADMIN' ? 'Admin' : `${localStorage.getItem('employeeId') || ''} - ${cashierNameMap[auth.currentUser?.email || ''] || 'Quản lý'}`.replace(/^ - | - $/g, '');
+
       await updateDoc(doc(db, 'orders', billModalData.id), {
         items: billEditItems,
         totalAmount: newTotal,
         editCount: newEditCount,
-        lastEditedBy: auth.currentUser?.email || 'Unknown'
+        lastEditedBy: editorName
       });
       toast.success('Đã lưu thay đổi hóa đơn');
-      setBillModalData({ ...billModalData, items: billEditItems, totalAmount: newTotal, editCount: newEditCount, lastEditedBy: auth.currentUser?.email || 'Unknown' });
+      setBillModalData({ ...billModalData, items: billEditItems, totalAmount: newTotal, editCount: newEditCount, lastEditedBy: editorName });
       setIsEditBillMode(false);
     } catch (error) {
       console.error(error);
@@ -526,7 +530,7 @@ const Revenue: React.FC = () => {
                         {order.note && <span className="block text-xs text-gray-400 mt-0.5">Ghi chú: {order.note}</span>}
                         {order.editCount && order.editCount > 0 ? (
                           <span className="block text-[10px] text-gray-400 font-medium mt-1">
-                            (Đã sửa {order.editCount} lần bởi {order.lastEditedBy})
+                            (Đã sửa {order.editCount} lần - Xem chi tiết)
                           </span>
                         ) : null}
                       </td>
@@ -646,6 +650,12 @@ const Revenue: React.FC = () => {
                     }
                   </span>
                 </div>
+
+                {!isEditBillMode && billModalData.editCount && billModalData.editCount > 0 && (
+                  <div className="mt-3 text-xs text-right text-gray-500 italic">
+                    (Đã sửa {billModalData.editCount} lần bởi {billModalData.lastEditedBy})
+                  </div>
+                )}
 
                 <div className="mt-4 pt-4 border-t border-dashed border-gray-300 space-y-2 text-xs">
                   <div className="flex justify-between">
