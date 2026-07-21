@@ -66,11 +66,22 @@ const TableManager: React.FC = () => {
     const fetchTables = async () => {
       setLoading(true);
       try {
-        const q = query(collection(db, 'tables'), where('branchId', '==', selectedBranch));
+        let q;
+        if (selectedBranch === 'all') {
+          q = query(collection(db, 'tables'));
+        } else {
+          q = query(collection(db, 'tables'), where('branchId', '==', selectedBranch));
+        }
         const snap = await getDocs(q);
         const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Table));
-        // Sort by name
-        list.sort((a, b) => a.name.localeCompare(b.name));
+        
+        list.sort((a, b) => {
+          if (a.branchId === b.branchId) return a.name.localeCompare(b.name);
+          const branchA = branches.find(br => br.id === a.branchId)?.name || '';
+          const branchB = branches.find(br => br.id === b.branchId)?.name || '';
+          return branchA.localeCompare(branchB);
+        });
+        
         setTables(list);
       } catch (error) {
         console.error(error);
@@ -103,15 +114,41 @@ const TableManager: React.FC = () => {
         }
       }
         
-        const newTable = {
-          name: tableName.trim(),
-          branchId: selectedBranch,
-          status: 'AVAILABLE',
-          createdAt: new Date()
-        };
-        const docRef = await addDoc(collection(db, 'tables'), newTable);
-        setTables([...tables, { id: docRef.id, ...newTable } as Table].sort((a, b) => a.name.localeCompare(b.name)));
-        toast.success('Thêm bàn thành công');
+        if (selectedBranch === 'all' && branches.length > 0) {
+          const promises = branches.map(async (branch) => {
+            const newTable = {
+              name: tableName.trim(),
+              branchId: branch.id,
+              status: 'AVAILABLE',
+              createdAt: new Date()
+            };
+            const docRef = await addDoc(collection(db, 'tables'), newTable);
+            return { id: docRef.id, ...newTable } as Table;
+          });
+          const newTables = await Promise.all(promises);
+          setTables([...tables, ...newTables].sort((a, b) => {
+            if (a.branchId === b.branchId) return a.name.localeCompare(b.name);
+            const branchA = branches.find(br => br.id === a.branchId)?.name || '';
+            const branchB = branches.find(br => br.id === b.branchId)?.name || '';
+            return branchA.localeCompare(branchB);
+          }));
+          toast.success(`Thêm bàn vào ${branches.length} cơ sở thành công`);
+        } else {
+          const newTable = {
+            name: tableName.trim(),
+            branchId: selectedBranch !== 'all' ? selectedBranch : (userBranchId || null),
+            status: 'AVAILABLE',
+            createdAt: new Date()
+          };
+          const docRef = await addDoc(collection(db, 'tables'), newTable);
+          setTables([...tables, { id: docRef.id, ...newTable } as Table].sort((a, b) => {
+            if (a.branchId === b.branchId) return a.name.localeCompare(b.name);
+            const branchA = branches.find(br => br.id === a.branchId)?.name || '';
+            const branchB = branches.find(br => br.id === b.branchId)?.name || '';
+            return branchA.localeCompare(branchB);
+          }));
+          toast.success('Thêm bàn thành công');
+        }
         setIsModalOpen(false);
         setTableName('');
         setAddPassword('');
@@ -156,9 +193,9 @@ const TableManager: React.FC = () => {
     }
   };
 
-  const getQRUrl = (tableId: string) => {
+  const getQRUrl = (tableId: string, branchId: string) => {
     const origin = window.location.origin;
-    return `${origin}/order/${selectedBranch}/${tableId}`;
+    return `${origin}/order/${branchId}/${tableId}`;
   };
 
   const downloadQR = () => {
@@ -205,6 +242,7 @@ const TableManager: React.FC = () => {
               onChange={(e) => setSelectedBranch(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 outline-none bg-white font-medium"
             >
+              <option value="all">Tất cả cơ sở</option>
               {branches.map(b => (
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}
@@ -224,10 +262,15 @@ const TableManager: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
         {tables.map(table => (
           <div key={table.id} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex flex-col items-center group hover:shadow-md transition-shadow">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">{table.name}</h3>
+            <h3 className="text-xl font-bold text-gray-800 mb-1">{table.name}</h3>
+            {selectedBranch === 'all' && (
+              <p className="text-xs text-blue-600 font-semibold bg-blue-50 px-2 py-1 rounded-md mb-3">
+                {branches.find(b => b.id === table.branchId)?.name || 'Cơ sở không xác định'}
+              </p>
+            )}
             
-            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-4 relative cursor-pointer group/qr" onClick={() => setViewingQR(table)}>
-              <QRCodeSVG value={getQRUrl(table.id)} size={120} />
+            <div className={`bg-gray-50 p-4 rounded-xl border border-gray-200 relative cursor-pointer group/qr ${selectedBranch === 'all' ? 'mb-4' : 'mb-4 mt-3'}`} onClick={() => setViewingQR(table)}>
+              <QRCodeSVG value={getQRUrl(table.id, table.branchId)} size={120} />
               <div className="absolute inset-0 bg-black/50 backdrop-blur-sm rounded-xl opacity-0 group-hover/qr:opacity-100 transition-opacity flex flex-col items-center justify-center text-white gap-2">
                 <QrCode size={32} />
                 <span className="font-medium text-sm">Xem QR Lớn</span>
@@ -305,7 +348,7 @@ const TableManager: React.FC = () => {
             <p className="text-gray-500 mb-8 text-center text-sm">Quét mã QR dưới đây để xem Menu và Gọi món</p>
             
             <div className="bg-white p-4 rounded-2xl border-4 border-blue-100 shadow-xl mb-8">
-              <QRCodeSVG id="qr-code-svg" value={getQRUrl(viewingQR.id)} size={240} level="H" />
+              <QRCodeSVG id="qr-code-svg" value={getQRUrl(viewingQR.id, viewingQR.branchId)} size={240} level="H" />
             </div>
             
             <button onClick={downloadQR} className="w-full py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 flex items-center justify-center gap-2 text-lg shadow-md shadow-blue-500/30">
