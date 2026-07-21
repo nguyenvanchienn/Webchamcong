@@ -188,7 +188,7 @@ const POS: React.FC = () => {
               }
             });
 
-            setCashierName(activeCashier || 'POS (Không có Thu ngân trong ca)');
+            setCashierName(activeCashier);
           } catch (e) {
             console.error("Error fetching branch/cashier info", e);
           }
@@ -306,7 +306,7 @@ const POS: React.FC = () => {
         amountTendered: tendered,
         changeAmount: change,
         createdAt: serverTimestamp(),
-        cashierEmail: finalCashierName || 'POS (Không có Thu ngân trong ca)', // Store cashierName in this field for display
+        cashierEmail: finalCashierName || null, // Store cashierName in this field for display
         branchId: localStorage.getItem('branchId') || null,
         status: 'COMPLETED',
         tableName: currentTableName || null
