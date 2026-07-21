@@ -47,6 +47,23 @@ const generateShiftName = (start: string, end: string) => {
   return `${name} (${start} - ${end})`;
 };
 
+const checkShiftOverlap = (shiftA: string, shiftB: string) => {
+  if (shiftA === shiftB) return true;
+  const matchA = shiftA.match(/\((\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})\)/);
+  const matchB = shiftB.match(/\((\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})\)/);
+  if (!matchA || !matchB) return false;
+
+  const startA = parseInt(matchA[1]) * 60 + parseInt(matchA[2]);
+  let endA = parseInt(matchA[3]) * 60 + parseInt(matchA[4]);
+  if (endA <= startA) endA += 24 * 60;
+
+  const startB = parseInt(matchB[1]) * 60 + parseInt(matchB[2]);
+  let endB = parseInt(matchB[3]) * 60 + parseInt(matchB[4]);
+  if (endB <= startB) endB += 24 * 60;
+
+  return Math.max(startA, startB) < Math.min(endA, endB);
+};
+
 const Schedules: React.FC = () => {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -264,6 +281,23 @@ const Schedules: React.FC = () => {
       }
 
       if (formData.employeeId !== '') {
+        let hasConflict = false;
+        for (const processDate of datesToProcess) {
+          const empSchedules = schedules.filter(s => s.employeeId === empId && s.date === processDate);
+          for (const s of empSchedules) {
+            if (checkShiftOverlap(s.shift, shiftStr)) {
+              hasConflict = true;
+              break;
+            }
+          }
+          if (hasConflict) break;
+        }
+
+        if (hasConflict) {
+          toast.error('Nhân viên này đã có lịch làm việc bị trùng lấp trong khoảng thời gian được chọn!');
+          return;
+        }
+
         const promises = [];
         for (const processDate of datesToProcess) {
           for (const tb of targetBranches) {
@@ -393,6 +427,15 @@ const Schedules: React.FC = () => {
       } else {
         const emp = employees.find(e => e.id === newEmployeeId);
         if (emp) {
+          if (sch) {
+            const empSchedules = schedules.filter(s => s.employeeId === emp.id && s.date === sch.date && s.id !== scheduleId);
+            const hasConflict = empSchedules.some(s => checkShiftOverlap(s.shift, sch.shift));
+            if (hasConflict) {
+              toast.error('Nhân viên này đã có ca làm việc trùng giờ trong ngày!');
+              return;
+            }
+          }
+
           await updateDoc(doc(db, 'schedules', scheduleId), {
             employeeId: emp.id,
             employeeName: emp.fullName
