@@ -26,6 +26,7 @@ interface Order {
   note?: string;
   editCount?: number;
   lastEditedBy?: string;
+  editHistory?: { editedAt: string; editedBy: string }[];
 }
 
 interface Branch {
@@ -224,12 +225,15 @@ const Revenue: React.FC = () => {
         
         const editorName = userRole === 'SUPER_ADMIN' ? 'Admin' : `${localStorage.getItem('employeeId') || ''} - ${cashierNameMap[auth.currentUser?.email || ''] || 'Quản lý'}`.replace(/^ - | - $/g, '');
         
+        const newHistory = [...(existingOrder?.editHistory || []), { editedAt: new Date().toISOString(), editedBy: editorName }];
+
         await updateDoc(expenseRef, {
           items: [{ name: expenseReason, quantity: 1, price: Number(expenseAmount) }],
           totalAmount: Number(expenseAmount),
           note: expenseNote,
           editCount: newCount,
-          lastEditedBy: editorName
+          lastEditedBy: editorName,
+          editHistory: newHistory
         });
         toast.success('Đã cập nhật phiếu chi');
       } else {
@@ -293,15 +297,17 @@ const Revenue: React.FC = () => {
       const newTotal = billEditItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
       const newEditCount = (billModalData.editCount || 0) + 1;
       const editorName = userRole === 'SUPER_ADMIN' ? 'Admin' : `${localStorage.getItem('employeeId') || ''} - ${cashierNameMap[auth.currentUser?.email || ''] || 'Quản lý'}`.replace(/^ - | - $/g, '');
+      const newHistory = [...(billModalData.editHistory || []), { editedAt: new Date().toISOString(), editedBy: editorName }];
 
       await updateDoc(doc(db, 'orders', billModalData.id), {
         items: billEditItems,
         totalAmount: newTotal,
         editCount: newEditCount,
-        lastEditedBy: editorName
+        lastEditedBy: editorName,
+        editHistory: newHistory
       });
       toast.success('Đã lưu thay đổi hóa đơn');
-      setBillModalData({ ...billModalData, items: billEditItems, totalAmount: newTotal, editCount: newEditCount, lastEditedBy: editorName });
+      setBillModalData({ ...billModalData, items: billEditItems, totalAmount: newTotal, editCount: newEditCount, lastEditedBy: editorName, editHistory: newHistory });
       setIsEditBillMode(false);
     } catch (error) {
       console.error(error);
@@ -658,7 +664,17 @@ const Revenue: React.FC = () => {
                   </span>
                 </div>
 
-                {!isEditBillMode && billModalData.editCount && billModalData.editCount > 0 && (
+                {!isEditBillMode && billModalData.editHistory && billModalData.editHistory.length > 0 && (
+                  <div className="mt-4 pt-3 border-t border-dashed border-gray-300 text-xs">
+                    <p className="font-semibold text-gray-700 mb-1">Lịch sử chỉnh sửa ({billModalData.editCount} lần):</p>
+                    <ul className="space-y-1 text-gray-500">
+                      {billModalData.editHistory.map((h: any, i: number) => (
+                        <li key={i}>- Lần {i + 1}: {new Date(h.editedAt).toLocaleString('vi-VN')} bởi <strong>{formatEditorName(h.editedBy)}</strong></li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {!isEditBillMode && !billModalData.editHistory && billModalData.editCount && billModalData.editCount > 0 && (
                   <div className="mt-3 text-xs text-right text-gray-500 italic">
                     (Đã sửa {billModalData.editCount} lần bởi {formatEditorName(billModalData.lastEditedBy)})
                   </div>
@@ -796,6 +812,18 @@ const Revenue: React.FC = () => {
                 </div>
                 {editingExpenseId && (() => {
                   const editingOrder = orders.find(o => o.id === editingExpenseId);
+                  if (editingOrder?.editHistory && editingOrder.editHistory.length > 0) {
+                    return (
+                      <div className="mt-4 pt-3 border-t border-dashed border-gray-300 text-xs">
+                        <p className="font-semibold text-gray-700 mb-1">Lịch sử chỉnh sửa ({editingOrder.editCount} lần):</p>
+                        <ul className="space-y-1 text-gray-500">
+                          {editingOrder.editHistory.map((h: any, i: number) => (
+                            <li key={i}>- Lần {i + 1}: {new Date(h.editedAt).toLocaleString('vi-VN')} bởi <strong>{formatEditorName(h.editedBy)}</strong></li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  }
                   return editingOrder?.editCount && editingOrder.editCount > 0 ? (
                     <div className="text-xs text-right text-gray-500 italic mt-2">
                       (Đã sửa {editingOrder.editCount} lần bởi {formatEditorName(editingOrder.lastEditedBy)})
