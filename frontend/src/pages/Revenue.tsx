@@ -332,7 +332,7 @@ const Revenue: React.FC = () => {
             <TrendingUp size={28} />
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-500 mb-1">Lợi Nhuận</p>
+            <p className="text-sm font-medium text-gray-500 mb-1">Thực thu</p>
             <h3 className="text-2xl font-black text-green-600">
               {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(profit)}
             </h3>
