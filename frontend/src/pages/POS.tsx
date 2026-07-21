@@ -19,6 +19,7 @@ interface MenuItem {
 interface CartItem extends MenuItem {
   quantity: number;
   cartItemId: string;
+  isServed?: boolean;
 }
 
 interface ActiveTableOrder {
@@ -914,8 +915,26 @@ const POS: React.FC = () => {
                         </div>
                       </div>
                       
-                      <div className="bg-gray-50 rounded-lg p-2 text-xs text-gray-600 line-clamp-2 leading-relaxed">
-                        {order.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
+                      <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700 flex flex-col gap-2 mt-2" onClick={e => e.stopPropagation()}>
+                        {order.items.map((item, idx) => (
+                          <div key={item.cartItemId || idx} className="flex items-start gap-3">
+                            <input 
+                              type="checkbox" 
+                              checked={item.isServed || false}
+                              onChange={async (e) => {
+                                const newItems = [...order.items];
+                                newItems[idx].isServed = e.target.checked;
+                                await updateDoc(doc(db, 'active_table_orders', order.id), {
+                                  items: newItems
+                                });
+                              }}
+                              className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 mt-0.5 cursor-pointer shrink-0"
+                            />
+                            <span className={`${item.isServed ? 'line-through text-gray-400' : 'font-medium text-gray-800'}`}>
+                              {item.quantity}x {item.name}
+                            </span>
+                          </div>
+                        ))}
                       </div>
                       
                       <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between items-center">
