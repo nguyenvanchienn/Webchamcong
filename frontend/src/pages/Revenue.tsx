@@ -233,18 +233,8 @@ const Revenue: React.FC = () => {
   
   const totalOrders = incomeOrders.length;
   
-  // Calculate today's stats
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayOrders = filteredOrders.filter(o => {
-    if (!o.createdAt) return false;
-    const date = o.createdAt.toDate ? o.createdAt.toDate() : new Date(o.createdAt);
-    return date >= today;
-  });
-  
-  const todayIncome = todayOrders.filter(o => o.type !== 'EXPENSE').reduce((sum, o) => sum + (o.totalAmount || 0), 0);
-  const todayExpense = todayOrders.filter(o => o.type === 'EXPENSE').reduce((sum, o) => sum + (o.totalAmount || 0), 0);
-  const todayProfit = todayIncome - todayExpense;
+
+
 
   if (loading) return <div className="p-8 text-center text-gray-500">Đang tải dữ liệu doanh thu...</div>;
 
