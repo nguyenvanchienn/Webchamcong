@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, doc, getDoc, addDoc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, getDoc, addDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { Wallet, CalendarDays, Clock, X, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';

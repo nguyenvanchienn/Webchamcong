@@ -3,7 +3,7 @@ import { collection, getDocs, getDoc, addDoc, serverTimestamp, query, where, doc
 import { db, auth } from '../config/firebase';
 import { EmailAuthProvider, reauthenticateWithCredential, signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingCart, Trash2, Plus, Minus, Receipt, CheckCircle, Printer, LogOut, Lock, Menu, X, Grip, LayoutDashboard, Store, BellRing, Coffee } from 'lucide-react';
+import { ShoppingCart, Trash2, Plus, Minus, Receipt, CheckCircle, Printer, LogOut, Lock, X, Grip, LayoutDashboard, Store, Coffee, QrCode } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface MenuItem {
@@ -1011,6 +1011,14 @@ const POS: React.FC = () => {
                 >
                   <span className="mr-3 relative text-gray-400"><Receipt size={20} /></span>
                   <span className="flex-1">Lịch sử Hóa đơn</span>
+                </div>
+
+                <div 
+                  onClick={() => navigate('/dashboard/tables')}
+                  className="flex items-center py-3 px-4 text-sm font-medium rounded-lg transition-colors relative text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer mt-1"
+                >
+                  <span className="mr-3 relative text-gray-400"><QrCode size={20} /></span>
+                  <span className="flex-1">Quản lý Bàn / QR</span>
                 </div>
 
                 {localStorage.getItem('userRole') !== 'POS' && (

@@ -104,7 +104,7 @@ const DashboardLayout: React.FC = () => {
     { name: 'Lịch sử Hóa đơn', path: '/dashboard/orders', icon: <Receipt size={20} />, roles: ['POS'] },
     { name: 'Quản lý Thực đơn', path: '/dashboard/menu', icon: <Utensils size={20} />, roles: ['SUPER_ADMIN'] },
     { name: 'Quản lý cơ sở', path: '/dashboard/branches', icon: <Building2 size={20} />, roles: ['SUPER_ADMIN'] },
-    { name: 'Quản lý Bàn / QR', path: '/dashboard/tables', icon: <QrCode size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN'] },
+    { name: 'Quản lý Bàn / QR', path: '/dashboard/tables', icon: <QrCode size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN', 'POS'] },
     { name: 'Quản lý nhân viên', path: '/dashboard/employees', icon: <Users size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN'] },
     { name: 'Quản lý tài khoản', path: '/dashboard/accounts', icon: <UserCog size={20} />, roles: ['SUPER_ADMIN'] },
     { name: 'Chấm công (Admin)', path: '/dashboard/attendance', icon: <Clock size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN'] },

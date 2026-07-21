@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, query, where, doc, onSnapshot, updateDoc, setDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { ShoppingCart, Trash2, Plus, Minus, CheckCircle, Store, X, LayoutDashboard, Receipt, LogOut } from 'lucide-react';
+import { ShoppingCart, Trash2, Plus, Minus, Store, X, LayoutDashboard, Receipt } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
@@ -43,7 +43,7 @@ const CustomerOrder: React.FC = () => {
 
     const initSession = async () => {
       try {
-        const snap = await getDocs(query(collection(db, 'active_pos_sessions')));
+        await getDocs(query(collection(db, 'active_pos_sessions')));
         // if not exists, we let POS init it, or we init here
       } catch (e) {
         console.error(e);
