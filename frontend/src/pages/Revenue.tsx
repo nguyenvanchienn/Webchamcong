@@ -1,8 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, orderBy, getDocs, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
-import { CircleDollarSign, Receipt, TrendingUp, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, FileText } from 'lucide-react';
+import { CircleDollarSign, Receipt, TrendingUp, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, FileText, Trash2, Edit2, Minus, X } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+interface MenuItem {
+  id: string;
+  name: string;
+  price: number;
+  category: string;
+  isAvailable: boolean;
+}
 
 interface Order {
   id: string;
@@ -36,6 +44,10 @@ const Revenue: React.FC = () => {
   const [branchAddressMap, setBranchAddressMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [billModalData, setBillModalData] = useState<any | null>(null);
+  const [isEditBillMode, setIsEditBillMode] = useState(false);
+  const [billEditItems, setBillEditItems] = useState<any[]>([]);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [selectedItemToAdd, setSelectedItemToAdd] = useState<string>('');
 
   // Expense Modal State
   const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -95,6 +107,11 @@ const Revenue: React.FC = () => {
           branchName: doc.data().branchId ? branchMap[doc.data().branchId] || 'Chưa rõ' : 'Chưa rõ'
         } as Order & { branchName: string }));
         setOrders(list);
+
+        // Fetch Menu Items
+        const menuSnap = await getDocs(collection(db, 'menu_items'));
+        const mItems = menuSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as MenuItem));
+        setMenuItems(mItems);
       } catch (error) {
         console.error(error);
         toast.error('Lỗi khi tải dữ liệu doanh thu');
@@ -103,7 +120,7 @@ const Revenue: React.FC = () => {
       }
     };
     fetchData();
-  }, [showExpenseModal]); // Refetch when modal closes to update list
+  }, [showExpenseModal, billModalData === null]); // Refetch when modal closes to update list
 
   const filteredOrders = orders.filter(o => {
     if (userRole !== 'SUPER_ADMIN' && o.branchId !== userBranchId) {
@@ -252,6 +269,63 @@ const Revenue: React.FC = () => {
     setExpenseNote(expense.note || '');
     setEditingExpenseId(expense.id);
     setShowExpenseModal(true);
+  };
+
+  const handleDeleteBill = async () => {
+    if (!billModalData) return;
+    if (window.confirm('Bạn có chắc chắn muốn XÓA HOÀN TOÀN hóa đơn này không? Thao tác này không thể hoàn tác!')) {
+      try {
+        await deleteDoc(doc(db, 'orders', billModalData.id));
+        toast.success('Đã xóa hóa đơn');
+        setBillModalData(null);
+      } catch (error) {
+        console.error(error);
+        toast.error('Lỗi khi xóa hóa đơn');
+      }
+    }
+  };
+
+  const handleSaveBillEdit = async () => {
+    if (!billModalData) return;
+    try {
+      const newTotal = billEditItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const newEditCount = (billModalData.editCount || 0) + 1;
+      await updateDoc(doc(db, 'orders', billModalData.id), {
+        items: billEditItems,
+        totalAmount: newTotal,
+        editCount: newEditCount,
+        lastEditedBy: auth.currentUser?.email || 'Unknown'
+      });
+      toast.success('Đã lưu thay đổi hóa đơn');
+      setBillModalData({ ...billModalData, items: billEditItems, totalAmount: newTotal, editCount: newEditCount, lastEditedBy: auth.currentUser?.email || 'Unknown' });
+      setIsEditBillMode(false);
+    } catch (error) {
+      console.error(error);
+      toast.error('Lỗi khi lưu hóa đơn');
+    }
+  };
+
+  const handleBillItemQuantity = (index: number, delta: number) => {
+    const newItems = [...billEditItems];
+    newItems[index].quantity += delta;
+    if (newItems[index].quantity <= 0) {
+      newItems.splice(index, 1);
+    }
+    setBillEditItems(newItems);
+  };
+
+  const handleAddBillItem = () => {
+    if (!selectedItemToAdd) return;
+    const menuItem = menuItems.find(i => i.id === selectedItemToAdd);
+    if (menuItem) {
+      const existingItemIndex = billEditItems.findIndex(i => i.id === menuItem.id || i.menuItemId === menuItem.id);
+      if (existingItemIndex >= 0) {
+        handleBillItemQuantity(existingItemIndex, 1);
+      } else {
+        setBillEditItems([...billEditItems, { ...menuItem, menuItemId: menuItem.id, quantity: 1 }]);
+      }
+    }
+    setSelectedItemToAdd('');
   };
 
   const incomeOrders = filteredOrders.filter(o => o.type !== 'EXPENSE');
@@ -429,7 +503,10 @@ const Revenue: React.FC = () => {
                       key={order.id} 
                       onClick={() => {
                         if (canEdit) openEditExpense(order);
-                        else if (!isExpense) setBillModalData({ ...order, cashierName, branchAddress: order.branchId ? branchAddressMap[order.branchId] : null });
+                        else if (!isExpense) {
+                          setBillModalData({ ...order, cashierName, branchAddress: order.branchId ? branchAddressMap[order.branchId] : null });
+                          setIsEditBillMode(false);
+                        }
                       }}
                       className={`border-b border-gray-100 transition-colors ${isExpense ? 'bg-red-50' : 'hover:bg-gray-50'} ${(!isExpense || canEdit) ? 'cursor-pointer' : ''} ${canEdit ? 'hover:bg-red-100' : ''}`}
                     >
@@ -447,7 +524,7 @@ const Revenue: React.FC = () => {
                       <td className="p-4 text-sm text-gray-500 max-w-xs truncate">
                         {order.items?.map(i => isExpense ? i.name : `${i.quantity}x ${i.name}`).join(', ')}
                         {order.note && <span className="block text-xs text-gray-400 mt-0.5">Ghi chú: {order.note}</span>}
-                        {isExpense && order.editCount && order.editCount > 0 ? (
+                        {order.editCount && order.editCount > 0 ? (
                           <span className="block text-[10px] text-gray-400 font-medium mt-1">
                             (Đã sửa {order.editCount} lần bởi {order.lastEditedBy})
                           </span>
@@ -511,22 +588,63 @@ const Revenue: React.FC = () => {
                       <th className="py-2 w-1/2">Tên món</th>
                       <th className="py-2 text-center">SL</th>
                       <th className="py-2 text-right">Đơn giá</th>
+                      {isEditBillMode && <th className="py-2 text-right w-8"></th>}
                     </tr>
                   </thead>
                   <tbody>
-                    {billModalData.items?.map((item: any, idx: number) => (
+                    {(isEditBillMode ? billEditItems : billModalData.items)?.map((item: any, idx: number) => (
                       <tr key={idx} className="border-b border-dashed border-gray-100">
                         <td className="py-2 pr-2 font-medium">{item.name}</td>
-                        <td className="py-2 text-center">{item.quantity}</td>
+                        <td className="py-2 text-center">
+                          {isEditBillMode ? (
+                            <div className="flex items-center justify-center gap-1">
+                              <button onClick={() => handleBillItemQuantity(idx, -1)} className="p-0.5 bg-gray-100 rounded text-gray-600 hover:bg-gray-200"><Minus size={12} /></button>
+                              <span className="w-4 text-center">{item.quantity}</span>
+                              <button onClick={() => handleBillItemQuantity(idx, 1)} className="p-0.5 bg-gray-100 rounded text-gray-600 hover:bg-gray-200"><Plus size={12} /></button>
+                            </div>
+                          ) : (
+                            item.quantity
+                          )}
+                        </td>
                         <td className="py-2 text-right">{new Intl.NumberFormat('vi-VN').format(item.price)}</td>
+                        {isEditBillMode && (
+                          <td className="py-2 text-right">
+                            <button onClick={() => {
+                              const newItems = [...billEditItems];
+                              newItems.splice(idx, 1);
+                              setBillEditItems(newItems);
+                            }} className="text-red-500 hover:text-red-700 p-0.5"><X size={14} /></button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                
+                {isEditBillMode && (
+                  <div className="mb-4 flex gap-2">
+                    <select
+                      value={selectedItemToAdd}
+                      onChange={(e) => setSelectedItemToAdd(e.target.value)}
+                      className="flex-1 border border-gray-300 rounded p-1 text-sm outline-none"
+                    >
+                      <option value="">-- Chọn món để thêm --</option>
+                      {menuItems.filter(m => m.isAvailable).map(m => (
+                        <option key={m.id} value={m.id}>{m.name} - {new Intl.NumberFormat('vi-VN').format(m.price)}đ</option>
+                      ))}
+                    </select>
+                    <button onClick={handleAddBillItem} className="bg-blue-600 text-white px-2 py-1 rounded text-sm hover:bg-blue-700 font-medium whitespace-nowrap">Thêm</button>
+                  </div>
+                )}
 
                 <div className="flex justify-between items-center pt-4 mt-4 border-t border-gray-300 font-bold text-lg">
                   <span>TỔNG CỘNG:</span>
-                  <span>{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(billModalData.totalAmount)}</span>
+                  <span>
+                    {isEditBillMode 
+                      ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(billEditItems.reduce((sum, item) => sum + (item.price * item.quantity), 0))
+                      : new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(billModalData.totalAmount)
+                    }
+                  </span>
                 </div>
 
                 <div className="mt-4 pt-4 border-t border-dashed border-gray-300 space-y-2 text-xs">
@@ -562,12 +680,52 @@ const Revenue: React.FC = () => {
             </div>
 
             <div className="p-4 bg-white border-t border-gray-100 flex gap-3">
-              <button
-                onClick={() => setBillModalData(null)}
-                className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
-              >
-                Đóng
-              </button>
+              {isEditBillMode ? (
+                <>
+                  <button
+                    onClick={() => setIsEditBillMode(false)}
+                    className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
+                  >
+                    Hủy sửa
+                  </button>
+                  <button
+                    onClick={handleSaveBillEdit}
+                    className="flex-1 py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors"
+                  >
+                    Lưu Hóa đơn
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setBillModalData(null)}
+                    className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
+                  >
+                    Đóng
+                  </button>
+                  {userRole !== 'POS' && (
+                    <>
+                      <button
+                        onClick={() => handleDeleteBill()}
+                        className="py-3 px-4 bg-red-100 text-red-600 font-bold rounded-xl hover:bg-red-200 transition-colors flex items-center justify-center"
+                        title="Xóa hóa đơn"
+                      >
+                        <Trash2 size={20} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setBillEditItems(JSON.parse(JSON.stringify(billModalData.items || [])));
+                          setIsEditBillMode(true);
+                        }}
+                        className="py-3 px-4 bg-blue-100 text-blue-600 font-bold rounded-xl hover:bg-blue-200 transition-colors flex items-center justify-center"
+                        title="Sửa hóa đơn"
+                      >
+                        <Edit2 size={20} />
+                      </button>
+                    </>
+                  )}
+                </>
+              )}
             </div>
           </div>
         </div>
