@@ -65,6 +65,26 @@ const POS: React.FC = () => {
   const [itemToDelete, setItemToDelete] = useState<{ orderId: string; tableId: string; tableName: string; itemIndex: number; itemName: string; orderItems: any[] } | null>(null);
 
   const navigate = useNavigate();
+  
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+  
+  const formatElapsedTime = (startMillis: number) => {
+    if (!startMillis) return '';
+    const diff = Math.floor((now - startMillis) / 1000);
+    if (diff < 60) return 'Vừa xong';
+    
+    const hours = Math.floor(diff / 3600);
+    const minutes = Math.floor((diff % 3600) / 60);
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes}p`;
+    }
+    return `${minutes} phút`;
+  };
 
   const updatePosState = async (updates: any) => {
     const branchId = localStorage.getItem('branchId');
@@ -1070,14 +1090,15 @@ const POS: React.FC = () => {
                               {order.tableName}
                               {order.hasNewItems && <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>}
                             </h4>
-                            <span className="text-xs font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-md">
+                            <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
                               {(() => {
                                 const ts = order.createdAt || order.updatedAt;
                                 if (!ts) return '';
                                 let millis = 0;
                                 if (typeof ts.toMillis === 'function') millis = ts.toMillis();
                                 else if (ts.seconds) millis = ts.seconds * 1000;
-                                return millis ? new Date(millis).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '';
+                                return millis ? formatElapsedTime(millis) : '';
                               })()}
                             </span>
                           </div>
@@ -1110,11 +1131,16 @@ const POS: React.FC = () => {
                                 <span className={`${item.isServed ? 'line-through text-gray-400' : 'font-medium text-gray-800'}`}>
                                   {item.quantity}x {item.name}
                                 </span>
-                                <span className="text-[10px] font-bold text-gray-400">
+                                <span className="text-[10px] font-bold text-orange-500">
                                   {(() => {
                                     if (!item.cartItemId) return '';
                                     const t = parseInt(item.cartItemId.substring(0, 13));
-                                    return isNaN(t) ? '' : new Date(t).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                                    if (isNaN(t)) return '';
+                                    const diff = Math.floor((now - t) / 1000);
+                                    if (diff < 60) return 'Vừa gọi';
+                                    const h = Math.floor(diff / 3600);
+                                    const m = Math.floor((diff % 3600) / 60);
+                                    return `Đợi ${h > 0 ? `${h}h ` : ''}${m}p`;
                                   })()}
                                 </span>
                               </div>
