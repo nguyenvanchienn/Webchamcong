@@ -35,6 +35,7 @@ const TableManager: React.FC = () => {
 
   const userRole = localStorage.getItem('userRole');
   const userBranchId = localStorage.getItem('branchId');
+  const requiresPassword = userRole !== 'SUPER_ADMIN' && userRole !== 'BRANCH_ADMIN';
 
   useEffect(() => {
     const fetchBranchesAndTables = async () => {
@@ -84,16 +85,23 @@ const TableManager: React.FC = () => {
   const handleAddTable = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tableName.trim() || !selectedBranch) return;
-    if (!addPassword) {
+    if (requiresPassword && !addPassword) {
       toast.error('Vui lòng nhập mật khẩu xác nhận');
       return;
     }
 
     setIsAdding(true);
     try {
-      if (auth.currentUser && auth.currentUser.email) {
-        const credential = EmailAuthProvider.credential(auth.currentUser.email, addPassword);
-        await reauthenticateWithCredential(auth.currentUser, credential);
+      if (requiresPassword) {
+        if (auth.currentUser && auth.currentUser.email) {
+          const credential = EmailAuthProvider.credential(auth.currentUser.email, addPassword);
+          await reauthenticateWithCredential(auth.currentUser, credential);
+        } else {
+          toast.error('Lỗi xác thực người dùng');
+          setIsAdding(false);
+          return;
+        }
+      }
         
         const newTable = {
           name: tableName.trim(),
@@ -107,9 +115,6 @@ const TableManager: React.FC = () => {
         setIsModalOpen(false);
         setTableName('');
         setAddPassword('');
-      } else {
-        toast.error('Lỗi xác thực người dùng');
-      }
     } catch (error) {
       console.error(error);
       toast.error('Mật khẩu không chính xác');
@@ -120,25 +125,29 @@ const TableManager: React.FC = () => {
 
   const confirmDeleteTable = async () => {
     if (!tableToDelete) return;
-    if (!deletePassword) {
+    if (requiresPassword && !deletePassword) {
       toast.error('Vui lòng nhập mật khẩu xác nhận');
       return;
     }
     
     setIsDeleting(true);
     try {
-      if (auth.currentUser && auth.currentUser.email) {
-        const credential = EmailAuthProvider.credential(auth.currentUser.email, deletePassword);
-        await reauthenticateWithCredential(auth.currentUser, credential);
+      if (requiresPassword) {
+        if (auth.currentUser && auth.currentUser.email) {
+          const credential = EmailAuthProvider.credential(auth.currentUser.email, deletePassword);
+          await reauthenticateWithCredential(auth.currentUser, credential);
+        } else {
+          toast.error('Lỗi xác thực người dùng');
+          setIsDeleting(false);
+          return;
+        }
+      }
         
         await deleteDoc(doc(db, 'tables', tableToDelete.id));
         setTables(tables.filter(t => t.id !== tableToDelete.id));
         toast.success('Đã xóa bàn');
         setTableToDelete(null);
         setDeletePassword('');
-      } else {
-        toast.error('Lỗi xác thực người dùng');
-      }
     } catch (error) {
       console.error(error);
       toast.error('Mật khẩu không chính xác');
@@ -263,20 +272,22 @@ const TableManager: React.FC = () => {
                   placeholder="Nhập tên bàn..." 
                 />
               </div>
-              <div className="mb-6">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Mật khẩu tài khoản</label>
-                <input 
-                  type="password" 
-                  value={addPassword} 
-                  onChange={e => setAddPassword(e.target.value)} 
-                  required 
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none tracking-widest font-medium text-gray-800" 
-                  placeholder="Nhập mật khẩu..." 
-                />
-              </div>
+              {requiresPassword && (
+                <div className="mb-6">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Mật khẩu tài khoản</label>
+                  <input 
+                    type="password" 
+                    value={addPassword} 
+                    onChange={e => setAddPassword(e.target.value)} 
+                    required 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none tracking-widest font-medium text-gray-800" 
+                    placeholder="Nhập mật khẩu..." 
+                  />
+                </div>
+              )}
               <div className="flex gap-3">
                 <button type="button" onClick={() => { setIsModalOpen(false); setAddPassword(''); }} className="flex-1 py-3 px-4 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 disabled:opacity-50" disabled={isAdding}>Hủy</button>
-                <button type="submit" className="flex-1 py-3 px-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:bg-gray-400 disabled:shadow-none shadow-md shadow-blue-500/20" disabled={!addPassword || isAdding}>
+                <button type="submit" className="flex-1 py-3 px-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:bg-gray-400 disabled:shadow-none shadow-md shadow-blue-500/20" disabled={isAdding || (requiresPassword && !addPassword)}>
                   {isAdding ? 'Đang xử lý...' : 'Thêm Bàn'}
                 </button>
               </div>
@@ -313,19 +324,26 @@ const TableManager: React.FC = () => {
               <Lock size={32} />
             </div>
             <h3 className="text-xl font-bold text-center text-gray-800 mb-2">Xác nhận xoá bàn</h3>
-            <p className="text-gray-600 text-center mb-4 text-sm">
-              Nhập mật khẩu tài khoản để xác nhận xóa <span className="font-bold text-gray-800">{tableToDelete.name}</span>. Mã QR cũ sẽ bị vô hiệu hóa.
-            </p>
-
-            <input
-              type="password"
-              placeholder="Nhập mật khẩu..."
-              value={deletePassword}
-              onChange={(e) => setDeletePassword(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && confirmDeleteTable()}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl mb-6 focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none text-center text-lg tracking-widest"
-              autoFocus
-            />
+            {requiresPassword ? (
+              <>
+                <p className="text-gray-600 text-center mb-4 text-sm">
+                  Nhập mật khẩu tài khoản để xác nhận xóa <span className="font-bold text-gray-800">{tableToDelete.name}</span>. Mã QR cũ sẽ bị vô hiệu hóa.
+                </p>
+                <input
+                  type="password"
+                  placeholder="Nhập mật khẩu..."
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && confirmDeleteTable()}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl mb-6 focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none text-center text-lg tracking-widest"
+                  autoFocus
+                />
+              </>
+            ) : (
+              <p className="text-gray-600 text-center mb-6 text-sm">
+                Bạn có chắc chắn muốn xóa <span className="font-bold text-gray-800">{tableToDelete.name}</span> không? Mã QR cũ sẽ bị vô hiệu hóa.
+              </p>
+            )}
 
             <div className="flex gap-3">
               <button
@@ -337,7 +355,7 @@ const TableManager: React.FC = () => {
               </button>
               <button
                 onClick={confirmDeleteTable}
-                disabled={!deletePassword || isDeleting}
+                disabled={isDeleting || (requiresPassword && !deletePassword)}
                 className="flex-1 py-3 px-4 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors shadow-lg shadow-red-500/30 disabled:bg-gray-300 disabled:shadow-none"
               >
                 {isDeleting ? 'Đang xử lý...' : 'Xóa Bàn'}
