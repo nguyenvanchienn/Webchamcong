@@ -46,7 +46,7 @@ const TableManager: React.FC = () => {
           branchList = branchSnap.docs.map(doc => ({ id: doc.id, name: doc.data().name }));
           setBranches(branchList);
           if (branchList.length > 0) {
-            setSelectedBranch(branchList[0].id);
+            setSelectedBranch('all');
           }
         } else if (userBranchId) {
           setSelectedBranch(userBranchId);
