@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, getDoc, addDoc, serverTimestamp, query, where, doc, runTransaction, onSnapshot, updateDoc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, getDoc, addDoc, serverTimestamp, query, where, doc, runTransaction, onSnapshot, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
 import { EmailAuthProvider, reauthenticateWithCredential, signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
@@ -947,22 +947,49 @@ const POS: React.FC = () => {
                       
                       <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700 flex flex-col gap-2 mt-2" onClick={e => e.stopPropagation()}>
                         {order.items.map((item, idx) => (
-                          <div key={item.cartItemId || idx} className="flex items-start gap-3">
-                            <input 
-                              type="checkbox" 
-                              checked={item.isServed || false}
-                              onChange={async (e) => {
-                                const newItems = [...order.items];
-                                newItems[idx].isServed = e.target.checked;
-                                await updateDoc(doc(db, 'active_table_orders', order.id), {
-                                  items: newItems
-                                });
+                          <div key={item.cartItemId || idx} className="flex items-center justify-between group">
+                            <div className="flex items-start gap-3 flex-1">
+                              <input 
+                                type="checkbox" 
+                                checked={item.isServed || false}
+                                onChange={async (e) => {
+                                  const newItems = [...order.items];
+                                  newItems[idx].isServed = e.target.checked;
+                                  await updateDoc(doc(db, 'active_table_orders', order.id), {
+                                    items: newItems
+                                  });
+                                }}
+                                className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 mt-0.5 cursor-pointer shrink-0"
+                              />
+                              <span className={`${item.isServed ? 'line-through text-gray-400' : 'font-medium text-gray-800'}`}>
+                                {item.quantity}x {item.name}
+                              </span>
+                            </div>
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (window.confirm(`Bạn có chắc muốn xoá ${item.name} khỏi đơn của ${order.tableName}?`)) {
+                                  const newItems = [...order.items];
+                                  newItems.splice(idx, 1);
+                                  
+                                  if (newItems.length === 0) {
+                                    await deleteDoc(doc(db, 'active_table_orders', order.id));
+                                    await updateDoc(doc(db, 'tables', order.tableId), { status: 'AVAILABLE' });
+                                    toast.success(`Đã xoá bàn ${order.tableName}`);
+                                  } else {
+                                    const newTotal = newItems.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+                                    await updateDoc(doc(db, 'active_table_orders', order.id), {
+                                      items: newItems,
+                                      totalAmount: newTotal
+                                    });
+                                  }
+                                }
                               }}
-                              className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 mt-0.5 cursor-pointer shrink-0"
-                            />
-                            <span className={`${item.isServed ? 'line-through text-gray-400' : 'font-medium text-gray-800'}`}>
-                              {item.quantity}x {item.name}
-                            </span>
+                              className="text-red-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 -mr-2"
+                              title="Xóa món này"
+                            >
+                              <X size={16} strokeWidth={3} />
+                            </button>
                           </div>
                         ))}
                       </div>
