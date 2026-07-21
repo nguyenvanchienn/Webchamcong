@@ -52,6 +52,22 @@ const Accounts: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
+      // Get employees for dropdown and mapping
+      const empSnap = await getDocs(collection(db, 'employees'));
+      const empList: Employee[] = [];
+      const empBranchMap: Record<string, string> = {};
+      empSnap.forEach((doc) => {
+        const data = doc.data();
+        empList.push({ 
+          id: doc.id, 
+          fullName: data.fullName, 
+          employeeCode: data.employeeCode,
+          branchId: data.branchId
+        });
+        if (data.branchId) empBranchMap[doc.id] = data.branchId;
+      });
+      setEmployees(empList);
+
       // Get users
       const userSnap = await getDocs(collection(db, 'users'));
       const userList: UserAccount[] = [];
@@ -59,7 +75,8 @@ const Accounts: React.FC = () => {
         const data = doc.data();
         if (data.role !== 'SUPER_ADMIN') {
           if (userRole === 'BRANCH_ADMIN') {
-            if (data.branchId === userBranchId) {
+            const accBranchId = data.branchId || (data.employeeId ? empBranchMap[data.employeeId] : null);
+            if (accBranchId === userBranchId) {
               userList.push({ id: doc.id, ...data } as UserAccount);
             }
           } else {
@@ -68,19 +85,6 @@ const Accounts: React.FC = () => {
         }
       });
       setAccounts(userList);
-
-      // Get employees for dropdown
-      const empSnap = await getDocs(collection(db, 'employees'));
-      const empList: Employee[] = [];
-      empSnap.forEach((doc) => {
-        empList.push({ 
-          id: doc.id, 
-          fullName: doc.data().fullName, 
-          employeeCode: doc.data().employeeCode,
-          branchId: doc.data().branchId
-        });
-      });
-      setEmployees(empList);
 
       const branchSnap = await getDocs(collection(db, 'branches'));
       const brList: any[] = [];
@@ -288,16 +292,18 @@ const Accounts: React.FC = () => {
           <p className="text-sm text-gray-500">Cấp tài khoản đăng nhập cho Quản lý cơ sở và Nhân viên</p>
         </div>
         <div className="flex items-center space-x-4">
-          <select
-            value={filterBranchId}
-            onChange={(e) => setFilterBranchId(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg outline-none focus:border-blue-500"
-          >
-            <option value="all">Tất cả cơ sở</option>
-            {branches.map(b => (
-              <option key={b.id} value={b.id}>{b.name}</option>
-            ))}
-          </select>
+          {userRole === 'SUPER_ADMIN' && (
+            <select
+              value={filterBranchId}
+              onChange={(e) => setFilterBranchId(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg outline-none focus:border-blue-500"
+            >
+              <option value="all">Tất cả cơ sở</option>
+              {branches.map(b => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          )}
           <button 
             onClick={() => openModal()}
             className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
