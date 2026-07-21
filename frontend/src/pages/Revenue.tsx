@@ -232,12 +232,12 @@ const Revenue: React.FC = () => {
           editedAt: new Date().toISOString(), 
           editedBy: editorName,
           oldAmount: existingOrder?.totalAmount || 0,
-          newAmount: Number(expenseAmount)
+          newAmount: Number(expenseAmount.replace(/\./g, ''))
         }];
 
         await updateDoc(expenseRef, {
-          items: [{ name: expenseReason, quantity: 1, price: Number(expenseAmount) }],
-          totalAmount: Number(expenseAmount),
+          items: [{ name: expenseReason, quantity: 1, price: Number(expenseAmount.replace(/\./g, '')) }],
+          totalAmount: Number(expenseAmount.replace(/\./g, '')),
           note: expenseNote,
           editCount: newCount,
           lastEditedBy: editorName,
@@ -247,8 +247,8 @@ const Revenue: React.FC = () => {
       } else {
         const expenseData = {
           orderCode: 'CHI-' + Date.now().toString().slice(-6),
-          items: [{ name: expenseReason, quantity: 1, price: Number(expenseAmount) }],
-          totalAmount: Number(expenseAmount),
+          items: [{ name: expenseReason, quantity: 1, price: Number(expenseAmount.replace(/\./g, '')) }],
+          totalAmount: Number(expenseAmount.replace(/\./g, '')),
           createdAt: serverTimestamp(),
           cashierEmail: auth.currentUser?.email || 'Unknown',
           employeeId: 'Unknown',
@@ -279,7 +279,7 @@ const Revenue: React.FC = () => {
   const openEditExpense = (expense: Order) => {
     if (userRole === 'POS') return; // Only managers/admins can edit
     setExpenseReason(expense.items[0]?.name || '');
-    setExpenseAmount(expense.totalAmount.toString());
+    setExpenseAmount(new Intl.NumberFormat('vi-VN').format(expense.totalAmount));
     setExpenseNote(expense.note || '');
     setEditingExpenseId(expense.id);
     setShowExpenseModal(true);
@@ -884,13 +884,17 @@ const Revenue: React.FC = () => {
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Số tiền chi (VNĐ)</label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     value={expenseAmount}
-                    onChange={(e) => setExpenseAmount(e.target.value)}
+                    onChange={(e) => {
+                      const rawValue = e.target.value.replace(/\D/g, '');
+                      const formattedValue = rawValue ? new Intl.NumberFormat('vi-VN').format(Number(rawValue)) : '';
+                      setExpenseAmount(formattedValue);
+                    }}
                     placeholder="Nhập số tiền..."
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 outline-none"
                     required
-                    min="1000"
                   />
                 </div>
                 <div>
