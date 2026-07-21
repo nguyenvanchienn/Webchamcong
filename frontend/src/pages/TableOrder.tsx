@@ -327,7 +327,15 @@ const TableOrder: React.FC = () => {
       {cart.length > 0 && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-[0_-10px_20px_rgba(0,0,0,0.05)] p-4 rounded-t-3xl z-30 max-w-md mx-auto animate-slide-up">
           <div className="max-h-[40vh] overflow-y-auto mb-4 space-y-3 pr-2 custom-scrollbar">
-            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Món Vừa Chọn Thêm:</h3>
+            <div className="flex justify-between items-center mb-2 border-b border-gray-100 pb-2">
+              <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Món Vừa Chọn:</h3>
+              <button 
+                onClick={() => setCart([])} 
+                className="text-red-500 font-bold text-sm px-3 py-1 bg-red-50 rounded-lg active:scale-95 transition-transform"
+              >
+                Hủy bỏ
+              </button>
+            </div>
             {cart.map(item => (
               <div key={item.id} className="flex justify-between items-center">
                 <div className="flex-1">
