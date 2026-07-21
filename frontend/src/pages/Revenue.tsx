@@ -335,6 +335,13 @@ const Revenue: React.FC = () => {
   const incomeOrders = filteredOrders.filter(o => o.type !== 'EXPENSE');
   const expenseOrders = filteredOrders.filter(o => o.type === 'EXPENSE');
 
+  const formatEditorName = (editor: string | undefined) => {
+    if (!editor) return '';
+    if (!editor.includes('@')) return editor;
+    if (editor === 'admin@gmail.com' || editor.toLowerCase().includes('admin')) return 'Admin';
+    return cashierNameMap[editor] || 'Quản lý';
+  };
+
   const totalIncome = incomeOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
   const totalExpense = expenseOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
   const profit = totalIncome - totalExpense;
@@ -653,7 +660,7 @@ const Revenue: React.FC = () => {
 
                 {!isEditBillMode && billModalData.editCount && billModalData.editCount > 0 && (
                   <div className="mt-3 text-xs text-right text-gray-500 italic">
-                    (Đã sửa {billModalData.editCount} lần bởi {billModalData.lastEditedBy})
+                    (Đã sửa {billModalData.editCount} lần bởi {formatEditorName(billModalData.lastEditedBy)})
                   </div>
                 )}
 
@@ -787,6 +794,14 @@ const Revenue: React.FC = () => {
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 outline-none min-h-[80px]"
                   />
                 </div>
+                {editingExpenseId && (() => {
+                  const editingOrder = orders.find(o => o.id === editingExpenseId);
+                  return editingOrder?.editCount && editingOrder.editCount > 0 ? (
+                    <div className="text-xs text-right text-gray-500 italic mt-2">
+                      (Đã sửa {editingOrder.editCount} lần bởi {formatEditorName(editingOrder.lastEditedBy)})
+                    </div>
+                  ) : null;
+                })()}
               </div>
 
               <div className="flex gap-3 mt-8">
