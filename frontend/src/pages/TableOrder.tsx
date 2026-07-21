@@ -134,8 +134,12 @@ const TableOrder: React.FC = () => {
     setIsSubmitting(true);
     try {
       if (activeOrder) {
-        // Append to existing order
-        const existingItems = [...activeOrder.items];
+        // Fetch latest order to prevent race condition where POS updated isServed
+        const orderRef = doc(db, 'active_table_orders', activeOrder.id);
+        const orderSnap = await getDoc(orderRef);
+        const latestItems = orderSnap.exists() ? orderSnap.data().items : [...activeOrder.items];
+
+        const existingItems = [...latestItems];
         cart.forEach(cartItem => {
           for (let i = 0; i < cartItem.quantity; i++) {
             existingItems.push({
