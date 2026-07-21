@@ -245,22 +245,42 @@ const Revenue: React.FC = () => {
         });
         toast.success('Đã cập nhật phiếu chi');
       } else {
-        const expenseData = {
-          orderCode: 'CHI-' + Date.now().toString().slice(-6),
-          items: [{ name: expenseReason, quantity: 1, price: Number(expenseAmount.replace(/\./g, '')) }],
-          totalAmount: Number(expenseAmount.replace(/\./g, '')),
-          createdAt: serverTimestamp(),
-          cashierEmail: editorName,
-          employeeId: localStorage.getItem('employeeId') || 'Unknown',
-          status: 'COMPLETED',
-          branchId: selectedBranch !== 'all' ? selectedBranch : (userBranchId || null),
-          type: 'EXPENSE',
-          note: expenseNote,
-          editCount: 0
-        };
-
-        await addDoc(collection(db, 'orders'), expenseData);
-        toast.success('Đã tạo phiếu chi');
+        if (selectedBranch === 'all' && branches.length > 0) {
+          const promises = branches.map(async (branch, idx) => {
+            const expenseData = {
+              orderCode: 'CHI-' + (Date.now() + idx).toString().slice(-6),
+              items: [{ name: expenseReason, quantity: 1, price: Number(expenseAmount.replace(/\./g, '')) }],
+              totalAmount: Number(expenseAmount.replace(/\./g, '')),
+              createdAt: serverTimestamp(),
+              cashierEmail: editorName,
+              employeeId: localStorage.getItem('employeeId') || 'Unknown',
+              status: 'COMPLETED',
+              branchId: branch.id,
+              type: 'EXPENSE',
+              note: expenseNote,
+              editCount: 0
+            };
+            return addDoc(collection(db, 'orders'), expenseData);
+          });
+          await Promise.all(promises);
+          toast.success(`Đã tạo ${branches.length} phiếu chi cho tất cả cơ sở`);
+        } else {
+          const expenseData = {
+            orderCode: 'CHI-' + Date.now().toString().slice(-6),
+            items: [{ name: expenseReason, quantity: 1, price: Number(expenseAmount.replace(/\./g, '')) }],
+            totalAmount: Number(expenseAmount.replace(/\./g, '')),
+            createdAt: serverTimestamp(),
+            cashierEmail: editorName,
+            employeeId: localStorage.getItem('employeeId') || 'Unknown',
+            status: 'COMPLETED',
+            branchId: selectedBranch !== 'all' ? selectedBranch : (userBranchId || null),
+            type: 'EXPENSE',
+            note: expenseNote,
+            editCount: 0
+          };
+          await addDoc(collection(db, 'orders'), expenseData);
+          toast.success('Đã tạo phiếu chi');
+        }
       }
       
       setShowExpenseModal(false);
