@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, orderBy, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
 import { CircleDollarSign, Receipt, TrendingUp, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -16,6 +16,8 @@ interface Order {
   branchId?: string;
   type?: 'INCOME' | 'EXPENSE';
   note?: string;
+  editCount?: number;
+  lastEditedBy?: string;
 }
 
 interface Branch {
@@ -41,6 +43,7 @@ const Revenue: React.FC = () => {
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expenseNote, setExpenseNote] = useState('');
   const [isSubmittingExpense, setIsSubmittingExpense] = useState(false);
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
 
   const userRole = localStorage.getItem('userRole');
   const userBranchId = localStorage.getItem('branchId');
@@ -197,31 +200,58 @@ const Revenue: React.FC = () => {
 
     setIsSubmittingExpense(true);
     try {
-      const expenseData = {
-        orderCode: 'CHI-' + Date.now().toString().slice(-6),
-        items: [{ name: expenseReason, quantity: 1, price: Number(expenseAmount) }],
-        totalAmount: Number(expenseAmount),
-        createdAt: serverTimestamp(),
-        cashierEmail: auth.currentUser?.email || 'Unknown',
-        employeeId: 'Unknown',
-        status: 'COMPLETED',
-        branchId: selectedBranch !== 'all' ? selectedBranch : (userBranchId || null),
-        type: 'EXPENSE',
-        note: expenseNote
-      };
+      if (editingExpenseId) {
+        const expenseRef = doc(db, 'orders', editingExpenseId);
+        const existingOrder = orders.find(o => o.id === editingExpenseId);
+        const newCount = (existingOrder?.editCount || 0) + 1;
+        
+        await updateDoc(expenseRef, {
+          items: [{ name: expenseReason, quantity: 1, price: Number(expenseAmount) }],
+          totalAmount: Number(expenseAmount),
+          note: expenseNote,
+          editCount: newCount,
+          lastEditedBy: auth.currentUser?.email || 'Unknown'
+        });
+        toast.success('Đã cập nhật phiếu chi');
+      } else {
+        const expenseData = {
+          orderCode: 'CHI-' + Date.now().toString().slice(-6),
+          items: [{ name: expenseReason, quantity: 1, price: Number(expenseAmount) }],
+          totalAmount: Number(expenseAmount),
+          createdAt: serverTimestamp(),
+          cashierEmail: auth.currentUser?.email || 'Unknown',
+          employeeId: 'Unknown',
+          status: 'COMPLETED',
+          branchId: selectedBranch !== 'all' ? selectedBranch : (userBranchId || null),
+          type: 'EXPENSE',
+          note: expenseNote,
+          editCount: 0
+        };
 
-      await addDoc(collection(db, 'orders'), expenseData);
-      toast.success('Đã tạo phiếu chi');
+        await addDoc(collection(db, 'orders'), expenseData);
+        toast.success('Đã tạo phiếu chi');
+      }
+      
       setShowExpenseModal(false);
+      setEditingExpenseId(null);
       setExpenseReason('');
       setExpenseAmount('');
       setExpenseNote('');
     } catch (error) {
       console.error(error);
-      toast.error('Lỗi khi tạo phiếu chi');
+      toast.error('Lỗi khi lưu phiếu chi');
     } finally {
       setIsSubmittingExpense(false);
     }
+  };
+
+  const openEditExpense = (expense: Order) => {
+    if (userRole === 'POS') return; // Only managers/admins can edit
+    setExpenseReason(expense.items[0]?.name || '');
+    setExpenseAmount(expense.totalAmount.toString());
+    setExpenseNote(expense.note || '');
+    setEditingExpenseId(expense.id);
+    setShowExpenseModal(true);
   };
 
   const incomeOrders = filteredOrders.filter(o => o.type !== 'EXPENSE');
@@ -293,7 +323,13 @@ const Revenue: React.FC = () => {
           )}
 
           <button
-            onClick={() => setShowExpenseModal(true)}
+            onClick={() => {
+              setEditingExpenseId(null);
+              setExpenseReason('');
+              setExpenseAmount('');
+              setExpenseNote('');
+              setShowExpenseModal(true);
+            }}
             className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 shadow-sm transition-colors font-medium ml-2"
           >
             <Plus size={18} />
@@ -386,12 +422,16 @@ const Revenue: React.FC = () => {
                   }
                   
                   const isExpense = order.type === 'EXPENSE';
+                  const canEdit = isExpense && userRole !== 'POS';
                   
                   return (
                     <tr 
                       key={order.id} 
-                      onClick={() => !isExpense && setBillModalData({ ...order, cashierName, branchAddress: order.branchId ? branchAddressMap[order.branchId] : null })}
-                      className={`border-b border-gray-100 transition-colors ${isExpense ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-gray-50 cursor-pointer'}`}
+                      onClick={() => {
+                        if (canEdit) openEditExpense(order);
+                        else if (!isExpense) setBillModalData({ ...order, cashierName, branchAddress: order.branchId ? branchAddressMap[order.branchId] : null });
+                      }}
+                      className={`border-b border-gray-100 transition-colors ${isExpense ? 'bg-red-50' : 'hover:bg-gray-50'} ${(!isExpense || canEdit) ? 'cursor-pointer' : ''} ${canEdit ? 'hover:bg-red-100' : ''}`}
                     >
                       <td className="p-4 text-gray-600 font-medium">{filteredOrders.length - index}</td>
                       <td className={`p-4 font-mono font-medium ${isExpense ? 'text-red-600' : 'text-blue-600'}`}>
@@ -407,6 +447,11 @@ const Revenue: React.FC = () => {
                       <td className="p-4 text-sm text-gray-500 max-w-xs truncate">
                         {order.items?.map(i => isExpense ? i.name : `${i.quantity}x ${i.name}`).join(', ')}
                         {order.note && <span className="block text-xs text-gray-400 mt-0.5">Ghi chú: {order.note}</span>}
+                        {isExpense && order.editCount && order.editCount > 0 ? (
+                          <span className="block text-[10px] text-gray-400 font-medium mt-1">
+                            (Đã sửa {order.editCount} lần bởi {order.lastEditedBy})
+                          </span>
+                        ) : null}
                       </td>
                       <td className={`p-4 font-bold text-right text-lg ${isExpense ? 'text-red-600' : 'text-gray-800'}`}>
                         {isExpense ? '-' : ''}{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(order.totalAmount)}
@@ -535,7 +580,7 @@ const Revenue: React.FC = () => {
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-red-50 rounded-t-2xl">
               <div className="flex items-center gap-3 text-red-600">
                 <FileText size={24} />
-                <h2 className="text-xl font-bold">Thêm Phiếu Chi</h2>
+                <h2 className="text-xl font-bold">{editingExpenseId ? 'Sửa Phiếu Chi' : 'Thêm Phiếu Chi'}</h2>
               </div>
             </div>
             
