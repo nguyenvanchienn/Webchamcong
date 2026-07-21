@@ -29,6 +29,7 @@ interface ActiveTableOrder {
   items: CartItem[];
   totalAmount: number;
   hasNewItems?: boolean;
+  updatedAt?: any;
 }
 
 
@@ -116,6 +117,31 @@ const POS: React.FC = () => {
     
     const unsub = onSnapshot(q, (snap) => {
       const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ActiveTableOrder));
+      
+      // Sort tables: 
+      // 1. Tables with unserved items at the top
+      // 2. Older updatedAt first (waiting longest)
+      list.sort((a, b) => {
+        const aItems = a.items || [];
+        const bItems = b.items || [];
+        const aHasUnserved = aItems.some(i => !i.isServed);
+        const bHasUnserved = bItems.some(i => !i.isServed);
+        
+        if (aHasUnserved && !bHasUnserved) return -1;
+        if (!aHasUnserved && bHasUnserved) return 1;
+        
+        const getTime = (dateObj: any) => {
+          if (!dateObj) return 0;
+          if (typeof dateObj.toMillis === 'function') return dateObj.toMillis();
+          if (dateObj.seconds) return dateObj.seconds * 1000;
+          return 0;
+        };
+
+        const timeA = getTime(a.updatedAt);
+        const timeB = getTime(b.updatedAt);
+        return timeA - timeB;
+      });
+
       setActiveTableOrders(list);
       
       const newItems = list.filter(o => o.hasNewItems);
