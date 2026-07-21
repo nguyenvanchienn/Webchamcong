@@ -18,8 +18,14 @@ const Login: React.FC = () => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user && !isSubmitting.current) {
         const role = localStorage.getItem('userRole');
-        if (role === 'KIOSK') {
+        const requirePasswordChange = localStorage.getItem('requirePasswordChange') === 'true';
+        
+        if (requirePasswordChange) {
+          navigate('/force-change-password');
+        } else if (role === 'KIOSK') {
           navigate('/kiosk');
+        } else if (role === 'POS') {
+          navigate('/pos');
         } else if (role) {
           navigate('/dashboard');
         }
@@ -43,23 +49,32 @@ const Login: React.FC = () => {
       // Lấy thông tin phân quyền từ Firestore
       const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
       let role = 'SUPER_ADMIN';
+      let requirePasswordChange = false;
       
       if (userDoc.exists()) {
         const userData = userDoc.data();
         role = userData.role;
+        requirePasswordChange = userData.requirePasswordChange || false;
+        
         localStorage.setItem('userRole', role);
         localStorage.setItem('employeeId', userData.employeeId || '');
         localStorage.setItem('branchId', userData.branchId || '');
+        localStorage.setItem('requirePasswordChange', requirePasswordChange ? 'true' : 'false');
       } else {
         // Mặc định nếu không tìm thấy (ví dụ tài khoản admin cứng)
         localStorage.setItem('userRole', role);
+        localStorage.setItem('requirePasswordChange', 'false');
       }
 
       localStorage.setItem('userEmail', userCredential.user.email || '');
       
       // Chuyển hướng tới trang phù hợp
-      if (role === 'KIOSK') {
+      if (requirePasswordChange) {
+        navigate('/force-change-password');
+      } else if (role === 'KIOSK') {
         navigate('/kiosk');
+      } else if (role === 'POS') {
+        navigate('/pos');
       } else {
         navigate('/dashboard');
       }

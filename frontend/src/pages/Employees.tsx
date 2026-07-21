@@ -4,6 +4,7 @@ import { db } from '../config/firebase';
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
 import { Plus, Edit2, Trash2, X, UserCircle, Shield, Clock, Phone, Building2, CreditCard, CheckCircle, AlertCircle } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 
 interface Employee {
   id: string;
@@ -39,6 +40,8 @@ interface Branch {
 }
 
 const Employees: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const highlightId = searchParams.get('highlightId');
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -162,6 +165,17 @@ const Employees: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (highlightId && !loading && employees.length > 0) {
+      setTimeout(() => {
+        const el = document.getElementById(`emp-row-${highlightId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+    }
+  }, [highlightId, loading, employees]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -316,7 +330,11 @@ const Employees: React.FC = () => {
                   </tr>
                 ) : (
                   employees.map((emp) => (
-                    <tr key={emp.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                    <tr 
+                      key={emp.id} 
+                      id={`emp-row-${emp.id}`}
+                      className={`border-b border-gray-100 transition-colors ${highlightId === emp.id ? 'bg-yellow-50 hover:bg-yellow-100' : 'hover:bg-gray-50'}`}
+                    >
                       <td className="p-4 text-sm font-medium text-gray-800">
                         <button 
                           onClick={() => setViewingEmployee(emp)} 

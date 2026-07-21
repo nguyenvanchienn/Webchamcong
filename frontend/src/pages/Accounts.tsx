@@ -50,7 +50,12 @@ const Accounts: React.FC = () => {
       // Get users
       const userSnap = await getDocs(collection(db, 'users'));
       const userList: UserAccount[] = [];
-      userSnap.forEach((doc) => userList.push({ id: doc.id, ...doc.data() } as UserAccount));
+      userSnap.forEach((doc) => {
+        const data = doc.data();
+        if (data.role !== 'SUPER_ADMIN') {
+          userList.push({ id: doc.id, ...data } as UserAccount);
+        }
+      });
       setAccounts(userList);
 
       // Get employees for dropdown
@@ -115,13 +120,16 @@ const Accounts: React.FC = () => {
       
       const userCredential = await createUserWithEmailAndPassword(secondaryAuth, formData.email, formData.password);
       
+      const needsPasswordChange = !['SUPER_ADMIN', 'ADMIN', 'KIOSK', 'POS'].includes(formData.role);
+
       await setDoc(doc(db, 'users', userCredential.user.uid), {
         email: formData.email,
         role: formData.role,
         employeeId: formData.employeeId || null,
         branchId: formData.branchId || null,
         status: 'ACTIVE',
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        requirePasswordChange: needsPasswordChange
       });
       
       await secondaryAuth.signOut();
@@ -290,14 +298,17 @@ const Accounts: React.FC = () => {
                     <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
                       acc.role === 'SUPER_ADMIN' ? 'bg-red-100 text-red-700' : 
                       acc.role === 'BRANCH_ADMIN' ? 'bg-purple-100 text-purple-700' : 
-                      acc.role === 'KIOSK' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'
+                      acc.role === 'KIOSK' ? 'bg-yellow-100 text-yellow-700' : 
+                      acc.role === 'POS' ? 'bg-pink-100 text-pink-700' : 
+                      'bg-blue-100 text-blue-700'
                     }`}>
-                      {acc.role === 'KIOSK' ? 'Máy điểm danh' : acc.role}
+                      {acc.role === 'KIOSK' ? 'Máy điểm danh' : acc.role === 'POS' ? 'Máy Order' : acc.role}
                     </span>
                   </td>
                   <td className="p-4 text-sm text-gray-600">
                     {acc.role === 'SUPER_ADMIN' ? 'Toàn quyền hệ thống' : 
                      acc.role === 'KIOSK' ? 'Dùng chung cho cơ sở' :
+                     acc.role === 'POS' ? 'Dùng chung cho cơ sở (Menu)' :
                      (employees.find(e => e.id === acc.employeeId) 
                         ? `${employees.find(e => e.id === acc.employeeId)?.employeeCode || 'No ID'} - ${employees.find(e => e.id === acc.employeeId)?.fullName}`
                         : 'Chưa liên kết')}
@@ -313,7 +324,7 @@ const Accounts: React.FC = () => {
                           <Edit2 size={18} />
                         </button>
                         
-                        {acc.role === 'KIOSK' && (
+                        {['KIOSK', 'POS'].includes(acc.role) && (
                           <>
                             <button 
                               onClick={() => openPasswordModal(acc)}
@@ -440,10 +451,11 @@ const Accounts: React.FC = () => {
                   <option value="EMPLOYEE">Nhân viên</option>
                   <option value="BRANCH_ADMIN">Quản lý cơ sở</option>
                   <option value="KIOSK">Thiết bị điểm danh (Kiosk)</option>
+                  <option value="POS">Máy Order (Menu)</option>
                 </select>
               </div>
 
-              {formData.role === 'KIOSK' && (
+              {['KIOSK', 'POS'].includes(formData.role) && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Cơ sở áp dụng <span className="text-red-500">*</span></label>
                   <select 
@@ -460,7 +472,7 @@ const Accounts: React.FC = () => {
                 </div>
               )}
 
-              {formData.role !== 'KIOSK' && (
+              {!['KIOSK', 'POS'].includes(formData.role) && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Liên kết Hồ sơ Nhân viên</label>
                   <select 

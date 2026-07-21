@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { auth, db } from '../config/firebase';
-import { signOut } from 'firebase/auth';
+import { signOut, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import toast from 'react-hot-toast';
 import { doc, getDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { 
   LayoutDashboard, Building2, Users, UserCog, 
   Clock, CalendarDays, ClipboardList, Wallet, 
-  BarChart3, FileSpreadsheet, Settings, LogOut, UserCircle, Bell, ChevronLeft, ChevronRight, Menu, X
+  BarChart3, FileSpreadsheet, Settings, LogOut, UserCircle, Bell, ChevronLeft, ChevronRight, Menu, X,
+  ShoppingCart, Receipt, Utensils, CircleDollarSign, Store, QrCode
 } from 'lucide-react';
 
 const DashboardLayout: React.FC = () => {
@@ -17,10 +19,19 @@ const DashboardLayout: React.FC = () => {
   const userEmail = localStorage.getItem('userEmail') || 'User';
   const employeeId = localStorage.getItem('employeeId');
 
+  useEffect(() => {
+    const requirePasswordChange = localStorage.getItem('requirePasswordChange') === 'true';
+    if (requirePasswordChange) {
+      navigate('/force-change-password');
+    }
+  }, [navigate]);
+
   const [displayName, setDisplayName] = useState(userEmail);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [logoutPassword, setLogoutPassword] = useState('');
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
@@ -59,18 +70,41 @@ const DashboardLayout: React.FC = () => {
   };
 
   const confirmLogout = async () => {
+    if (userRole === 'POS' && !logoutPassword) {
+      toast.error('Vui lòng nhập mật khẩu để đăng xuất');
+      return;
+    }
+    
+    setIsLoggingOut(true);
     try {
+      if (userRole === 'POS' && auth.currentUser && auth.currentUser.email) {
+        const credential = EmailAuthProvider.credential(auth.currentUser.email, logoutPassword);
+        await reauthenticateWithCredential(auth.currentUser, credential);
+      }
+      
       await signOut(auth);
       localStorage.clear();
       navigate('/login');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Lỗi đăng xuất:', error);
+      if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        toast.error('Mật khẩu không chính xác!');
+      } else {
+        toast.error('Có lỗi xảy ra khi đăng xuất');
+      }
+    } finally {
+      setIsLoggingOut(false);
     }
   };
 
   const allMenuItems = [
     { name: 'Trang chủ', path: '/dashboard', icon: <LayoutDashboard size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN', 'EMPLOYEE'] },
+    { name: 'Bán hàng (POS)', path: '/pos', icon: <ShoppingCart size={20} />, roles: ['POS'] },
+    { name: 'Màn hình Khách Order', path: '/customer-order', icon: <Store size={20} />, roles: ['POS', 'SUPER_ADMIN', 'BRANCH_ADMIN'] },
+    { name: 'Lịch sử Hóa đơn', path: '/dashboard/orders', icon: <Receipt size={20} />, roles: ['POS'] },
+    { name: 'Quản lý Thực đơn', path: '/dashboard/menu', icon: <Utensils size={20} />, roles: ['SUPER_ADMIN'] },
     { name: 'Quản lý cơ sở', path: '/dashboard/branches', icon: <Building2 size={20} />, roles: ['SUPER_ADMIN'] },
+    { name: 'Quản lý Bàn / QR', path: '/dashboard/tables', icon: <QrCode size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN'] },
     { name: 'Quản lý nhân viên', path: '/dashboard/employees', icon: <Users size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN'] },
     { name: 'Quản lý tài khoản', path: '/dashboard/accounts', icon: <UserCog size={20} />, roles: ['SUPER_ADMIN'] },
     { name: 'Chấm công (Admin)', path: '/dashboard/attendance', icon: <Clock size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN'] },
@@ -80,6 +114,7 @@ const DashboardLayout: React.FC = () => {
     { name: 'Thông báo', path: '/dashboard/notifications', icon: <Bell size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN', 'EMPLOYEE'] },
     { name: 'Hồ sơ cá nhân', path: '/dashboard/profile', icon: <UserCircle size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN', 'EMPLOYEE'] },
     { name: 'Báo cáo', path: '/dashboard/reports', icon: <BarChart3 size={20} />, roles: ['SUPER_ADMIN'] },
+    { name: 'Doanh thu', path: '/dashboard/revenue', icon: <CircleDollarSign size={20} />, roles: ['SUPER_ADMIN'] },
     { name: 'Xuất Excel', path: '/dashboard/export', icon: <FileSpreadsheet size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN'] },
     { name: 'Thiết lập', path: '/dashboard/settings', icon: <Settings size={20} />, roles: ['SUPER_ADMIN'] },
   ];
@@ -212,19 +247,38 @@ const DashboardLayout: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all px-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl scale-100 transform transition-transform">
             <h3 className="text-xl font-bold text-gray-800 mb-2">Đăng xuất khỏi hệ thống</h3>
-            <p className="text-gray-600 mb-6 text-sm md:text-base">Bạn có chắc chắn muốn đăng xuất không? Phiên làm việc của bạn sẽ được đóng lại.</p>
+            <p className="text-gray-600 mb-6 text-sm md:text-base">
+              {userRole === 'POS' 
+                ? 'Vui lòng nhập mật khẩu của tài khoản Máy Order để khóa máy và đăng xuất.' 
+                : 'Bạn có chắc chắn muốn đăng xuất không? Phiên làm việc của bạn sẽ được đóng lại.'}
+            </p>
+            
+            {userRole === 'POS' && (
+              <input
+                type="password"
+                placeholder="Nhập mật khẩu..."
+                value={logoutPassword}
+                onChange={(e) => setLogoutPassword(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && confirmLogout()}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl mb-6 focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none text-center text-lg tracking-widest"
+                autoFocus
+              />
+            )}
+            
             <div className="flex justify-end space-x-3">
               <button 
-                onClick={() => setShowLogoutModal(false)}
-                className="px-4 py-2 md:px-5 md:py-2.5 rounded-xl font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors text-sm md:text-base"
+                onClick={() => { setShowLogoutModal(false); setLogoutPassword(''); }}
+                className="px-4 py-2 md:px-5 md:py-2.5 rounded-xl font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors text-sm md:text-base flex-1 md:flex-none"
+                disabled={isLoggingOut}
               >
                 Hủy bỏ
               </button>
               <button 
                 onClick={confirmLogout}
-                className="px-4 py-2 md:px-5 md:py-2.5 rounded-xl font-medium text-white bg-red-600 hover:bg-red-700 transition-colors shadow-md shadow-red-200 text-sm md:text-base"
+                disabled={(userRole === 'POS' && !logoutPassword) || isLoggingOut}
+                className="px-4 py-2 md:px-5 md:py-2.5 rounded-xl font-medium text-white bg-red-600 hover:bg-red-700 transition-colors shadow-md shadow-red-200 text-sm md:text-base disabled:bg-gray-300 disabled:shadow-none flex-1 md:flex-none"
               >
-                Đăng xuất
+                {isLoggingOut ? 'Đang XL...' : 'Đăng xuất'}
               </button>
             </div>
           </div>

@@ -3,6 +3,7 @@ import { collection, getDocs, addDoc, updateDoc, doc, query, where, getDoc } fro
 import { db } from '../config/firebase';
 import toast from 'react-hot-toast';
 import { Clock, Edit2, Check, X, CheckCircle } from 'lucide-react';
+import { TimeInput24 } from '../components/TimeInput24';
 
 interface Employee {
   id: string;
@@ -137,7 +138,8 @@ const Attendance: React.FC = () => {
         const now = new Date();
         const nowM = now.getHours() * 60 + now.getMinutes();
 
-        const rowCount = Math.max(myAtts.length, myShifts.length, 1);
+        const rowCount = Math.max(myAtts.length, myShifts.length);
+        if (rowCount === 0) return;
         
         for (let i = 0; i < rowCount; i++) {
           const att = myAtts[i];
@@ -145,7 +147,12 @@ const Attendance: React.FC = () => {
           
           let calcStatus = 'Không có mặt';
           if (!shift) {
-            calcStatus = att ? 'Có mặt' : 'Không có mặt';
+            if (att) {
+              if (att.checkIn && !att.checkOut) calcStatus = 'Đang làm';
+              else calcStatus = 'Hoàn thành';
+            } else {
+              calcStatus = 'Không có mặt';
+            }
           } else {
             let shiftStartM = 0;
             const match = shift.shift.match(/\((\d{2}):(\d{2})/);
@@ -224,7 +231,7 @@ const Attendance: React.FC = () => {
             checkIn: att?.checkIn || null,
             checkOut: att?.checkOut || null,
             status: calcStatus,
-            shiftStr: shift ? shift.shift : 'Không có ca',
+            shiftStr: shift ? shift.shift : (att?.assignedRole ? `Ca được giao\n(bởi ${att.assignedRole})` : 'Ca được giao'),
             logs: att?.logs,
             totalMs
           });
@@ -290,7 +297,9 @@ const Attendance: React.FC = () => {
               checkIn: checkInTime,
               status: 'PRESENT',
               salaryPerHour: finalSalary,
-              logs: [...(absentRecord.logs || []), { action: 'CHECK_IN', time: checkInTime }]
+              logs: [...(absentRecord.logs || []), { action: 'CHECK_IN', time: checkInTime }],
+              assignedBy: localStorage.getItem('userEmail') || 'Hệ thống',
+              assignedRole: localStorage.getItem('userRole') === 'SUPER_ADMIN' ? 'Quản trị viên' : 'Quản lý cơ sở'
            });
         } else {
            await addDoc(collection(db, 'attendance'), {
@@ -303,7 +312,9 @@ const Attendance: React.FC = () => {
              checkOut: null,
              status: 'PRESENT',
              salaryPerHour: finalSalary,
-             logs: [{ action: 'CHECK_IN', time: checkInTime }]
+             logs: [{ action: 'CHECK_IN', time: checkInTime }],
+             assignedBy: localStorage.getItem('userEmail') || 'Hệ thống',
+             assignedRole: localStorage.getItem('userRole') === 'SUPER_ADMIN' ? 'Quản trị viên' : 'Quản lý cơ sở'
            });
         }
         toast.success(`Đã Check-in cho ${emp.fullName}!`);
@@ -351,68 +362,35 @@ const Attendance: React.FC = () => {
         }
         updates.logs = newLogs;
 
-        await updateDoc(doc(db, 'attendance', record.id), updates);
+        if (record.id.startsWith('temp-')) {
+          const empDoc = await getDoc(doc(db, 'employees', record.employeeId));
+          let salaryPerHour = 0;
+          if (empDoc.exists()) {
+            salaryPerHour = empDoc.data().salaryPerHour || 0;
+          }
+          await addDoc(collection(db, 'attendance'), {
+            ...updates,
+            employeeId: record.employeeId,
+            employeeName: record.employeeName,
+            branchName: record.branchName,
+            branchId: record.branchId,
+            date: record.date,
+            status: 'PRESENT',
+            salaryPerHour
+          });
+        } else {
+          await updateDoc(doc(db, 'attendance', record.id), updates);
+        }
         toast.success('Cập nhật giờ thành công!');
         fetchAttendance();
       }
       setEditingId(null);
     } catch (error) {
+      console.error(error);
       toast.error('Lỗi cập nhật giờ!');
     }
   };
 
-  const handleCheckOut = async (recordId: string, employeeId: string) => {
-    try {
-      const now = new Date();
-      await updateDoc(doc(db, 'attendance', recordId), {
-        checkOut: now
-      });
-
-      // Lấy thông tin record và lương để cộng tiền
-      const record = records.find(r => r.id === recordId);
-      if (record && record.checkIn) {
-        const empDoc = await getDoc(doc(db, 'employees', employeeId));
-        if (empDoc.exists()) {
-           const salaryPerHour = empDoc.data().salaryPerHour || 0;
-           const diffMs = now.getTime() - record.checkIn.getTime();
-           const hours = diffMs / (1000 * 60 * 60);
-           const earned = Math.round(hours * salaryPerHour);
-
-           // Tính tổng tiền hiện tại của nhân viên
-           const attQuery = query(collection(db, 'attendance'), where('employeeId', '==', employeeId));
-           const attSnap = await getDocs(attQuery);
-           let totalEarned = 0;
-           attSnap.forEach(d => {
-              const data = d.data();
-              if (data.checkIn && data.checkOut) {
-                 const inTime = data.checkIn.toDate();
-                 const outTime = data.checkOut.toDate();
-                 const h = (outTime.getTime() - inTime.getTime()) / (1000 * 60 * 60);
-                 totalEarned += Math.round(h * salaryPerHour);
-              }
-           });
-
-           const formattedEarned = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(earned);
-           const formattedTotal = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(totalEarned);
-
-           await addDoc(collection(db, 'notifications'), {
-             employeeId: employeeId,
-             title: 'Hoàn thành ca làm việc',
-             message: `Bạn vừa được cộng ${formattedEarned} vào tài khoản. Tổng thu nhập hiện tại đã tăng lên ${formattedTotal}.`,
-             type: 'MONEY_ADD',
-             read: false,
-             createdAt: new Date()
-           });
-        }
-      }
-
-      toast.success('Check-out thành công!');
-      fetchAttendance();
-    } catch (error) {
-      toast.error('Lỗi Check-out!');
-      console.error(error);
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -499,24 +477,32 @@ const Attendance: React.FC = () => {
                   .filter(r => localStorage.getItem('userRole') !== 'SUPER_ADMIN' || filterBranchId === 'ALL' || r.branchId === filterBranchId)
                   .map((record) => (
                   <tr key={record.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="p-4 text-sm font-medium text-gray-800">
+                    <td className="p-4 text-sm font-medium text-gray-800 whitespace-normal break-words min-w-[150px]">
                       [{record.employeeCode || 'No ID'}] {record.employeeName}
                     </td>
                     <td className="p-4 text-sm text-gray-600">{record.branchName}</td>
-                    <td className="p-4 text-sm text-gray-600">{new Date(record.date).toLocaleDateString('vi-VN')}</td>
                     <td className="p-4 text-sm text-gray-600">
-                      {record.shiftStr || 'Không có ca'}
+                      {(() => {
+                        const inDateStr = record.checkIn ? record.checkIn.toLocaleDateString('vi-VN') : new Date(record.date).toLocaleDateString('vi-VN');
+                        const outDateStr = record.checkOut ? record.checkOut.toLocaleDateString('vi-VN') : null;
+                        if (outDateStr && inDateStr !== outDateStr) {
+                          return `${inDateStr} - ${outDateStr}`;
+                        }
+                        return inDateStr;
+                      })()}
+                    </td>
+                    <td className="p-4 text-sm text-gray-600 whitespace-pre-line leading-relaxed">
+                      {record.shiftStr || 'Ca được giao'}
                     </td>
                     <td className="p-4 text-sm text-green-600 font-medium">
                       {editingId === record.id ? (
-                        <input 
-                          type="time" 
+                        <TimeInput24 
                           value={editCheckIn} 
-                          onChange={e => setEditCheckIn(e.target.value)}
-                          className="border border-gray-300 rounded px-2 py-1 outline-none text-black w-32" 
+                          onChange={setEditCheckIn}
+                          className="border border-gray-300 rounded focus-within:ring-2 focus-within:ring-blue-500 text-black w-32 h-8 bg-white" 
                         />
                       ) : (
-                        <div className="flex items-center">
+                        <div className="flex items-center gap-1">
                           <Clock size={16} className="mr-1" />
                           {record.checkIn ? record.checkIn.toLocaleTimeString('vi-VN') : '--:--'}
                         </div>
@@ -524,14 +510,13 @@ const Attendance: React.FC = () => {
                     </td>
                     <td className="p-4 text-sm text-orange-600 font-medium">
                       {editingId === record.id ? (
-                        <input 
-                          type="time" 
+                        <TimeInput24 
                           value={editCheckOut} 
-                          onChange={e => setEditCheckOut(e.target.value)}
-                          className="border border-gray-300 rounded px-2 py-1 outline-none text-black w-32" 
+                          onChange={setEditCheckOut}
+                          className="border border-gray-300 rounded focus-within:ring-2 focus-within:ring-blue-500 text-black w-32 h-8 bg-white" 
                         />
                       ) : record.checkOut ? (
-                        <div className="flex items-center">
+                        <div className="flex items-center gap-1">
                           <Clock size={16} className="mr-1" />
                           {record.checkOut.toLocaleTimeString('vi-VN')}
                         </div>
@@ -554,8 +539,9 @@ const Attendance: React.FC = () => {
                         {(() => {
                           let colorClass = 'bg-green-100 text-green-700';
                           if (record.status.includes('Vắng mặt')) colorClass = 'bg-red-100 text-red-700';
-                          else if (record.status.includes('Chưa') || record.status.includes('Không')) colorClass = 'bg-gray-100 text-gray-700';
+                          else if (record.status.includes('Chưa') || record.status.includes('Không có mặt')) colorClass = 'bg-gray-100 text-gray-700';
                           else if (record.status.includes('muộn') || record.status.includes('sớm') || record.status.includes('Muộn/Sớm') || record.status.includes('Ngắt quãng')) colorClass = 'bg-yellow-100 text-yellow-700';
+                          else if (record.status.includes('Đang làm')) colorClass = 'bg-blue-100 text-blue-700';
                           
                           return (
                             <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${colorClass}`}>
@@ -584,14 +570,7 @@ const Attendance: React.FC = () => {
                           <button onClick={() => handleEdit(record)} className="text-blue-500 hover:bg-blue-50 p-1.5 rounded-lg" title="Sửa giờ">
                             <Edit2 size={16} />
                           </button>
-                          {record.checkIn && !record.checkOut && (
-                            <button 
-                              onClick={() => handleCheckOut(record.id, record.employeeId)}
-                              className="text-sm bg-orange-100 text-orange-700 hover:bg-orange-200 px-3 py-1.5 rounded-lg font-medium transition-colors"
-                            >
-                              Cho ra ca (Check-out)
-                            </button>
-                          )}
+
                         </>
                       )}
                     </td>

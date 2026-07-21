@@ -3,6 +3,7 @@ import { collection, getDocs, query, where, doc, getDoc, addDoc, deleteDoc, upda
 import { db } from '../config/firebase';
 import { Wallet, CalendarDays, Clock, X, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 interface EmployeeInfo {
   id: string;
@@ -66,6 +67,8 @@ const calculateHoursWorked = (data: any, isLive = false): number => {
 };
 
 const Payroll: React.FC = () => {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [payrollData, setPayrollData] = useState<PayrollItem[]>([]);
   const [totalEarned, setTotalEarned] = useState(0);
@@ -80,12 +83,21 @@ const Payroll: React.FC = () => {
   });
   
   const [selectedLogs, setSelectedLogs] = useState<any[] | null>(null);
+  const [bonuses, setBonuses] = useState<any[]>([]);
   
   // Dành cho Admin
   const [adminPayroll, setAdminPayroll] = useState<any[]>([]);
   
-  const [filterBranchId, setFilterBranchId] = useState<string>('ALL');
+  const initialBranchId = searchParams.get('branchId') || 'ALL';
+  const [filterBranchId, setFilterBranchId] = useState<string>(initialBranchId);
   const [branches, setBranches] = useState<any[]>([]);
+
+  useEffect(() => {
+    const bId = searchParams.get('branchId');
+    if (bId) {
+      setFilterBranchId(bId);
+    }
+  }, [searchParams]);
 
   const [paymentModalData, setPaymentModalData] = useState<{
     employeeId: string;
@@ -97,6 +109,7 @@ const Payroll: React.FC = () => {
     bankAccountNum?: string;
     bankAccountName?: string;
     fullName: string;
+    salaryRate: number;
   } | null>(null);
 
   const [activeTab, setActiveTab] = useState<'admin' | 'personal'>('admin');
@@ -118,6 +131,14 @@ const Payroll: React.FC = () => {
   const fetchPayroll = async () => {
     setLoading(true);
     try {
+      let latePenaltyMap: Record<string, number> = { ALL: 0 };
+      const settingsDoc = await getDoc(doc(db, 'settings', 'general'));
+      if (settingsDoc.exists()) {
+        const data = settingsDoc.data();
+        if (typeof data.latePenalty === 'number') latePenaltyMap = { ALL: data.latePenalty };
+        else if (typeof data.latePenalty === 'object') latePenaltyMap = data.latePenalty;
+      }
+
       const startDate = `${month}-01`;
       const endDay = new Date(parseInt(month.split('-')[0]), parseInt(month.split('-')[1]), 0).getDate();
       const endDate = `${month}-${endDay}`;
@@ -128,6 +149,7 @@ const Payroll: React.FC = () => {
         const empDoc = await getDoc(doc(db, 'employees', currentEmployeeId));
         if (!empDoc.exists()) return;
         const salaryPerHour = empDoc.data().salaryPerHour || 0;
+        const currentUserBranchId = empDoc.data().branchId;
 
         // Lấy lịch làm việc của nhân viên này để tính đi muộn
         const schedQuery = query(collection(db, 'schedules'), where('employeeId', '==', currentEmployeeId));
@@ -139,9 +161,6 @@ const Payroll: React.FC = () => {
            schedulesMap[data.date].push(data.shift);
         });
 
-        // ...
-
-
         // Lấy các record chấm công
         const attQuery = query(
           collection(db, 'attendance'), 
@@ -149,9 +168,19 @@ const Payroll: React.FC = () => {
         );
         const attSnap = await getDocs(attQuery);
         
+        const bonusQuery = query(collection(db, 'bonuses'), where('employeeId', '==', currentEmployeeId), where('month', '==', month));
+        const bonusSnap = await getDocs(bonusQuery);
+        let totalBonus = 0;
+        const userBonuses: any[] = [];
+        bonusSnap.forEach(d => {
+           totalBonus += d.data().amount || 0;
+           userBonuses.push(d.data());
+        });
+        setBonuses(userBonuses);
+
         const records: PayrollItem[] = [];
         let tHours = 0;
-        let tEarned = 0;
+        let tEarned = totalBonus;
         let activeData: any | null = null;
 
         attSnap.forEach(d => {
@@ -167,11 +196,9 @@ const Payroll: React.FC = () => {
               if (outTime) {
                 const hours = calculateHoursWorked(data);
                 roundedHours = hours;
-                const recordSalary = data.salaryPerHour !== undefined ? data.salaryPerHour : salaryPerHour;
+                const recordSalary = Number(data.salaryPerHour || salaryPerHour || 0);
                 earned = Math.round(hours * recordSalary);
-
                 tHours += roundedHours;
-                tEarned += earned;
               } else {
                 activeData = data;
               }
@@ -179,6 +206,10 @@ const Payroll: React.FC = () => {
               // Tính trạng thái Đi muộn hay Đúng giờ
               let isLate = false;
               let isEarly = false;
+              let latePenalty = 0;
+              const branchIdForRecord = data.branchId || currentUserBranchId;
+              const latePenaltyRate = (latePenaltyMap[branchIdForRecord] !== undefined ? latePenaltyMap[branchIdForRecord] : latePenaltyMap['ALL']) || 0;
+              
               const shiftsToday = schedulesMap[data.date];
               if (shiftsToday && shiftsToday.length > 0) {
                 // Tìm ca sớm nhất trong ngày của NV này
@@ -201,6 +232,7 @@ const Payroll: React.FC = () => {
                 const inTotalM = inTime.getHours() * 60 + inTime.getMinutes();
                 if (inTotalM > earliestShiftM + 15) { // Cho phép trễ 15 phút
                    isLate = true;
+                   latePenalty = (inTotalM - earliestShiftM) * latePenaltyRate;
                 }
                 if (outTime) {
                    const outTotalM = outTime.getHours() * 60 + outTime.getMinutes();
@@ -208,6 +240,12 @@ const Payroll: React.FC = () => {
                       isEarly = true;
                    }
                 }
+              }
+              
+              if (outTime) {
+                earned -= latePenalty;
+                if (earned < 0) earned = 0;
+                tEarned += earned;
               }
 
               let status = '';
@@ -276,6 +314,34 @@ const Payroll: React.FC = () => {
           where('date', '<=', endDate)
         );
         const attSnap = await getDocs(attQuery);
+        
+        // Load admin schedules to compute late penalty
+        const schedQueryAdmin = query(
+          collection(db, 'schedules'),
+          where('date', '>=', startDate),
+          where('date', '<=', endDate)
+        );
+        const schedSnapAdmin = await getDocs(schedQueryAdmin);
+        const adminSchedulesMap: Record<string, string[]> = {};
+        schedSnapAdmin.forEach(d => {
+           const data = d.data();
+           const key = `${data.employeeId}_${data.date}`;
+           if (!adminSchedulesMap[key]) adminSchedulesMap[key] = [];
+           adminSchedulesMap[key].push(data.shift);
+        });
+
+        const adminBonusQuery = query(collection(db, 'bonuses'), where('month', '==', month));
+        const adminBonusSnap = await getDocs(adminBonusQuery);
+        const adminBonusMap: Record<string, number> = {};
+        const adminBonusDetails: Record<string, any[]> = {};
+        adminBonusSnap.forEach(d => {
+           const b = d.data();
+           if (!adminBonusMap[b.employeeId]) adminBonusMap[b.employeeId] = 0;
+           if (!adminBonusDetails[b.employeeId]) adminBonusDetails[b.employeeId] = [];
+           adminBonusMap[b.employeeId] += b.amount || 0;
+           adminBonusDetails[b.employeeId].push(b);
+        });
+
         const adminList: any[] = [];
         
         // 1. Dòng Đã thanh toán (Từ Lịch sử)
@@ -302,7 +368,8 @@ const Payroll: React.FC = () => {
                  totalEarned: historyData.amount,
                  shiftsCount: historyData.shiftsCount || 0,
                  isPaid: true,
-                 historyId: d.id
+                 historyId: d.id,
+                 salaryRate: historyData.salaryPerHour || 0
                });
             }
           }
@@ -338,18 +405,51 @@ const Payroll: React.FC = () => {
             if (!belongsToAdmin) return;
 
             const hours = calculateHoursWorked(data);
-            const groupKey = empId;
+            const recordSalary = Number(data.salaryPerHour || allEmps[empId]?.salaryPerHour || 0);
+            
+            let latePenalty = 0;
+            const branchIdForRecord = data.branchId || allEmps[empId]?.branchId;
+            const latePenaltyRate = (latePenaltyMap[branchIdForRecord] !== undefined ? latePenaltyMap[branchIdForRecord] : latePenaltyMap['ALL']) || 0;
+
+            const inTime = data.checkIn.toDate ? data.checkIn.toDate() : new Date(data.checkIn);
+            const inTotalM = inTime.getHours() * 60 + inTime.getMinutes();
+            const shiftsToday = adminSchedulesMap[`${empId}_${data.date}`];
+            if (shiftsToday && shiftsToday.length > 0) {
+                 let earliestShiftM = 24 * 60;
+                 shiftsToday.forEach(shiftStr => {
+                    const match = shiftStr.match(/\((\d{2}):(\d{2})/);
+                    if (match) {
+                       const startM = parseInt(match[1]) * 60 + parseInt(match[2]);
+                       if (startM < earliestShiftM) earliestShiftM = startM;
+                    }
+                 });
+                 if (inTotalM > earliestShiftM + 15) {
+                    latePenalty = (inTotalM - earliestShiftM) * latePenaltyRate;
+                 }
+            }
+
+            let earned = Math.round(hours * recordSalary) - latePenalty;
+            if (earned < 0) earned = 0;
+
+            const groupKey = `${empId}_${recordSalary}`;
             
             if (!summary[groupKey]) {
+              let bonus = 0;
+              if (adminBonusMap[empId]) {
+                 bonus = adminBonusMap[empId];
+                 adminBonusMap[empId] = 0; // Consume the bonus
+              }
               summary[groupKey] = {
-                groupKey: `unpaid_${empId}`,
+                groupKey: `unpaid_${groupKey}`,
                 employeeInfo: { ...allEmps[empId] },
                 branches: new Set<string>(),
                 totalHours: 0,
-                totalEarned: 0,
+                totalEarned: bonus,
                 shiftsCount: 0,
                 attendanceIds: [],
-                isPaid: false
+                isPaid: false,
+                salaryRate: recordSalary,
+                bonuses: adminBonusDetails[empId] || []
               };
             }
 
@@ -357,10 +457,44 @@ const Payroll: React.FC = () => {
             summary[groupKey].totalHours += hours;
             summary[groupKey].shiftsCount += 1;
             summary[groupKey].attendanceIds.push(d.id);
-            const recordSalary = data.salaryPerHour !== undefined ? data.salaryPerHour : allEmps[empId].salaryPerHour;
-            summary[groupKey].totalEarned += (hours * recordSalary);
+            summary[groupKey].totalEarned += earned;
           }
         });
+
+        // Post process remaining bonuses for employees without attendance
+        for (const [empId, bonusAmount] of Object.entries(adminBonusMap)) {
+           if (bonusAmount > 0 && allEmps[empId]) {
+              let belongsToAdmin = false;
+              const employeeCurrentBranchId = allEmps[empId]?.branchId;
+              if (userRole === 'SUPER_ADMIN') {
+                if (filterBranchId === 'ALL') belongsToAdmin = true;
+                else if (employeeCurrentBranchId === filterBranchId) belongsToAdmin = true;
+              } else if (userRole === 'BRANCH_ADMIN') {
+                if (employeeCurrentBranchId === currentUserBranchId) belongsToAdmin = true;
+              }
+              
+              if (belongsToAdmin) {
+                 const recordSalary = Number(allEmps[empId]?.salaryPerHour || 0);
+                 const groupKey = `${empId}_${recordSalary}`;
+                 if (!summary[groupKey]) {
+                    summary[groupKey] = {
+                      groupKey: `unpaid_${groupKey}`,
+                      employeeInfo: { ...allEmps[empId] },
+                      branches: new Set<string>(),
+                      totalHours: 0,
+                      totalEarned: bonusAmount,
+                      shiftsCount: 0,
+                      attendanceIds: [],
+                      isPaid: false,
+                      salaryRate: recordSalary,
+                      bonuses: adminBonusDetails[empId] || []
+                    };
+                 } else {
+                    summary[groupKey].totalEarned += bonusAmount;
+                 }
+              }
+           }
+        }
 
         const unpaidList = Object.values(summary).map(item => ({
           ...item,
@@ -385,7 +519,7 @@ const Payroll: React.FC = () => {
         amount: paymentModalData.amount,
         totalHours: paymentModalData.totalHours,
         shiftsCount: paymentModalData.shiftsCount,
-        salaryPerHour: paymentModalData.amount / paymentModalData.totalHours, // for reference
+        salaryPerHour: paymentModalData.salaryRate,
         paidAt: new Date()
       });
       
@@ -416,44 +550,7 @@ const Payroll: React.FC = () => {
     }
   };
 
-  const handleCancelPayment = async (historyId: string) => {
-    if (!window.confirm('Bạn có chắc chắn muốn hủy thanh toán đợt này? Số tiền sẽ được đưa về trạng thái Chưa thanh toán.')) return;
-    try {
-      await deleteDoc(doc(db, 'payroll_history', historyId));
-      
-      // Remove paymentId and isPaid from attendance
-      const attQuery = query(collection(db, 'attendance'), where('paymentId', '==', historyId));
-      const attSnap = await getDocs(attQuery);
-      for (const d of attSnap.docs) {
-        await updateDoc(doc(db, 'attendance', d.id), {
-          isPaid: false,
-          paymentId: null
-        });
-      }
-      
-      toast.success('Đã hủy thanh toán đợt này!');
-      
-      // Get history doc to know employee ID and amount
-      const historyDoc = await getDoc(doc(db, 'payroll_history', historyId));
-      if (historyDoc.exists()) {
-         const data = historyDoc.data();
-         await addDoc(collection(db, 'notifications'), {
-           employeeId: data.employeeId,
-           title: 'Hủy thanh toán lương',
-           message: `Đợt thanh toán lương tháng ${data.month} trị giá ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(data.amount)} của bạn vừa bị hủy và đưa về trạng thái chờ xử lý.`,
-           type: 'MONEY_SUB',
-           read: false,
-           createdAt: new Date()
-         });
-      }
 
-      await deleteDoc(doc(db, 'payroll_history', historyId));
-      fetchPayroll(); // refresh
-    } catch (error) {
-      console.error(error);
-      toast.error('Lỗi khi hủy thanh toán');
-    }
-  };
 
   useEffect(() => {
     fetchPayroll();
@@ -523,7 +620,15 @@ const Payroll: React.FC = () => {
               {userRole === 'SUPER_ADMIN' && (
                 <select
                   value={filterBranchId}
-                  onChange={(e) => setFilterBranchId(e.target.value)}
+                  onChange={(e) => {
+                    setFilterBranchId(e.target.value);
+                    if (e.target.value === 'ALL') {
+                      searchParams.delete('branchId');
+                    } else {
+                      searchParams.set('branchId', e.target.value);
+                    }
+                    setSearchParams(searchParams);
+                  }}
                   className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 outline-none bg-gray-50 mr-2"
                 >
                   <option value="ALL">Tất cả cơ sở</option>
@@ -564,35 +669,41 @@ const Payroll: React.FC = () => {
                   return (
                   <tr key={item.groupKey} className={`border-b border-gray-100 transition-colors ${item.isPaid ? 'bg-green-50/50 hover:bg-green-50' : 'hover:bg-gray-50'}`}>
                     <td className="p-4 text-sm font-bold text-gray-800">
-                      [{item.employeeInfo.employeeCode || 'No ID'}] {item.employeeInfo.fullName}
+                      <button 
+                        onClick={() => navigate(`/dashboard/employees?highlightId=${item.employeeInfo.id}`)}
+                        className="hover:text-blue-600 hover:underline transition-colors text-left"
+                      >
+                        [{item.employeeInfo.employeeCode || 'No ID'}] {item.employeeInfo.fullName}
+                      </button>
                     </td>
                     <td className="p-4 text-sm text-gray-600">{displayBranch as string}</td>
                     <td className="p-4 text-sm text-center font-medium text-blue-600">{item.shiftsCount} ca</td>
-                    <td className="p-4 text-sm text-center text-gray-700">{formatHours(item.totalHours)}</td>
+                    <td className="p-4 text-sm text-center text-gray-700">
+                      <button 
+                        onClick={() => navigate(`/dashboard/timesheets?expandId=${item.employeeInfo.id}`)}
+                        className="hover:text-blue-600 hover:underline transition-colors font-bold"
+                        title="Xem chi tiết bảng công"
+                      >
+                        {formatHours(item.totalHours)}
+                      </button>
+                    </td>
                       <td className="p-4 text-sm text-right text-gray-500">
                         <div className="flex flex-col items-end gap-1">
-                          <span>{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.employeeInfo.salaryPerHour)}</span>
-                          {Math.abs(item.totalEarned - Math.round(item.totalHours * item.employeeInfo.salaryPerHour)) > 1000 && (
-                            <span className="text-[9px] text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-100" title="Thành tiền bao gồm các ca làm có mức lương/hệ số khác nhau">
-                              Biến động theo ca
-                            </span>
-                          )}
+                          <span>{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.salaryRate !== undefined ? item.salaryRate : item.employeeInfo.salaryPerHour)}</span>
                         </div>
                       </td>
-                    <td className="p-4 text-sm text-right font-bold text-green-600">
+                    <td className="p-4 text-sm text-right font-bold text-gray-800">
                       {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.totalEarned)}
+                      {item.bonuses && item.bonuses.length > 0 && (
+                        <div className="text-[10px] text-green-600 font-normal mt-1 flex flex-col items-end">
+                           <span>(+ {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.bonuses.reduce((sum: number, b: any) => sum + b.amount, 0))} thưởng)</span>
+                        </div>
+                      )}
                     </td>
                     <td className="p-4 text-sm text-center">
                       {item.isPaid ? (
                         <div className="flex items-center justify-center gap-2">
                           <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">Đã thanh toán</span>
-                          <button 
-                            onClick={() => handleCancelPayment(item.historyId)}
-                            className="text-gray-400 hover:text-red-500 transition-colors"
-                            title="Hủy thanh toán"
-                          >
-                            <X size={14} />
-                          </button>
                         </div>
                       ) : (
                         <button 
@@ -605,7 +716,8 @@ const Payroll: React.FC = () => {
                             bankName: item.employeeInfo.bankName,
                             bankAccountNum: item.employeeInfo.bankAccountNum,
                             bankAccountName: item.employeeInfo.bankAccountName,
-                            fullName: item.employeeInfo.fullName
+                            fullName: item.employeeInfo.fullName,
+                            salaryRate: item.salaryRate !== undefined ? item.salaryRate : item.employeeInfo.salaryPerHour
                           })}
                           className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
                         >
@@ -710,6 +822,19 @@ const Payroll: React.FC = () => {
               )}
             </tbody>
           </table>
+          {bonuses && bonuses.length > 0 && (
+            <div className="p-4 bg-green-50/50 border-t border-green-100">
+               <h4 className="font-semibold text-green-800 mb-2">Các khoản thưởng thêm trong tháng:</h4>
+               <ul className="space-y-1">
+                 {bonuses.map((b, idx) => (
+                   <li key={idx} className="flex justify-between items-center text-sm border-b border-green-100 pb-1 last:border-b-0">
+                     <span className="text-gray-700">{b.reason} <span className="text-gray-400 text-xs ml-1">({new Date(b.createdAt?.toDate ? b.createdAt.toDate() : b.createdAt).toLocaleDateString('vi-VN')})</span></span>
+                     <span className="font-bold text-green-600">+{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(b.amount)}</span>
+                   </li>
+                 ))}
+               </ul>
+            </div>
+          )}
         </div>
       )}
 

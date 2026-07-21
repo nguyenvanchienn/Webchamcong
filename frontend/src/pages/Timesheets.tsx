@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where, getDoc, doc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { ClipboardList, Calendar, ChevronDown, ChevronUp, Clock, CheckCircle, X } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useSearchParams } from 'react-router-dom';
 
 interface AttendanceRecord {
   id: string;
@@ -17,6 +18,7 @@ interface AttendanceRecord {
   logs?: any[];
   shiftStr?: string;
   salaryPerHour?: number;
+  latePenaltyAmount?: number;
 }
 
 interface TimesheetSummary {
@@ -60,6 +62,9 @@ const calculateHoursWorked = (data: any): number => {
 };
 
 const Timesheets: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const expandId = searchParams.get('expandId');
+  
   const [loading, setLoading] = useState(true);
   const [selectedLogs, setSelectedLogs] = useState<any[] | null>(null);
   const [month, setMonth] = useState(() => {
@@ -89,6 +94,14 @@ const Timesheets: React.FC = () => {
   const fetchTimesheets = async () => {
     setLoading(true);
     try {
+      let latePenaltyMap: Record<string, number> = { ALL: 0 };
+      const settingsDoc = await getDoc(doc(db, 'settings', 'general'));
+      if (settingsDoc.exists()) {
+        const data = settingsDoc.data();
+        if (typeof data.latePenalty === 'number') latePenaltyMap = { ALL: data.latePenalty };
+        else if (typeof data.latePenalty === 'object') latePenaltyMap = data.latePenalty;
+      }
+
       // Tìm theo tháng (VD: 2023-10) -> date >= 2023-10-01 và date <= 2023-10-31
       const startDate = `${month}-01`;
       const endDay = new Date(parseInt(month.split('-')[0]), parseInt(month.split('-')[1]), 0).getDate();
@@ -118,12 +131,6 @@ const Timesheets: React.FC = () => {
         schedulesMap[`${data.employeeId}_${data.date}`] = data.shift;
       });
 
-      const records: AttendanceRecord[] = [];
-      for (const data of recordsMap.values()) {
-        const shiftStr = schedulesMap[`${data.employeeId}_${data.date}`] || 'Không có ca';
-        records.push({ ...data, shiftStr } as AttendanceRecord);
-      }
-
       const empSnap = await getDocs(collection(db, 'employees'));
       const empMap: Record<string, string> = {};
       let currentUserBranchId = '';
@@ -139,6 +146,33 @@ const Timesheets: React.FC = () => {
           currentUserBranchName = d.data().branchName;
         }
       });
+
+      const records: AttendanceRecord[] = [];
+      for (const data of recordsMap.values()) {
+        const shiftStr = schedulesMap[`${data.employeeId}_${data.date}`] || (data.assignedRole ? `Ca được giao\n(bởi ${data.assignedRole})` : 'Ca được giao');
+        
+        let latePenaltyAmount = 0;
+        const branchIdForRecord = data.branchId || allEmps[data.employeeId]?.branchId;
+        const latePenaltyRate = (latePenaltyMap[branchIdForRecord] !== undefined ? latePenaltyMap[branchIdForRecord] : latePenaltyMap['ALL']) || 0;
+        
+        if (data.checkIn && shiftStr !== 'Ca được giao' && !shiftStr.includes('Ca được giao')) {
+           const inTime = data.checkIn.toDate ? data.checkIn.toDate() : new Date(data.checkIn);
+           const inTotalM = inTime.getHours() * 60 + inTime.getMinutes();
+           let earliestShiftM = 24 * 60;
+           const match = shiftStr.match(/\((\d{2}):(\d{2})/);
+           if (match) {
+               const startM = parseInt(match[1]) * 60 + parseInt(match[2]);
+               if (startM < earliestShiftM) earliestShiftM = startM;
+           }
+           if (inTotalM > earliestShiftM + 15) {
+               latePenaltyAmount = (inTotalM - earliestShiftM) * latePenaltyRate;
+           }
+        }
+
+        records.push({ ...data, shiftStr, latePenaltyAmount } as AttendanceRecord);
+      }
+
+
 
       // Group theo nhân viên
       const summaryMap: Record<string, TimesheetSummary> = {};
@@ -166,6 +200,8 @@ const Timesheets: React.FC = () => {
         }
 
         if (!belongsToAdmin) return;
+        
+        r.salaryPerHour = Number(r.salaryPerHour || allEmps[r.employeeId]?.salaryPerHour || 0);
 
         const groupKey = r.employeeId;
         if (!summaryMap[groupKey]) {
@@ -209,6 +245,18 @@ const Timesheets: React.FC = () => {
   useEffect(() => {
     fetchTimesheets();
   }, [month, filterBranchId]);
+
+  useEffect(() => {
+    if (expandId && !loading && summaries.length > 0) {
+      setExpandedRow(expandId);
+      setTimeout(() => {
+        const el = document.getElementById(`ts-row-${expandId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+    }
+  }, [expandId, loading, summaries]);
 
   const toggleRow = (empId: string) => {
     if (expandedRow === empId) setExpandedRow(null);
@@ -273,7 +321,11 @@ const Timesheets: React.FC = () => {
                     const displayBranch = summary.branchName;
                     return (
                     <React.Fragment key={`${summary.employeeId}_${idx}`}>
-                      <tr className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => toggleRow(summary.employeeId)}>
+                      <tr 
+                        id={`ts-row-${summary.employeeId}`}
+                        className={`border-b border-gray-100 cursor-pointer transition-colors ${expandedRow === summary.employeeId ? 'bg-blue-50/30' : 'hover:bg-gray-50'}`} 
+                        onClick={() => toggleRow(summary.employeeId)}
+                      >
                         <td className="p-4 text-gray-400">
                           {expandedRow === summary.employeeId ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                         </td>
@@ -308,7 +360,7 @@ const Timesheets: React.FC = () => {
                                       <div className="flex justify-between items-center mb-2">
                                         <div className="flex flex-col">
                                           <span className="text-xs font-bold text-gray-800">{new Date(r.date).toLocaleDateString('vi-VN')}</span>
-                                          <span className="text-[10px] text-gray-500">{r.branchName} • {r.shiftStr}</span>
+                                          <span className="text-[10px] text-gray-500 whitespace-pre-line leading-tight">{r.branchName} • {r.shiftStr}</span>
                                         </div>
                                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
                                           r.status.includes('Đi muộn') ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'
@@ -326,9 +378,17 @@ const Timesheets: React.FC = () => {
                                             +{formatHours(rowHours)}
                                           </span>
                                           {r.salaryPerHour !== undefined && (
-                                            <span className="text-[10px] text-green-600 font-semibold mt-0.5" title="Thành tiền của ca làm">
-                                              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(Math.round(rowHours * r.salaryPerHour))}
-                                            </span>
+                                            <div className="flex flex-col items-start mt-0.5" title="Thành tiền của ca làm">
+                                              <span className="text-[9px] text-gray-500 font-medium">
+                                                {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(r.salaryPerHour)}/giờ
+                                              </span>
+                                              <span className="text-[10px] text-green-600 font-semibold mt-0.5">
+                                                {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(Math.max(0, Math.round(rowHours * r.salaryPerHour) - (r.latePenaltyAmount || 0)))}
+                                              </span>
+                                              {r.latePenaltyAmount ? (
+                                                <span className="text-red-500 text-[9px] mt-0.5">(-{r.latePenaltyAmount.toLocaleString('vi-VN')}đ phạt đi muộn)</span>
+                                              ) : null}
+                                            </div>
                                           )}
                                         </div>
                                         {r.logs && r.logs.length > 0 && (

@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
+import React, { useState, useEffect, useRef } from 'react';
+import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc, getDoc, setDoc, query, where } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
 import { CalendarDays, Plus, Trash2, ChevronLeft, ChevronRight, Clock, Edit2 } from 'lucide-react';
+import { TimeInput24 } from '../components/TimeInput24';
 
 interface Employee {
   id: string;
@@ -51,12 +52,17 @@ const Schedules: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingSlot, setEditingSlot] = useState<string | null>(null);
-  const [editBlockModal, setEditBlockModal] = useState<{ isOpen: boolean, shiftsInSlot: any[], newStartTime: string, newEndTime: string, newSlots: number }>({
+  const [editBlockModal, setEditBlockModal] = useState<{ isOpen: boolean, shiftsInSlot: any[], newStartTime: string, newEndTime: string, newSlots: number, newSalaryMultiplier: number }>({
     isOpen: false,
     shiftsInSlot: [],
     newStartTime: '08:00',
     newEndTime: '12:00',
-    newSlots: 0
+    newSlots: 0,
+    newSalaryMultiplier: 1
+  });
+  const [viewBlockModal, setViewBlockModal] = useState<{ isOpen: boolean, shiftsInSlot: any[] }>({
+    isOpen: false,
+    shiftsInSlot: []
   });
   const [weekOffset, setWeekOffset] = useState(0);
 
@@ -78,7 +84,7 @@ const Schedules: React.FC = () => {
   const [myBranchId, setMyBranchId] = useState('');
   const [myBranchName, setMyBranchName] = useState('');
   const [myInfo, setMyInfo] = useState<Employee | null>(null);
-  const [viewBranchId, setViewBranchId] = useState('');
+  const [viewBranchId, setViewBranchId] = useState('ALL');
 
   const fetchData = async () => {
     setLoading(true);
@@ -126,6 +132,10 @@ const Schedules: React.FC = () => {
         const branchSnap = await getDocs(collection(db, 'branches'));
         const brs: any[] = [];
         branchSnap.forEach(b => brs.push({ id: b.id, name: b.data().name }));
+        
+        // Sắp xếp các cơ sở theo tên (A-Z)
+        brs.sort((a, b) => a.name.localeCompare(b.name));
+        
         setBranches(brs);
         if (brs.length > 0) {
           setViewBranchId(prev => prev || brs[0].id);
@@ -191,8 +201,17 @@ const Schedules: React.FC = () => {
 
       let empName = 'Đang trống (Chưa có người)';
       let empId = null;
-      let bId = userRole === 'BRANCH_ADMIN' ? myBranchId : viewBranchId;
-      let bName = userRole === 'BRANCH_ADMIN' ? myBranchName : (branches.find(b => b.id === viewBranchId)?.name || null);
+      let targetBranches: {id: string, name: string | null}[] = [];
+      if (userRole === 'BRANCH_ADMIN') {
+        targetBranches = [{ id: myBranchId, name: myBranchName }];
+      } else {
+        if (viewBranchId === 'ALL') {
+          targetBranches = branches.map(b => ({ id: b.id, name: b.name }));
+        } else {
+          const b = branches.find(b => b.id === viewBranchId);
+          targetBranches = [{ id: viewBranchId, name: b?.name || null }];
+        }
+      }
 
       if (formData.employeeId !== '') {
         const emp = employees.find(e => e.id === formData.employeeId);
@@ -222,43 +241,66 @@ const Schedules: React.FC = () => {
          datesToProcess.push(formData.date);
       }
 
+      const startH = parseInt(formData.startTime.split(':')[0]);
+      const startM = parseInt(formData.startTime.split(':')[1]);
+      
+      const invalidDates = datesToProcess.filter(dStr => {
+        const d = new Date(dStr);
+        d.setHours(startH, startM, 0, 0);
+        const lockTime = new Date(d.getTime() - 60 * 60 * 1000);
+        return new Date() >= lockTime;
+      });
+
+      if (invalidDates.length > 0) {
+        if (applyWholeWeek) {
+          toast.error('Không thể áp dụng cả tuần vì có ngày đã qua (khóa trước 1 tiếng)!');
+        } else {
+          toast.error('Không thể tạo ca trong quá khứ hoặc quá cận giờ (khóa trước 1 tiếng)!');
+        }
+        return;
+      }
+
       if (formData.employeeId !== '') {
         const promises = [];
         for (const processDate of datesToProcess) {
-          promises.push(addDoc(collection(db, 'schedules'), {
-            employeeId: empId,
-            employeeName: empName,
-            date: processDate,
-            shift: shiftStr,
-            branchId: bId,
-            branchName: bName,
-            salaryMultiplier: formData.salaryMultiplier
-          }));
-          promises.push(addDoc(collection(db, 'notifications'), {
-            employeeId: empId,
-            title: 'Lịch làm việc mới',
-            message: `Bạn đã được phân ca làm việc mới vào ngày ${processDate}, ${shiftStr}.`,
-            type: 'SCHEDULE_ASSIGNED',
-            read: false,
-            createdAt: new Date()
-          }));
+          for (const tb of targetBranches) {
+            promises.push(addDoc(collection(db, 'schedules'), {
+              employeeId: empId,
+              employeeName: empName,
+              date: processDate,
+              shift: shiftStr,
+              branchId: tb.id,
+              branchName: tb.name,
+              salaryMultiplier: formData.salaryMultiplier
+            }));
+            promises.push(addDoc(collection(db, 'notifications'), {
+              employeeId: empId,
+              title: 'Lịch làm việc mới',
+              message: `Bạn đã được phân ca làm việc mới vào ngày ${processDate}, ${shiftStr}.`,
+              type: 'SCHEDULE_ASSIGNED',
+              read: false,
+              createdAt: new Date()
+            }));
+          }
         }
         await Promise.all(promises);
       } else {
         const promises = [];
         for (const processDate of datesToProcess) {
-          for (let i = 0; i < formData.slots; i++) {
-            promises.push(
-              addDoc(collection(db, 'schedules'), {
-                employeeId: null,
-                employeeName: 'Đang trống (Chưa có người)',
-                date: processDate,
-                shift: shiftStr,
-                branchId: bId,
-                branchName: bName,
-                salaryMultiplier: formData.salaryMultiplier
-              }),
-            );
+          for (const tb of targetBranches) {
+            for (let i = 0; i < formData.slots; i++) {
+              promises.push(
+                addDoc(collection(db, 'schedules'), {
+                  employeeId: null,
+                  employeeName: 'Đang trống (Chưa có người)',
+                  date: processDate,
+                  shift: shiftStr,
+                  branchId: tb.id,
+                  branchName: tb.name,
+                  salaryMultiplier: formData.salaryMultiplier
+                }),
+              );
+            }
           }
         }
         await Promise.all(promises);
@@ -293,6 +335,53 @@ const Schedules: React.FC = () => {
   const handleUpdateSlot = async (scheduleId: string, newEmployeeId: string) => {
     try {
       const sch = schedules.find(s => s.id === scheduleId);
+      
+      // Tự động check-out nhân viên cũ nếu ca đang diễn ra
+      if (sch && sch.employeeId && sch.employeeId !== newEmployeeId) {
+        const today = new Date().toLocaleDateString('en-CA');
+        if (sch.date === today) {
+          const match = sch.shift.match(/\((\d{2}):(\d{2}) - (\d{2}):(\d{2})\)/);
+          if (match) {
+            const startH = parseInt(match[1]);
+            const startM = parseInt(match[2]);
+            let endH = parseInt(match[3]);
+            const endM = parseInt(match[4]);
+            if (endH < startH) endH += 24;
+            
+            const now = new Date();
+            const shiftStart = new Date(today);
+            shiftStart.setHours(startH, startM, 0, 0);
+            const shiftEnd = new Date(today);
+            shiftEnd.setHours(endH, endM, 0, 0);
+            
+            if (now >= shiftStart && now <= shiftEnd) {
+              const attQuery = query(
+                collection(db, 'attendance'),
+                where('employeeId', '==', sch.employeeId),
+                where('date', '==', today)
+              );
+              const attSnap = await getDocs(attQuery);
+              const promises: any[] = [];
+              attSnap.forEach((d) => {
+                const attData = d.data();
+                if (attData.checkIn && !attData.checkOut) {
+                  const checkOutTime = new Date();
+                  const logs = attData.logs || [];
+                  promises.push(updateDoc(doc(db, 'attendance', d.id), {
+                    checkOut: checkOutTime,
+                    logs: [...logs, { action: 'CHECK_OUT', time: checkOutTime, note: 'Bị thay thế ca làm việc' }]
+                  }));
+                }
+              });
+              if (promises.length > 0) {
+                await Promise.all(promises);
+                toast.success(`Đã tự động Check-out cho ${sch.employeeName} do bị thay ca!`);
+              }
+            }
+          }
+        }
+      }
+
       if (newEmployeeId === '') {
         await updateDoc(doc(db, 'schedules', scheduleId), {
           employeeId: null,
@@ -361,23 +450,26 @@ const Schedules: React.FC = () => {
       shiftsInSlot: shiftsInSlot,
       newStartTime: start,
       newEndTime: end,
-      newSlots: shiftsInSlot.length
+      newSlots: shiftsInSlot.length,
+      newSalaryMultiplier: shiftsInSlot[0].salaryMultiplier || 1
     });
   };
 
   const handleSaveEditBlock = async () => {
     try {
-      const { shiftsInSlot, newSlots, newStartTime, newEndTime } = editBlockModal;
+      const { shiftsInSlot, newSlots, newStartTime, newEndTime, newSalaryMultiplier } = editBlockModal;
       const newShift = generateShiftName(newStartTime, newEndTime);
       const currentLength = shiftsInSlot.length;
       const date = shiftsInSlot[0].date;
+      const baseBranchId = shiftsInSlot[0].branchId || null;
+      const baseBranchName = shiftsInSlot[0].branchName || null;
 
-      const promises = [];
+      const promises: any[] = [];
       
       // Update existing slots to new shift
       for (let i = 0; i < Math.min(currentLength, newSlots); i++) {
-        if (shiftsInSlot[i].shift !== newShift) {
-          promises.push(updateDoc(doc(db, 'schedules', shiftsInSlot[i].id), { shift: newShift }));
+        if (shiftsInSlot[i].shift !== newShift || shiftsInSlot[i].salaryMultiplier !== newSalaryMultiplier) {
+          promises.push(updateDoc(doc(db, 'schedules', shiftsInSlot[i].id), { shift: newShift, salaryMultiplier: newSalaryMultiplier }));
         }
       }
 
@@ -386,9 +478,12 @@ const Schedules: React.FC = () => {
         for (let i = 0; i < newSlots - currentLength; i++) {
           promises.push(addDoc(collection(db, 'schedules'), {
             employeeId: null,
-            employeeName: '',
+            employeeName: 'Đang trống (Chưa có người)',
             date: date,
-            shift: newShift
+            shift: newShift,
+            salaryMultiplier: newSalaryMultiplier,
+            branchId: baseBranchId,
+            branchName: baseBranchName
           }));
         }
       }
@@ -587,8 +682,46 @@ const Schedules: React.FC = () => {
     return name.toLowerCase().includes('ca') ? name : `Ca ${name}`;
   };
 
+  const checkIsPastShift = (dateStr: string, shiftStr: string) => {
+    const match = shiftStr.match(/\((\d{2}):(\d{2}) - (\d{2}):(\d{2})\)/);
+    if (!match) return false;
+    
+    const startH = parseInt(match[1]);
+    const startM = parseInt(match[2]);
+    
+    const shiftDate = new Date(dateStr);
+    shiftDate.setHours(startH, startM, 0, 0);
+    
+    const lockTime = new Date(shiftDate.getTime() - 60 * 60 * 1000);
+    return new Date() >= lockTime;
+  };
+
+  const checkIsPastShiftForAdmin = (dateStr: string, shiftStr: string) => {
+    const match = shiftStr.match(/\((\d{2}):(\d{2}) - (\d{2}):(\d{2})\)/);
+    if (!match) return false;
+    
+    const startH = parseInt(match[1]);
+    let endH = parseInt(match[3]);
+    const endM = parseInt(match[4]);
+    if (endH < startH) endH += 24;
+    
+    const shiftDate = new Date(dateStr);
+    shiftDate.setHours(endH, endM, 0, 0);
+    
+    return new Date() >= shiftDate;
+  };
+
   const renderEmployeeSlot = (shiftsInSlot: any[]) => {
+    const isPast = shiftsInSlot.length > 0 && checkIsPastShift(shiftsInSlot[0].date, shiftsInSlot[0].shift);
     const myShift = shiftsInSlot.find(s => s.employeeId === currentEmployeeId);
+    
+    if (isPast) {
+      if (myShift) {
+        return <div className="bg-gray-200 text-gray-600 font-bold p-1 rounded text-center text-[10px] border border-gray-300 mt-1">Đã tham gia</div>;
+      }
+      return <div className="bg-gray-100 text-gray-400 p-1 rounded text-center text-[10px] border border-gray-200 mt-1">Đã qua</div>;
+    }
+
     if (myShift) {
       return (
         <button 
@@ -634,7 +767,7 @@ const Schedules: React.FC = () => {
                   <option value="">-- Ca trống --</option>
                   {Object.entries(
                     employees
-                      .filter(emp => userRole !== 'SUPER_ADMIN' || emp.branchId === viewBranchId)
+                      .filter(emp => userRole !== 'SUPER_ADMIN' || viewBranchId === 'ALL' || emp.branchId === viewBranchId)
                       .reduce((acc, emp) => {
                         const pos = emp.position || 'Nhân viên';
                       if (!acc[pos]) acc[pos] = [];
@@ -655,17 +788,23 @@ const Schedules: React.FC = () => {
             );
           }
 
+          const isLocked = checkIsPastShiftForAdmin(sch.date, sch.shift);
+
           return (
             <div key={sch.id} className={`p-1 rounded text-[10px] flex justify-between items-center border ${sch.employeeId ? 'bg-blue-50 border-blue-200 text-blue-800' : 'bg-orange-50 border-orange-200 text-orange-800'}`}>
               <span className="truncate mr-1 font-medium">{sch.employeeId ? sch.employeeName : 'Ca trống'}</span>
-              <div className="flex gap-1 flex-shrink-0">
-                <button onClick={() => setEditingSlot(sch.id)} className="text-gray-400 hover:text-blue-600">
-                  <Edit2 size={12} />
-                </button>
-                <button onClick={() => handleDelete(sch.id)} className="text-red-500 hover:text-red-700">
-                  <Trash2 size={12} />
-                </button>
-              </div>
+              {!isLocked ? (
+                <div className="flex gap-1 flex-shrink-0">
+                  <button onClick={() => setEditingSlot(sch.id)} className="text-gray-400 hover:text-blue-600">
+                    <Edit2 size={12} />
+                  </button>
+                  <button onClick={() => handleDelete(sch.id)} className="text-red-500 hover:text-red-700">
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              ) : (
+                <span className="text-gray-400 text-[9px] italic flex-shrink-0">Đã khóa</span>
+              )}
             </div>
           );
         })}
@@ -687,6 +826,7 @@ const Schedules: React.FC = () => {
             onChange={(e) => setViewBranchId(e.target.value)}
             className="w-64 px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 font-medium text-gray-700"
           >
+            <option value="ALL">Tất cả cơ sở</option>
             {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
         </div>
@@ -711,7 +851,7 @@ const Schedules: React.FC = () => {
                     <option value="">-- Tạo Ca Trống (Cho NV tự đăng ký) --</option>
                     {Object.entries(
                       employees
-                        .filter(emp => userRole !== 'SUPER_ADMIN' || emp.branchId === viewBranchId)
+                        .filter(emp => userRole !== 'SUPER_ADMIN' || viewBranchId === 'ALL' || emp.branchId === viewBranchId)
                         .reduce((acc, emp) => {
                           const pos = emp.position || 'Nhân viên';
                         if (!acc[pos]) acc[pos] = [];
@@ -755,18 +895,16 @@ const Schedules: React.FC = () => {
                 <div className="md:col-span-1">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Thời gian (Từ - Đến)</label>
                   <div className="flex items-center space-x-2">
-                    <input 
-                      type="time" required
+                    <TimeInput24 
                       value={formData.startTime}
-                      onChange={(e) => setFormData({...formData, startTime: e.target.value})}
-                      className="w-full px-2 py-2 border border-gray-300 rounded-lg outline-none"
+                      onChange={(val) => setFormData({...formData, startTime: val})}
+                      className="w-full px-2 py-2 border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-blue-500 bg-white"
                     />
                     <span>-</span>
-                    <input 
-                      type="time" required
+                    <TimeInput24 
                       value={formData.endTime}
-                      onChange={(e) => setFormData({...formData, endTime: e.target.value})}
-                      className="w-full px-2 py-2 border border-gray-300 rounded-lg outline-none"
+                      onChange={(val) => setFormData({...formData, endTime: val})}
+                      className="w-full px-2 py-2 border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-blue-500 bg-white"
                     />
                   </div>
                 </div>
@@ -871,7 +1009,7 @@ const Schedules: React.FC = () => {
               </div>
 
               {/* Body */}
-              {(viewBranchId ? schedules.filter(s => s.branchId === viewBranchId) : schedules).filter(s => weekDatesStr.includes(s.date)).length === 0 ? (
+              {(viewBranchId && viewBranchId !== 'ALL' ? schedules.filter(s => s.branchId === viewBranchId) : schedules).filter(s => weekDatesStr.includes(s.date)).length === 0 ? (
                 <div className="p-16 flex flex-col items-center justify-center bg-white min-h-[400px]">
                   <div className="p-8 border border-dashed border-gray-300 rounded-xl text-center bg-gray-50">
                     <CalendarDays size={40} className="mx-auto text-gray-300 mb-3" />
@@ -900,7 +1038,7 @@ const Schedules: React.FC = () => {
                     
                     {/* Event Columns */}
                     {weekDates.map(d => {
-                      const dayShifts = schedules.filter(s => s.date === d.dateStr && (viewBranchId === '' || s.branchId === viewBranchId));
+                      const dayShifts = schedules.filter(s => s.date === d.dateStr && (viewBranchId === '' || viewBranchId === 'ALL' || s.branchId === viewBranchId));
                       const isToday = d.dateStr === new Date().toLocaleDateString('en-CA');
                       // Lấy danh sách các loại ca duy nhất trong ngày
                       const uniqueShiftTypes = Array.from(new Set(dayShifts.map(s => s.shift)));
@@ -997,7 +1135,11 @@ const Schedules: React.FC = () => {
                                 className="absolute rounded-md p-1.5 overflow-y-auto shadow-sm flex flex-col z-10 hover:z-20 transition-all border bg-white border-gray-200"
                                 style={{ top: style.top, height: style.height, minHeight: '60px', ...overlapStyle }}
                               >
-                                <div className="flex justify-between items-start">
+                                <div 
+                                  className="flex justify-between items-start cursor-pointer hover:bg-gray-50 rounded -mx-1 px-1 py-0.5"
+                                  onClick={() => setViewBlockModal({ isOpen: true, shiftsInSlot })}
+                                  title="Nhấn để xem chi tiết"
+                                >
                                   <div>
                                     <div className="font-bold text-[11px] text-gray-800 flex items-center gap-1 flex-wrap">
                                       {getShiftName(shiftType)}
@@ -1010,21 +1152,27 @@ const Schedules: React.FC = () => {
                                     <div className="text-[9px] text-gray-500 mb-1">{getShiftTime(shiftType)}</div>
                                   </div>
                                   {(userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') && (
-                                    <div className="flex flex-col gap-1 items-center">
-                                      <button 
-                                        onClick={() => handleOpenEditBlock(shiftsInSlot)} 
-                                        className="text-gray-400 hover:text-blue-600 p-1 hover:bg-blue-50 rounded"
-                                        title="Sửa cấu trúc ca này"
-                                      >
-                                        <Edit2 size={12} />
-                                      </button>
-                                      <button 
-                                        onClick={() => handleDeleteShiftBlock(shiftsInSlot)} 
-                                        className="text-red-400 hover:text-red-600 p-1 hover:bg-red-50 rounded"
-                                        title="Xóa toàn bộ ca này"
-                                      >
-                                        <Trash2 size={12} />
-                                      </button>
+                                    <div className="flex flex-col gap-1 items-center" onClick={e => e.stopPropagation()}>
+                                      {shiftsInSlot.some(s => checkIsPastShiftForAdmin(s.date, s.shift)) ? (
+                                        <div className="text-[9px] text-gray-400 italic" title="Ca này đã có người làm và trong quá khứ nên bị khóa sửa đổi">Đã khóa</div>
+                                      ) : (
+                                        <>
+                                          <button 
+                                            onClick={() => handleOpenEditBlock(shiftsInSlot)} 
+                                            className="text-gray-400 hover:text-blue-600 p-1 hover:bg-blue-50 rounded"
+                                            title="Sửa cấu trúc ca này"
+                                          >
+                                            <Edit2 size={12} />
+                                          </button>
+                                          <button 
+                                            onClick={() => handleDeleteShiftBlock(shiftsInSlot)} 
+                                            className="text-red-400 hover:text-red-600 p-1 hover:bg-red-50 rounded"
+                                            title="Xóa toàn bộ ca này"
+                                          >
+                                            <Trash2 size={12} />
+                                          </button>
+                                        </>
+                                      )}
                                     </div>
                                   )}
                                 </div>
@@ -1059,33 +1207,96 @@ const Schedules: React.FC = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Đổi khung giờ Ca (Từ - Đến)</label>
                 <div className="flex items-center space-x-2">
-                  <input 
-                    type="time" required
+                  <TimeInput24 
                     value={editBlockModal.newStartTime}
-                    onChange={(e) => setEditBlockModal({...editBlockModal, newStartTime: e.target.value})}
-                    className="w-full border border-gray-300 p-2 rounded outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={(val) => setEditBlockModal({...editBlockModal, newStartTime: val})}
+                    className="w-full border border-gray-300 p-2 rounded focus-within:ring-2 focus-within:ring-blue-500 bg-white"
                   />
                   <span>-</span>
-                  <input 
-                    type="time" required
+                  <TimeInput24 
                     value={editBlockModal.newEndTime}
-                    onChange={(e) => setEditBlockModal({...editBlockModal, newEndTime: e.target.value})}
-                    className="w-full border border-gray-300 p-2 rounded outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={(val) => setEditBlockModal({...editBlockModal, newEndTime: val})}
+                    className="w-full border border-gray-300 p-2 rounded focus-within:ring-2 focus-within:ring-blue-500 bg-white"
                   />
                 </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Số lượng nhân viên cần (Slots)</label>
-                <input 
-                  type="number" min="1" max="20"
-                  className="w-full border border-gray-300 p-2 rounded outline-none focus:ring-2 focus:ring-blue-500"
-                  value={editBlockModal.newSlots}
-                  onChange={e => setEditBlockModal({...editBlockModal, newSlots: parseInt(e.target.value) || 1})}
-                />
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Số lượng nhân viên cần (Slots)</label>
+                  <input 
+                    type="number" min="1" max="20"
+                    className="w-full border border-gray-300 p-2 rounded outline-none focus:ring-2 focus:ring-blue-500"
+                    value={editBlockModal.newSlots}
+                    onChange={e => setEditBlockModal({...editBlockModal, newSlots: parseInt(e.target.value) || 1})}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Hệ số lương</label>
+                  <input 
+                    type="number" step="0.1" min="0" max="10"
+                    className="w-full border border-gray-300 p-2 rounded outline-none focus:ring-2 focus:ring-blue-500 bg-yellow-50"
+                    value={editBlockModal.newSalaryMultiplier}
+                    onChange={e => setEditBlockModal({...editBlockModal, newSalaryMultiplier: parseFloat(e.target.value) || 1})}
+                  />
+                </div>
               </div>
               <div className="flex justify-end gap-2 mt-6">
                 <button onClick={() => setEditBlockModal({...editBlockModal, isOpen: false})} className="px-4 py-2 bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 rounded-lg transition-colors">Hủy</button>
                 <button onClick={handleSaveEditBlock} className="px-4 py-2 bg-blue-600 text-white font-medium hover:bg-blue-700 rounded-lg transition-colors">Lưu thay đổi</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal View Shift Block Details */}
+      {viewBlockModal.isOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]" onClick={() => setViewBlockModal({...viewBlockModal, isOpen: false})}>
+          <div className="bg-white p-6 rounded-xl w-96 shadow-lg max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-gray-800">Chi tiết Ca làm việc</h3>
+              <button onClick={() => setViewBlockModal({...viewBlockModal, isOpen: false})} className="text-gray-500 hover:text-red-500">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                <div className="font-semibold text-blue-800">{viewBlockModal.shiftsInSlot[0]?.shift}</div>
+                <div className="text-sm text-blue-600 mt-1">
+                  <strong>Ngày:</strong> {viewBlockModal.shiftsInSlot[0]?.date ? new Date(viewBlockModal.shiftsInSlot[0].date).toLocaleDateString('vi-VN') : ''}
+                </div>
+                <div className="text-sm text-blue-600 mt-1">
+                  <strong>Cơ sở:</strong> {viewBlockModal.shiftsInSlot[0]?.branchName || 'Tất cả'}
+                </div>
+                <div className="text-sm text-blue-600 mt-1">
+                  <strong>Hệ số lương:</strong> x{viewBlockModal.shiftsInSlot[0]?.salaryMultiplier || 1}
+                </div>
+              </div>
+              
+              <div>
+                <h4 className="font-semibold text-gray-700 mb-2 border-b pb-1">
+                  Danh sách nhân viên ({viewBlockModal.shiftsInSlot.filter(s => s.employeeId).length}/{viewBlockModal.shiftsInSlot.length})
+                </h4>
+                {viewBlockModal.shiftsInSlot.length > 0 ? (
+                  <ul className="space-y-2">
+                    {viewBlockModal.shiftsInSlot.map((s, idx) => (
+                      <li key={s.id || idx} className="flex items-center gap-2 text-sm p-2 rounded bg-gray-50 border border-gray-100">
+                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${s.employeeId ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                        {s.employeeId ? (
+                          <span className="font-medium text-gray-800">{s.employeeName}</span>
+                        ) : (
+                          <span className="text-gray-400 italic">Ca trống</span>
+                        )}
+                        {s.employeeId === currentEmployeeId && (
+                          <span className="ml-auto text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">Bạn</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-gray-500 italic">Không có dữ liệu.</p>
+                )}
               </div>
             </div>
           </div>
