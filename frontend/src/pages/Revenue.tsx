@@ -26,7 +26,7 @@ interface Order {
   note?: string;
   editCount?: number;
   lastEditedBy?: string;
-  editHistory?: { editedAt: string; editedBy: string }[];
+  editHistory?: { editedAt: string; editedBy: string; oldAmount?: number; newAmount?: number; note?: string }[];
   deletedBy?: string;
   deletedAt?: string;
 }
@@ -228,7 +228,12 @@ const Revenue: React.FC = () => {
         
         const editorName = userRole === 'SUPER_ADMIN' ? 'Admin' : `${localStorage.getItem('employeeId') || ''} - ${cashierNameMap[auth.currentUser?.email || ''] || 'Quản lý'}`.replace(/^ - | - $/g, '');
         
-        const newHistory = [...(existingOrder?.editHistory || []), { editedAt: new Date().toISOString(), editedBy: editorName }];
+        const newHistory = [...(existingOrder?.editHistory || []), { 
+          editedAt: new Date().toISOString(), 
+          editedBy: editorName,
+          oldAmount: existingOrder?.totalAmount || 0,
+          newAmount: Number(expenseAmount)
+        }];
 
         await updateDoc(expenseRef, {
           items: [{ name: expenseReason, quantity: 1, price: Number(expenseAmount) }],
@@ -288,11 +293,21 @@ const Revenue: React.FC = () => {
       onConfirm: async () => {
         try {
           const editorName = userRole === 'SUPER_ADMIN' ? 'Admin' : `${localStorage.getItem('employeeId') || ''} - ${cashierNameMap[auth.currentUser?.email || ''] || 'Quản lý'}`.replace(/^ - | - $/g, '');
+          const newCount = (billModalData.editCount || 0) + 1;
+          const newHistory = [...(billModalData.editHistory || []), { 
+            editedAt: new Date().toISOString(), 
+            editedBy: editorName,
+            oldAmount: billModalData.totalAmount,
+            newAmount: 0,
+            note: 'XÓA'
+          }];
           
           await updateDoc(doc(db, 'orders', billModalData.id), {
             totalAmount: 0,
             deletedBy: editorName,
-            deletedAt: new Date().toISOString()
+            deletedAt: new Date().toISOString(),
+            editCount: newCount,
+            editHistory: newHistory
           });
           toast.success('Đã xóa hóa đơn');
           setBillModalData(null);
@@ -312,11 +327,22 @@ const Revenue: React.FC = () => {
       onConfirm: async () => {
         try {
           const editorName = userRole === 'SUPER_ADMIN' ? 'Admin' : `${localStorage.getItem('employeeId') || ''} - ${cashierNameMap[auth.currentUser?.email || ''] || 'Quản lý'}`.replace(/^ - | - $/g, '');
+          const existingOrder = orders.find(o => o.id === editingExpenseId);
+          const newCount = (existingOrder?.editCount || 0) + 1;
+          const newHistory = [...(existingOrder?.editHistory || []), { 
+            editedAt: new Date().toISOString(), 
+            editedBy: editorName,
+            oldAmount: existingOrder?.totalAmount || 0,
+            newAmount: 0,
+            note: 'XÓA'
+          }];
           
           await updateDoc(doc(db, 'orders', editingExpenseId), {
             totalAmount: 0,
             deletedBy: editorName,
-            deletedAt: new Date().toISOString()
+            deletedAt: new Date().toISOString(),
+            editCount: newCount,
+            editHistory: newHistory
           });
           toast.success('Đã xóa phiếu chi');
           setShowExpenseModal(false);
@@ -338,7 +364,12 @@ const Revenue: React.FC = () => {
       const newTotal = billEditItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
       const newEditCount = (billModalData.editCount || 0) + 1;
       const editorName = userRole === 'SUPER_ADMIN' ? 'Admin' : `${localStorage.getItem('employeeId') || ''} - ${cashierNameMap[auth.currentUser?.email || ''] || 'Quản lý'}`.replace(/^ - | - $/g, '');
-      const newHistory = [...(billModalData.editHistory || []), { editedAt: new Date().toISOString(), editedBy: editorName }];
+      const newHistory = [...(billModalData.editHistory || []), { 
+        editedAt: new Date().toISOString(), 
+        editedBy: editorName,
+        oldAmount: billModalData.totalAmount,
+        newAmount: newTotal
+      }];
 
       await updateDoc(doc(db, 'orders', billModalData.id), {
         items: billEditItems,
@@ -561,12 +592,12 @@ const Revenue: React.FC = () => {
                       key={order.id} 
                       onClick={() => {
                         if (canEdit) openEditExpense(order);
-                        else if (!isExpense && !order.deletedBy) {
+                        else {
                           setBillModalData({ ...order, cashierName, branchAddress: order.branchId ? branchAddressMap[order.branchId] : null });
                           setIsEditBillMode(false);
                         }
                       }}
-                      className={`border-b border-gray-100 transition-colors ${isExpense ? 'bg-red-50' : 'hover:bg-gray-50'} ${(!order.deletedBy && (!isExpense || canEdit)) ? 'cursor-pointer' : ''} ${canEdit ? 'hover:bg-red-100' : ''} ${order.deletedBy ? 'opacity-70' : ''}`}
+                      className={`border-b border-gray-100 transition-colors ${isExpense ? 'bg-red-50' : 'hover:bg-gray-50'} cursor-pointer ${canEdit ? 'hover:bg-red-100' : ''} ${order.deletedBy ? 'opacity-70' : ''}`}
                     >
                       <td className="p-4 text-gray-600 font-medium">{filteredOrders.length - index}</td>
                       <td className={`p-4 font-mono font-medium ${isExpense ? 'text-red-600' : 'text-blue-600'}`}>
@@ -619,7 +650,9 @@ const Revenue: React.FC = () => {
               <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-3 shadow-lg">
                 <Receipt size={32} className="text-blue-500" />
               </div>
-              <h2 className="text-2xl font-black mb-1">Chi tiết Hóa đơn</h2>
+              <h2 className="text-2xl font-black mb-1">
+                {billModalData.type === 'EXPENSE' ? 'Chi tiết Phiếu Chi' : 'Chi tiết Hóa đơn'}
+              </h2>
               <p className="text-blue-100 font-medium">#{billModalData.orderCode || billModalData.id.slice(-6).toUpperCase()}</p>
             </div>
 
@@ -627,7 +660,7 @@ const Revenue: React.FC = () => {
               <div id="bill-receipt" className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm font-mono text-sm text-gray-800">
                 <div className="text-center mb-6">
                   <h1 className="text-xl font-bold mb-1 uppercase">TIỆM NHÀ BƠ</h1>
-                  <p className="text-gray-500 text-xs">HÓA ĐƠN THANH TOÁN</p>
+                  <p className="text-gray-500 text-xs">{billModalData.type === 'EXPENSE' ? 'PHIẾU CHI' : 'HÓA ĐƠN THANH TOÁN'}</p>
                 </div>
 
                 <div className="border-t border-b border-dashed border-gray-300 py-3 mb-4 space-y-1 text-xs">
@@ -723,7 +756,16 @@ const Revenue: React.FC = () => {
                         if (billModalData.editHistory) history.push(...billModalData.editHistory);
                         
                         return history.map((h: any, i: number) => (
-                          <li key={i}>- Lần {i + 1}: {h.editedAt ? new Date(h.editedAt).toLocaleString('vi-VN') : 'Trước đây'} bởi <strong>{formatEditorName(h.editedBy)}</strong></li>
+                          <li key={i}>
+                            - Lần {i + 1}: {h.editedAt ? new Date(h.editedAt).toLocaleString('vi-VN') : 'Trước đây'} bởi <strong>{formatEditorName(h.editedBy)}</strong>
+                            {h.oldAmount !== undefined && h.newAmount !== undefined && (
+                              <span className="block text-gray-400 ml-3">
+                                {h.note === 'XÓA' 
+                                  ? `(Đã xóa, giảm từ ${new Intl.NumberFormat('vi-VN').format(h.oldAmount)}đ)` 
+                                  : `(Sửa từ ${new Intl.NumberFormat('vi-VN').format(h.oldAmount)}đ -> ${new Intl.NumberFormat('vi-VN').format(h.newAmount)}đ)`}
+                              </span>
+                            )}
+                          </li>
                         ));
                       })()}
                     </ul>
@@ -876,7 +918,16 @@ const Revenue: React.FC = () => {
                             if (editingOrder.editHistory) history.push(...editingOrder.editHistory);
                             
                             return history.map((h: any, i: number) => (
-                              <li key={i}>- Lần {i + 1}: {h.editedAt ? new Date(h.editedAt).toLocaleString('vi-VN') : 'Trước đây'} bởi <strong>{formatEditorName(h.editedBy)}</strong></li>
+                              <li key={i}>
+                                - Lần {i + 1}: {h.editedAt ? new Date(h.editedAt).toLocaleString('vi-VN') : 'Trước đây'} bởi <strong>{formatEditorName(h.editedBy)}</strong>
+                                {h.oldAmount !== undefined && h.newAmount !== undefined && (
+                                  <span className="block text-gray-400 ml-3">
+                                    {h.note === 'XÓA' 
+                                      ? `(Đã xóa, giảm từ ${new Intl.NumberFormat('vi-VN').format(h.oldAmount)}đ)` 
+                                      : `(Sửa từ ${new Intl.NumberFormat('vi-VN').format(h.oldAmount)}đ -> ${new Intl.NumberFormat('vi-VN').format(h.newAmount)}đ)`}
+                                  </span>
+                                )}
+                              </li>
                             ));
                           })()}
                         </ul>
