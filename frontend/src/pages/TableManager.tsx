@@ -30,6 +30,8 @@ const TableManager: React.FC = () => {
   const [tableToDelete, setTableToDelete] = useState<Table | null>(null);
   const [deletePassword, setDeletePassword] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [addPassword, setAddPassword] = useState('');
+  const [isAdding, setIsAdding] = useState(false);
 
   const userRole = localStorage.getItem('userRole');
   const userBranchId = localStorage.getItem('branchId');
@@ -82,22 +84,37 @@ const TableManager: React.FC = () => {
   const handleAddTable = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tableName.trim() || !selectedBranch) return;
+    if (!addPassword) {
+      toast.error('Vui lòng nhập mật khẩu xác nhận');
+      return;
+    }
 
+    setIsAdding(true);
     try {
-      const newTable = {
-        name: tableName.trim(),
-        branchId: selectedBranch,
-        status: 'AVAILABLE',
-        createdAt: new Date()
-      };
-      const docRef = await addDoc(collection(db, 'tables'), newTable);
-      setTables([...tables, { id: docRef.id, ...newTable } as Table].sort((a, b) => a.name.localeCompare(b.name)));
-      toast.success('Thêm bàn thành công');
-      setIsModalOpen(false);
-      setTableName('');
+      if (auth.currentUser && auth.currentUser.email) {
+        const credential = EmailAuthProvider.credential(auth.currentUser.email, addPassword);
+        await reauthenticateWithCredential(auth.currentUser, credential);
+        
+        const newTable = {
+          name: tableName.trim(),
+          branchId: selectedBranch,
+          status: 'AVAILABLE',
+          createdAt: new Date()
+        };
+        const docRef = await addDoc(collection(db, 'tables'), newTable);
+        setTables([...tables, { id: docRef.id, ...newTable } as Table].sort((a, b) => a.name.localeCompare(b.name)));
+        toast.success('Thêm bàn thành công');
+        setIsModalOpen(false);
+        setTableName('');
+        setAddPassword('');
+      } else {
+        toast.error('Lỗi xác thực người dùng');
+      }
     } catch (error) {
       console.error(error);
-      toast.error('Lỗi khi thêm bàn');
+      toast.error('Mật khẩu không chính xác');
+    } finally {
+      setIsAdding(false);
     }
   };
 
@@ -234,7 +251,7 @@ const TableManager: React.FC = () => {
               <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:bg-gray-200 p-2 rounded-full"><X size={20} /></button>
             </div>
             <form onSubmit={handleAddTable} className="p-6">
-              <div className="mb-6">
+              <div className="mb-4">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Tên bàn (VD: Bàn 1, Bàn Ngoài Sân...)</label>
                 <input 
                   type="text" 
@@ -246,9 +263,22 @@ const TableManager: React.FC = () => {
                   placeholder="Nhập tên bàn..." 
                 />
               </div>
+              <div className="mb-6">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Mật khẩu quản lý</label>
+                <input 
+                  type="password" 
+                  value={addPassword} 
+                  onChange={e => setAddPassword(e.target.value)} 
+                  required 
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none tracking-widest font-medium text-gray-800" 
+                  placeholder="Nhập mật khẩu..." 
+                />
+              </div>
               <div className="flex gap-3">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 px-4 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200">Hủy</button>
-                <button type="submit" className="flex-1 py-3 px-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700">Lưu thông tin</button>
+                <button type="button" onClick={() => { setIsModalOpen(false); setAddPassword(''); }} className="flex-1 py-3 px-4 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 disabled:opacity-50" disabled={isAdding}>Hủy</button>
+                <button type="submit" className="flex-1 py-3 px-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:bg-gray-400 disabled:shadow-none shadow-md shadow-blue-500/20" disabled={!addPassword || isAdding}>
+                  {isAdding ? 'Đang xử lý...' : 'Thêm Bàn'}
+                </button>
               </div>
             </form>
           </div>
