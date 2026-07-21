@@ -137,12 +137,10 @@ const TableOrder: React.FC = () => {
         // Append to existing order
         const existingItems = [...activeOrder.items];
         cart.forEach(cartItem => {
-          const ex = existingItems.find(i => i.id === cartItem.id && !i.isServed);
-          if (ex) {
-            ex.quantity += cartItem.quantity;
-          } else {
+          for (let i = 0; i < cartItem.quantity; i++) {
             existingItems.push({
               ...cartItem,
+              quantity: 1,
               cartItemId: Date.now().toString() + Math.random().toString(36).substring(2, 9),
               isServed: false
             });
@@ -169,11 +167,14 @@ const TableOrder: React.FC = () => {
           branchId,
           tableId,
           tableName,
-          items: cart.map(item => ({
-            ...item,
-            cartItemId: Date.now().toString() + Math.random().toString(36).substring(2, 9),
-            isServed: false
-          })),
+          items: cart.flatMap(item => 
+            Array.from({ length: item.quantity }, () => ({
+              ...item,
+              quantity: 1,
+              cartItemId: Date.now().toString() + Math.random().toString(36).substring(2, 9),
+              isServed: false
+            }))
+          ),
           totalAmount: cartTotal,
           status: 'UNPAID',
           createdAt: serverTimestamp(),

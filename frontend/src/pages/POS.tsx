@@ -293,14 +293,25 @@ const POS: React.FC = () => {
         return newCode.toString();
       });
 
+      // Group items for the bill
+      const groupedItems: any[] = [];
+      cart.forEach(item => {
+        const existing = groupedItems.find(i => i.menuItemId === item.id);
+        if (existing) {
+          existing.quantity += item.quantity;
+        } else {
+          groupedItems.push({
+            menuItemId: item.id,
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity
+          });
+        }
+      });
+
       const orderData = {
         orderCode: nextOrderCodeStr,
-        items: cart.map(i => ({
-          menuItemId: i.id,
-          name: i.name,
-          price: i.price,
-          quantity: i.quantity
-        })),
+        items: groupedItems,
         totalAmount,
         paymentMethod,
         amountTendered: tendered,
