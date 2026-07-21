@@ -100,7 +100,7 @@ const DashboardLayout: React.FC = () => {
   const allMenuItems = [
     { name: 'Trang chủ', path: '/dashboard', icon: <LayoutDashboard size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN', 'EMPLOYEE'] },
     { name: 'Bán hàng (POS)', path: '/pos', icon: <ShoppingCart size={20} />, roles: ['POS'] },
-    { name: 'Màn hình Khách Order', path: '/customer-order', icon: <Store size={20} />, roles: ['POS', 'SUPER_ADMIN', 'BRANCH_ADMIN'] },
+    { name: 'Màn hình Khách Order', path: '/customer-order', icon: <Store size={20} />, roles: ['POS'] },
     { name: 'Lịch sử Hóa đơn', path: '/dashboard/orders', icon: <Receipt size={20} />, roles: ['POS'] },
     { name: 'Quản lý Thực đơn', path: '/dashboard/menu', icon: <Utensils size={20} />, roles: ['SUPER_ADMIN'] },
     { name: 'Quản lý cơ sở', path: '/dashboard/branches', icon: <Building2 size={20} />, roles: ['SUPER_ADMIN'] },
