@@ -664,19 +664,23 @@ const Revenue: React.FC = () => {
                   </span>
                 </div>
 
-                {!isEditBillMode && billModalData.editHistory && billModalData.editHistory.length > 0 && (
+                {!isEditBillMode && billModalData.editCount && billModalData.editCount > 0 && (
                   <div className="mt-4 pt-3 border-t border-dashed border-gray-300 text-xs">
                     <p className="font-semibold text-gray-700 mb-1">Lịch sử chỉnh sửa ({billModalData.editCount} lần):</p>
                     <ul className="space-y-1 text-gray-500">
-                      {billModalData.editHistory.map((h: any, i: number) => (
-                        <li key={i}>- Lần {i + 1}: {new Date(h.editedAt).toLocaleString('vi-VN')} bởi <strong>{formatEditorName(h.editedBy)}</strong></li>
-                      ))}
+                      {(() => {
+                        const history = [];
+                        const missingCount = billModalData.editCount - (billModalData.editHistory?.length || 0);
+                        for (let i = 0; i < missingCount; i++) {
+                          history.push({ editedAt: null, editedBy: billModalData.lastEditedBy });
+                        }
+                        if (billModalData.editHistory) history.push(...billModalData.editHistory);
+                        
+                        return history.map((h: any, i: number) => (
+                          <li key={i}>- Lần {i + 1}: {h.editedAt ? new Date(h.editedAt).toLocaleString('vi-VN') : 'Trước đây'} bởi <strong>{formatEditorName(h.editedBy)}</strong></li>
+                        ));
+                      })()}
                     </ul>
-                  </div>
-                )}
-                {!isEditBillMode && !billModalData.editHistory && billModalData.editCount && billModalData.editCount > 0 && (
-                  <div className="mt-3 text-xs text-right text-gray-500 italic">
-                    (Đã sửa {billModalData.editCount} lần bởi {formatEditorName(billModalData.lastEditedBy)})
                   </div>
                 )}
 
@@ -812,23 +816,28 @@ const Revenue: React.FC = () => {
                 </div>
                 {editingExpenseId && (() => {
                   const editingOrder = orders.find(o => o.id === editingExpenseId);
-                  if (editingOrder?.editHistory && editingOrder.editHistory.length > 0) {
+                  if (editingOrder?.editCount && editingOrder.editCount > 0) {
                     return (
                       <div className="mt-4 pt-3 border-t border-dashed border-gray-300 text-xs">
                         <p className="font-semibold text-gray-700 mb-1">Lịch sử chỉnh sửa ({editingOrder.editCount} lần):</p>
                         <ul className="space-y-1 text-gray-500">
-                          {editingOrder.editHistory.map((h: any, i: number) => (
-                            <li key={i}>- Lần {i + 1}: {new Date(h.editedAt).toLocaleString('vi-VN')} bởi <strong>{formatEditorName(h.editedBy)}</strong></li>
-                          ))}
+                          {(() => {
+                            const history = [];
+                            const missingCount = editingOrder.editCount - (editingOrder.editHistory?.length || 0);
+                            for (let i = 0; i < missingCount; i++) {
+                              history.push({ editedAt: null, editedBy: editingOrder.lastEditedBy });
+                            }
+                            if (editingOrder.editHistory) history.push(...editingOrder.editHistory);
+                            
+                            return history.map((h: any, i: number) => (
+                              <li key={i}>- Lần {i + 1}: {h.editedAt ? new Date(h.editedAt).toLocaleString('vi-VN') : 'Trước đây'} bởi <strong>{formatEditorName(h.editedBy)}</strong></li>
+                            ));
+                          })()}
                         </ul>
                       </div>
                     );
                   }
-                  return editingOrder?.editCount && editingOrder.editCount > 0 ? (
-                    <div className="text-xs text-right text-gray-500 italic mt-2">
-                      (Đã sửa {editingOrder.editCount} lần bởi {formatEditorName(editingOrder.lastEditedBy)})
-                    </div>
-                  ) : null;
+                  return null;
                 })()}
               </div>
 
