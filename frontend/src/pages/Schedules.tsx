@@ -263,22 +263,6 @@ const Schedules: React.FC = () => {
 
       const startH = parseInt(formData.startTime.split(':')[0]);
       const startM = parseInt(formData.startTime.split(':')[1]);
-      
-      const invalidDates = datesToProcess.filter(dStr => {
-        const d = new Date(dStr);
-        d.setHours(startH, startM, 0, 0);
-        const lockTime = new Date(d.getTime() - 60 * 60 * 1000);
-        return new Date() >= lockTime;
-      });
-
-      if (invalidDates.length > 0) {
-        if (applyWholeWeek) {
-          toast.error('Không thể áp dụng cả tuần vì có ngày đã qua (khóa trước 1 tiếng)!');
-        } else {
-          toast.error('Không thể tạo ca trong quá khứ hoặc quá cận giờ (khóa trước 1 tiếng)!');
-        }
-        return;
-      }
 
       if (formData.employeeId !== '') {
         let hasConflict = false;
