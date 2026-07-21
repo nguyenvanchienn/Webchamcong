@@ -900,9 +900,26 @@ const POS: React.FC = () => {
                       className={`bg-white rounded-xl border-2 p-4 cursor-pointer hover:shadow-md transition-all ${
                         currentTableOrderId === order.id ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200 hover:border-blue-300'
                       }`}
-                      onClick={() => {
+                      onClick={async () => {
+                        // Mark as read if it has new items
+                        if (order.hasNewItems) {
+                          await updateDoc(doc(db, 'active_table_orders', order.id), { hasNewItems: false });
+                        }
+
+                        // Group items for the POS cart sidebar
+                        const groupedCart: any[] = [];
+                        order.items.forEach(item => {
+                          const existing = groupedCart.find(i => i.id === item.id);
+                          if (existing) {
+                            existing.quantity += item.quantity;
+                          } else {
+                            // Use a single cartItemId for the grouped item in POS sidebar
+                            groupedCart.push({ ...item, cartItemId: item.cartItemId || Date.now().toString() });
+                          }
+                        });
+
                         updatePosState({ 
-                          cart: order.items, 
+                          cart: groupedCart, 
                           currentTableOrderId: order.id, 
                           currentTableId: order.tableId,
                           currentTableName: order.tableName
