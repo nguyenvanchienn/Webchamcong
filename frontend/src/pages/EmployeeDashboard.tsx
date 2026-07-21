@@ -195,7 +195,16 @@ const EmployeeDashboard: React.FC = () => {
       const getStatusStr = (att: any, shiftDate: string, shiftStr: string) => {
          if (shiftDate > todayStr) return 'Chưa tới ca';
          if (!att) {
-           if (shiftDate === todayStr) return 'Chưa Check-in';
+           if (shiftDate === todayStr) {
+             const match = shiftStr.match(/\((\d{2}):(\d{2})/);
+             if (match) {
+               const shiftM = parseInt(match[1]) * 60 + parseInt(match[2]);
+               const now = new Date();
+               const nowM = now.getHours() * 60 + now.getMinutes();
+               if (nowM < shiftM - 30) return 'Chưa tới ca';
+             }
+             return 'Chưa Check-in';
+           }
            return 'Vắng mặt';
          }
          

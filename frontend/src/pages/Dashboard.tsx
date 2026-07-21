@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Building2, UserCheck, Clock } from 'lucide-react';
+import { Users, Building2, UserCheck, Clock, UserX } from 'lucide-react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import EmployeeDashboard from './EmployeeDashboard';
@@ -17,6 +17,7 @@ const Dashboard: React.FC = () => {
     { title: 'Tổng nhân viên', value: 0, icon: <Users className="text-green-500" size={32} /> },
     { title: 'Đang làm việc', value: 0, icon: <UserCheck className="text-purple-500" size={32} /> },
     { title: 'Đi trễ hôm nay', value: 0, icon: <Clock className="text-orange-500" size={32} /> },
+    { title: 'Vắng mặt hôm nay', value: 0, icon: <UserX className="text-red-500" size={32} /> },
   ]);
   const [recentActivities, setRecentActivities] = useState<any[]>([]);
   const [todaySchedules, setTodaySchedules] = useState<any[]>([]);
@@ -64,10 +65,13 @@ const Dashboard: React.FC = () => {
         let workingCount = 0;
         let lateCount = 0;
         const activities: any[] = [];
+        const attendedEmployeeIds = new Set<string>();
         
         attSnap.forEach(doc => {
           const data = doc.data();
           if (userRole === 'BRANCH_ADMIN' && data.branchId !== currentUserBranchId) return;
+
+          if (data.employeeId) attendedEmployeeIds.add(data.employeeId);
 
           if (!data.checkOut) workingCount++; // Đang làm việc (chưa check-out)
           if (data.status.includes('Đi muộn')) lateCount++;
@@ -100,18 +104,38 @@ const Dashboard: React.FC = () => {
         const schedQuery = query(collection(db, 'schedules'), where('date', '==', today));
         const schedSnap = await getDocs(schedQuery);
         const schedules: any[] = [];
+        const scheduledEmployeeIds = new Set<string>();
+        
         schedSnap.forEach(doc => {
           const data = doc.data();
           if (userRole === 'BRANCH_ADMIN' && data.branchId !== currentUserBranchId) return;
           schedules.push({ id: doc.id, ...data });
+          if (data.employeeId) scheduledEmployeeIds.add(data.employeeId);
         });
         setTodaySchedules(schedules);
+
+        const now = new Date();
+        const nowM = now.getHours() * 60 + now.getMinutes();
+        let absentCount = 0;
+        
+        schedules.forEach(sched => {
+          if (sched.employeeId && !attendedEmployeeIds.has(sched.employeeId)) {
+            const match = sched.shift?.match(/\((\d{2}):(\d{2})/);
+            if (match) {
+              const shiftStartM = parseInt(match[1]) * 60 + parseInt(match[2]);
+              if (nowM > shiftStartM + 15) {
+                absentCount++;
+              }
+            }
+          }
+        });
 
         setStats([
           { title: userRole === 'BRANCH_ADMIN' ? 'Cơ sở quản lý' : 'Tổng số cơ sở', value: totalBranches, icon: <Building2 className="text-blue-500" size={32} />, path: '' },
           { title: 'Tổng nhân viên', value: totalEmployees, icon: <Users className="text-green-500" size={32} />, path: '/dashboard/employees' },
           { title: 'Đang làm việc', value: workingCount, icon: <UserCheck className="text-purple-500" size={32} />, path: '/dashboard/attendance' },
           { title: 'Đi trễ hôm nay', value: lateCount, icon: <Clock className="text-orange-500" size={32} />, path: '/dashboard/attendance' },
+          { title: 'Vắng mặt hôm nay', value: absentCount, icon: <UserX className="text-red-500" size={32} />, path: '/dashboard/attendance' },
         ]);
       } catch (error) {
         console.error("Lỗi lấy thống kê:", error);
@@ -141,7 +165,7 @@ const Dashboard: React.FC = () => {
       )}
 
       <div className={activeTab === 'personal' ? 'hidden' : 'space-y-6'}>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
           {stats.map((stat, idx) => (
           <div 
             key={idx} 

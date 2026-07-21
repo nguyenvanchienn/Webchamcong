@@ -19,6 +19,10 @@ const Settings: React.FC = () => {
   const [bonusReason, setBonusReason] = useState('');
   const [bonusLoading, setBonusLoading] = useState(false);
   const [employees, setEmployees] = useState<any[]>([]);
+  
+  const userRole = localStorage.getItem('userRole') || 'EMPLOYEE';
+  const employeeId = localStorage.getItem('employeeId');
+  const [userBranchId, setUserBranchId] = useState('');
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -42,8 +46,18 @@ const Settings: React.FC = () => {
 
         const empSnap = await getDocs(collection(db, 'employees'));
         const emps: any[] = [];
-        empSnap.forEach(e => emps.push({ id: e.id, fullName: e.data().fullName, branchId: e.data().branchId }));
+        let myBranch = '';
+        empSnap.forEach(e => {
+            const data = e.data();
+            emps.push({ id: e.id, fullName: data.fullName, branchId: data.branchId });
+            if (e.id === employeeId) myBranch = data.branchId;
+        });
         setEmployees(emps);
+        setUserBranchId(myBranch);
+
+        if (userRole === 'BRANCH_ADMIN') {
+            setSelectedBranch(myBranch);
+        }
       } catch (error) {
         console.error('Error fetching settings:', error);
       }
@@ -75,7 +89,7 @@ const Settings: React.FC = () => {
       let targetEmployees: any[] = [];
 
       if (bonusTargetType === 'ALL') {
-        targetEmployees = employees;
+        targetEmployees = userRole === 'BRANCH_ADMIN' ? employees.filter(e => e.branchId === userBranchId) : employees;
       } else if (bonusTargetType === 'BRANCH') {
         if (!bonusTargetId) {
           toast.error('Vui lòng chọn cơ sở');
@@ -149,9 +163,10 @@ const Settings: React.FC = () => {
               value={selectedBranch} 
               onChange={e => setSelectedBranch(e.target.value)} 
               className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none"
+              disabled={userRole === 'BRANCH_ADMIN'}
             >
-              <option value="ALL">Tất cả cơ sở (Mặc định)</option>
-              {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              {userRole === 'SUPER_ADMIN' && <option value="ALL">Tất cả cơ sở (Mặc định)</option>}
+              {branches.filter(b => userRole === 'SUPER_ADMIN' || b.id === userBranchId).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
           </div>
           <div className="flex-1">
@@ -199,8 +214,8 @@ const Settings: React.FC = () => {
               onChange={e => { setBonusTargetType(e.target.value); setBonusTargetId(''); }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none"
             >
-              <option value="ALL">Toàn bộ nhân viên</option>
-              <option value="BRANCH">Theo cơ sở</option>
+              <option value="ALL">{userRole === 'SUPER_ADMIN' ? 'Toàn bộ nhân viên' : 'Tất cả nhân viên thuộc cơ sở này'}</option>
+              {userRole === 'SUPER_ADMIN' && <option value="BRANCH">Theo cơ sở</option>}
               <option value="EMPLOYEE">Nhân viên cụ thể</option>
             </select>
           </div>
@@ -215,7 +230,7 @@ const Settings: React.FC = () => {
               >
                 <option value="">-- Chọn --</option>
                 {bonusTargetType === 'BRANCH' && branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                {bonusTargetType === 'EMPLOYEE' && employees.map(e => <option key={e.id} value={e.id}>{e.fullName}</option>)}
+                {bonusTargetType === 'EMPLOYEE' && employees.filter(e => userRole === 'SUPER_ADMIN' || e.branchId === userBranchId).map(e => <option key={e.id} value={e.id}>{e.fullName}</option>)}
               </select>
             </div>
           )}

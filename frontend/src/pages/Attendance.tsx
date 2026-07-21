@@ -164,6 +164,7 @@ const Attendance: React.FC = () => {
               else if (filterDate < todayStr) calcStatus = 'Vắng mặt';
               else {
                 if (nowM > shiftStartM + 15) calcStatus = 'Vắng mặt';
+                else if (nowM < shiftStartM - 30) calcStatus = 'Chưa tới ca';
                 else calcStatus = 'Chưa check-in';
               }
             } else {
@@ -219,6 +220,8 @@ const Attendance: React.FC = () => {
               totalMs = new Date().getTime() - att.checkIn.getTime();
             }
           }
+
+          if (calcStatus === 'Chưa tới ca') continue;
 
           attList.push({
             id: att?.id || `temp-${emp.id}-${i}`,

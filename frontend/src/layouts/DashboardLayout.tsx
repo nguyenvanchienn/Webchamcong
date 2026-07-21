@@ -116,7 +116,7 @@ const DashboardLayout: React.FC = () => {
     { name: 'Báo cáo', path: '/dashboard/reports', icon: <BarChart3 size={20} />, roles: ['SUPER_ADMIN'] },
     { name: 'Doanh thu', path: '/dashboard/revenue', icon: <CircleDollarSign size={20} />, roles: ['SUPER_ADMIN'] },
     { name: 'Xuất Excel', path: '/dashboard/export', icon: <FileSpreadsheet size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN'] },
-    { name: 'Thiết lập', path: '/dashboard/settings', icon: <Settings size={20} />, roles: ['SUPER_ADMIN'] },
+    { name: 'Thiết lập', path: '/dashboard/settings', icon: <Settings size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN'] },
   ];
 
   const menuItems = allMenuItems.filter(item => item.roles.includes(userRole));
