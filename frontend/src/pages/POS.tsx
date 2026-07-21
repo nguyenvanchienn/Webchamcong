@@ -1131,16 +1131,11 @@ const POS: React.FC = () => {
                                 <span className={`${item.isServed ? 'line-through text-gray-400' : 'font-medium text-gray-800'}`}>
                                   {item.quantity}x {item.name}
                                 </span>
-                                <span className="text-[10px] font-bold text-orange-500">
+                                <span className="text-[10px] font-bold text-gray-400">
                                   {(() => {
                                     if (!item.cartItemId) return '';
                                     const t = parseInt(item.cartItemId.substring(0, 13));
-                                    if (isNaN(t)) return '';
-                                    const diff = Math.floor((now - t) / 1000);
-                                    if (diff < 60) return 'Vừa gọi';
-                                    const h = Math.floor(diff / 3600);
-                                    const m = Math.floor((diff % 3600) / 60);
-                                    return `Đợi ${h > 0 ? `${h}h ` : ''}${m}p`;
+                                    return isNaN(t) ? '' : new Date(t).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
                                   })()}
                                 </span>
                               </div>
