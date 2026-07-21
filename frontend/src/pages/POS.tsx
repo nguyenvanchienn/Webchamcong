@@ -44,7 +44,7 @@ const POS: React.FC = () => {
   const [storeName, setStoreName] = useState<string>('Bơ Food');
   const [storeAddress, setStoreAddress] = useState<string | null>(null);
   const [cashierName, setCashierName] = useState<string | null>(null);
-  
+
   // Payment Modal State
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'TRANSFER'>('CASH');
@@ -55,7 +55,7 @@ const POS: React.FC = () => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [logoutPassword, setLogoutPassword] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  
+
   const [activeTableOrders, setActiveTableOrders] = useState<ActiveTableOrder[]>([]);
   const [showTableOrdersModal, setShowTableOrdersModal] = useState(false);
   const [currentTableOrderId, setCurrentTableOrderId] = useState<string | null>(null);
@@ -80,7 +80,7 @@ const POS: React.FC = () => {
     if (!branchId) return;
 
     const sessionRef = doc(db, 'active_pos_sessions', branchId);
-    
+
     const initSession = async () => {
       const snap = await getDoc(sessionRef);
       if (!snap.exists()) {
@@ -108,16 +108,16 @@ const POS: React.FC = () => {
   useEffect(() => {
     const branchId = localStorage.getItem('branchId');
     if (!branchId) return;
-    
+
     const q = query(
       collection(db, 'active_table_orders'),
       where('branchId', '==', branchId),
       where('status', '==', 'UNPAID')
     );
-    
+
     const unsub = onSnapshot(q, (snap) => {
       const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ActiveTableOrder));
-      
+
       // Sort tables: 
       // 1. Tables with unserved items at the top
       // 2. Older updatedAt first (waiting longest)
@@ -126,24 +126,24 @@ const POS: React.FC = () => {
         const bItems = b.items || [];
         const aHasUnserved = aItems.some(i => !i.isServed);
         const bHasUnserved = bItems.some(i => !i.isServed);
-        
+
         if (aHasUnserved && !bHasUnserved) return -1;
         if (!aHasUnserved && bHasUnserved) return 1;
-        
+
         const getTime = (dateObj: any) => {
-          if (!dateObj) return 0;
+          if (!dateObj) return Infinity; // Put new/pending orders at the bottom
           if (typeof dateObj.toMillis === 'function') return dateObj.toMillis();
           if (dateObj.seconds) return dateObj.seconds * 1000;
-          return 0;
+          return Infinity;
         };
 
-        const timeA = getTime(a.updatedAt);
-        const timeB = getTime(b.updatedAt);
+        const timeA = getTime(a.createdAt || a.updatedAt);
+        const timeB = getTime(b.createdAt || b.updatedAt);
         return timeA - timeB;
       });
 
       setActiveTableOrders(list);
-      
+
       const newItems = list.filter(o => o.hasNewItems);
       if (newItems.length > 0) {
         newItems.forEach(table => {
@@ -188,7 +188,7 @@ const POS: React.FC = () => {
             const todayStr = new Date().toLocaleDateString('en-CA');
             const schQ = query(collection(db, 'schedules'), where('branchId', '==', branchId), where('date', '==', todayStr));
             const schSnap = await getDocs(schQ);
-            
+
             const now = new Date();
             let activeCashier = null;
 
@@ -202,12 +202,12 @@ const POS: React.FC = () => {
                   let endH = parseInt(match[3]);
                   const endM = parseInt(match[4]);
                   if (endH < startH) endH += 24;
-                  
+
                   const shiftStart = new Date();
                   shiftStart.setHours(startH, startM, 0, 0);
                   const shiftEnd = new Date();
                   shiftEnd.setHours(endH, endM, 0, 0);
-                  
+
                   if (now >= shiftStart && now <= shiftEnd) {
                     activeCashier = data.employeeName;
                   }
@@ -267,62 +267,62 @@ const POS: React.FC = () => {
     try {
       const orderRef = doc(db, 'active_table_orders', currentTableOrderId);
       const snap = await getDoc(orderRef);
-      
+
       if (snap.exists()) {
         const latestItems = snap.data().items || [];
         const newItems = [...latestItems];
-        
+
         // Calculate differences
         for (const cartItem of cart) {
-           const existingCount = latestItems.filter((i:any) => i.id === cartItem.id).length;
-           const targetCount = cartItem.quantity;
-           
-           if (targetCount > existingCount) {
-             // Add new items
-             const diff = targetCount - existingCount;
-             for (let i = 0; i < diff; i++) {
-                newItems.push({
-                   ...cartItem,
-                   quantity: 1,
-                   cartItemId: Date.now().toString() + Math.random().toString(36).substring(2, 9),
-                   isServed: false
-                });
-             }
-           } else if (targetCount < existingCount) {
-             // Remove items (prefer unserved first)
-             let diff = existingCount - targetCount;
-             for (let i = newItems.length - 1; i >= 0 && diff > 0; i--) {
-                if (newItems[i].id === cartItem.id && !newItems[i].isServed) {
-                   newItems.splice(i, 1);
-                   diff--;
-                }
-             }
-             // If still need to remove, just remove from the end
-             for (let i = newItems.length - 1; i >= 0 && diff > 0; i--) {
-                if (newItems[i].id === cartItem.id) {
-                   newItems.splice(i, 1);
-                   diff--;
-                }
-             }
-           }
+          const existingCount = latestItems.filter((i: any) => i.id === cartItem.id).length;
+          const targetCount = cartItem.quantity;
+
+          if (targetCount > existingCount) {
+            // Add new items
+            const diff = targetCount - existingCount;
+            for (let i = 0; i < diff; i++) {
+              newItems.push({
+                ...cartItem,
+                quantity: 1,
+                cartItemId: Date.now().toString() + Math.random().toString(36).substring(2, 9),
+                isServed: false
+              });
+            }
+          } else if (targetCount < existingCount) {
+            // Remove items (prefer unserved first)
+            let diff = existingCount - targetCount;
+            for (let i = newItems.length - 1; i >= 0 && diff > 0; i--) {
+              if (newItems[i].id === cartItem.id && !newItems[i].isServed) {
+                newItems.splice(i, 1);
+                diff--;
+              }
+            }
+            // If still need to remove, just remove from the end
+            for (let i = newItems.length - 1; i >= 0 && diff > 0; i--) {
+              if (newItems[i].id === cartItem.id) {
+                newItems.splice(i, 1);
+                diff--;
+              }
+            }
+          }
         }
-        
+
         // Remove items that are completely gone from cart
         const cartIds = cart.map(c => c.id);
         for (let i = newItems.length - 1; i >= 0; i--) {
-           if (!cartIds.includes(newItems[i].id)) {
-              newItems.splice(i, 1);
-           }
+          if (!cartIds.includes(newItems[i].id)) {
+            newItems.splice(i, 1);
+          }
         }
-        
+
         const newTotal = newItems.reduce((sum, i) => sum + (i.price * i.quantity), 0);
-        
+
         await updateDoc(orderRef, {
-           items: newItems,
-           totalAmount: newTotal,
-           updatedAt: serverTimestamp()
+          items: newItems,
+          totalAmount: newTotal,
+          updatedAt: serverTimestamp()
         });
-        
+
         toast.success('Đã lưu đơn bàn!');
         // Clear cart to return to default POS view
         setCart([]);
@@ -429,7 +429,7 @@ const POS: React.FC = () => {
       };
 
       const docRef = await addDoc(collection(db, 'orders'), orderData);
-      
+
       if (currentTableOrderId && currentTableId) {
         await updateDoc(doc(db, 'active_table_orders', currentTableOrderId), { status: 'PAID', paidAt: serverTimestamp() });
         await updateDoc(doc(db, 'tables', currentTableId), { status: 'AVAILABLE' });
@@ -504,13 +504,13 @@ const POS: React.FC = () => {
       {/* Cột trái: Menu */}
       <div className="flex-1 flex flex-col p-4 h-full">
         <div className="mb-4 overflow-x-auto whitespace-nowrap pb-2 flex items-center gap-2 custom-scrollbar">
-          <button 
+          <button
             onClick={() => setShowSidebar(true)}
             className="w-10 h-10 flex shrink-0 items-center justify-center bg-white border border-gray-200 text-gray-600 rounded-lg shadow-sm hover:bg-gray-50 transition-colors"
           >
             <Grip size={22} />
           </button>
-          
+
           <button
             onClick={() => setShowTableOrdersModal(true)}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm shadow-sm transition-colors border ${activeTableOrders.length > 0 ? 'bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
@@ -523,9 +523,9 @@ const POS: React.FC = () => {
               </span>
             )}
           </button>
-          
+
           <div className="w-px h-8 bg-gray-300 mx-2 shrink-0"></div>
-          
+
           {categories.map(c => (
             <button
               key={c}
@@ -603,7 +603,7 @@ const POS: React.FC = () => {
           {currentTableName && (
             <div className="bg-blue-50 border border-blue-100 p-3 rounded-xl flex items-center justify-between">
               <span className="text-blue-800 font-bold text-sm">Đang xử lý đơn: {currentTableName}</span>
-              <button 
+              <button
                 onClick={() => {
                   setCart([]);
                   setCurrentTableOrderId(null);
@@ -712,17 +712,17 @@ const POS: React.FC = () => {
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
               <h3 className="font-bold text-xl text-gray-800">Thanh toán đơn hàng</h3>
-              <button 
+              <button
                 onClick={() => {
                   setShowPaymentModal(false);
                   updatePosState({ showPaymentModal: false });
-                }} 
+                }}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <X size={24} />
               </button>
             </div>
-            
+
             <div className="p-6 flex-1 overflow-y-auto">
               <div className="flex gap-4 mb-6">
                 <button
@@ -731,11 +731,10 @@ const POS: React.FC = () => {
                     setAmountTendered('0');
                     updatePosState({ paymentMethod: 'CASH', amountTendered: '0' });
                   }}
-                  className={`flex-1 py-3 rounded-xl border-2 font-bold transition-all ${
-                    paymentMethod === 'CASH' 
-                      ? 'border-blue-600 bg-blue-50 text-blue-700' 
+                  className={`flex-1 py-3 rounded-xl border-2 font-bold transition-all ${paymentMethod === 'CASH'
+                      ? 'border-blue-600 bg-blue-50 text-blue-700'
                       : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                  }`}
+                    }`}
                 >
                   Tiền mặt
                 </button>
@@ -744,11 +743,10 @@ const POS: React.FC = () => {
                     setPaymentMethod('TRANSFER');
                     updatePosState({ paymentMethod: 'TRANSFER' });
                   }}
-                  className={`flex-1 py-3 rounded-xl border-2 font-bold transition-all ${
-                    paymentMethod === 'TRANSFER' 
-                      ? 'border-blue-600 bg-blue-50 text-blue-700' 
+                  className={`flex-1 py-3 rounded-xl border-2 font-bold transition-all ${paymentMethod === 'TRANSFER'
+                      ? 'border-blue-600 bg-blue-50 text-blue-700'
                       : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                  }`}
+                    }`}
                 >
                   Chuyển khoản
                 </button>
@@ -778,24 +776,23 @@ const POS: React.FC = () => {
                         </button>
                       </div>
                     </div>
-                      <input
-                        type="text"
-                        value={amountTendered ? new Intl.NumberFormat('vi-VN').format(parseInt(amountTendered, 10)) : ''}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/\D/g, '');
-                          setAmountTendered(val);
-                          updatePosState({ amountTendered: val });
-                        }}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-xl font-bold text-gray-800"
-                        placeholder="0"
-                        autoFocus
-                      />
+                    <input
+                      type="text"
+                      value={amountTendered ? new Intl.NumberFormat('vi-VN').format(parseInt(amountTendered, 10)) : ''}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, '');
+                        setAmountTendered(val);
+                        updatePosState({ amountTendered: val });
+                      }}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-xl font-bold text-gray-800"
+                      placeholder="0"
+                      autoFocus
+                    />
                   </div>
                   <div className="flex justify-between items-center p-4 bg-green-50 rounded-xl border border-green-100">
                     <span className="text-green-800 font-medium">Tiền trả lại:</span>
-                    <span className={`text-xl font-black ${
-                      parseInt(amountTendered || '0') - totalAmount >= 0 ? 'text-green-600' : 'text-red-500'
-                    }`}>
+                    <span className={`text-xl font-black ${parseInt(amountTendered || '0') - totalAmount >= 0 ? 'text-green-600' : 'text-red-500'
+                      }`}>
                       {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
                         Math.max(0, parseInt(amountTendered || '0') - totalAmount)
                       )}
@@ -808,22 +805,22 @@ const POS: React.FC = () => {
               ) : (
                 <div className="flex flex-col items-center justify-center animate-fade-in space-y-2">
                   <div className="w-48 h-48 bg-gray-100 p-2 rounded-2xl border-2 border-dashed border-gray-300 flex items-center justify-center relative overflow-hidden bg-white">
-                    <img 
-                      src={`https://img.vietqr.io/image/MB-0372578549-compact.png?amount=${totalAmount}&addInfo=Thanh toan don hang`} 
-                      alt="QR Code Thanh Toán" 
-                      className="w-full h-full object-contain mix-blend-multiply" 
+                    <img
+                      src={`https://img.vietqr.io/image/MB-0372578549-compact.png?amount=${totalAmount}&addInfo=Thanh toan don hang`}
+                      alt="QR Code Thanh Toán"
+                      className="w-full h-full object-contain mix-blend-multiply"
                     />
                   </div>
                   <div className="text-center">
                     <p className="text-gray-800 font-bold text-lg">MB Bank - 0372578549</p>
-                    <p className="text-gray-500 font-medium text-sm">Quét mã QR để thanh toán chính xác<br/>số tiền {new Intl.NumberFormat('vi-VN').format(totalAmount)}đ</p>
+                    <p className="text-gray-500 font-medium text-sm">Quét mã QR để thanh toán chính xác<br />số tiền {new Intl.NumberFormat('vi-VN').format(totalAmount)}đ</p>
                   </div>
                 </div>
               )}
             </div>
-            
+
             <div className="p-4 border-t border-gray-100 bg-white flex gap-3 shrink-0">
-              <button 
+              <button
                 onClick={() => {
                   setShowPaymentModal(false);
                   updatePosState({ showPaymentModal: false });
@@ -832,7 +829,7 @@ const POS: React.FC = () => {
               >
                 Hủy
               </button>
-              <button 
+              <button
                 onClick={handleCheckout}
                 disabled={isProcessing || (paymentMethod === 'CASH' && parseInt(amountTendered || '0') < totalAmount)}
                 className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed shadow-lg shadow-blue-500/30 transition-all flex justify-center items-center gap-2"
@@ -930,7 +927,7 @@ const POS: React.FC = () => {
                     <p>Địa chỉ: {storeAddress}</p>
                   </div>
                 )}
-                
+
                 <div className="text-center mt-4 text-xs text-gray-500">
                   <p>Cảm ơn quý khách đã ủng hộ!</p>
                   <p>Hẹn gặp lại</p>
@@ -967,15 +964,15 @@ const POS: React.FC = () => {
             </div>
             <h3 className="text-xl font-bold text-center text-gray-800 mb-2">Xóa toàn bộ giỏ hàng?</h3>
             <p className="text-gray-500 text-center mb-6 text-sm">Thao tác này sẽ xóa toàn bộ món ăn đang có trong giỏ hàng. Khách hàng cũng sẽ thấy giỏ hàng bị xóa. Bạn có chắc chắn không?</p>
-            
+
             <div className="flex gap-3">
-              <button 
+              <button
                 onClick={() => setShowClearConfirm(false)}
                 className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
               >
                 Hủy
               </button>
-              <button 
+              <button
                 onClick={() => {
                   updatePosState({ cart: [], currentTableOrderId: null, currentTableId: null, currentTableName: null });
                   setCurrentTableOrderId(null);
@@ -1005,7 +1002,7 @@ const POS: React.FC = () => {
                 <X size={24} />
               </button>
             </div>
-            
+
             <div className="flex-1 overflow-y-auto p-6 bg-gray-50/50">
               {activeTableOrders.length === 0 ? (
                 <div className="text-center py-12 text-gray-500 flex flex-col items-center">
@@ -1016,11 +1013,10 @@ const POS: React.FC = () => {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {activeTableOrders.map(order => (
-                    <div 
-                      key={order.id} 
-                      className={`bg-white rounded-xl border-2 p-4 cursor-pointer hover:shadow-md transition-all ${
-                        currentTableOrderId === order.id ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200 hover:border-blue-300'
-                      }`}
+                    <div
+                      key={order.id}
+                      className={`bg-white rounded-xl border-2 p-4 cursor-pointer hover:shadow-md transition-all ${currentTableOrderId === order.id ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200 hover:border-blue-300'
+                        }`}
                       onClick={async () => {
                         // Mark as read if it has new items
                         if (order.hasNewItems) {
@@ -1039,9 +1035,9 @@ const POS: React.FC = () => {
                           }
                         });
 
-                        updatePosState({ 
-                          cart: groupedCart, 
-                          currentTableOrderId: order.id, 
+                        updatePosState({
+                          cart: groupedCart,
+                          currentTableOrderId: order.id,
                           currentTableId: order.tableId,
                           currentTableName: order.tableName
                         });
@@ -1065,13 +1061,13 @@ const POS: React.FC = () => {
                           </span>
                         </div>
                       </div>
-                      
+
                       <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700 flex flex-col gap-2 mt-2" onClick={e => e.stopPropagation()}>
                         {order.items.map((item, idx) => (
                           <div key={item.cartItemId || idx} className="flex items-center justify-between group">
                             <div className="flex items-start gap-3 flex-1">
-                              <input 
-                                type="checkbox" 
+                              <input
+                                type="checkbox"
                                 checked={item.isServed || false}
                                 onChange={async (e) => {
                                   const newItems = [...order.items];
@@ -1106,7 +1102,7 @@ const POS: React.FC = () => {
                           </div>
                         ))}
                       </div>
-                      
+
                       <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between items-center">
                         <span className="text-xs font-bold text-gray-400 uppercase">
                           {currentTableOrderId === order.id ? 'Đang xử lý' : 'Nhấn để thanh toán'}
@@ -1135,20 +1131,20 @@ const POS: React.FC = () => {
             <p className="text-gray-600 text-center mb-6 text-sm">
               Bạn có chắc chắn muốn xoá <span className="font-bold text-gray-800">{itemToDelete.itemName}</span> khỏi đơn của <span className="font-bold text-blue-600">{itemToDelete.tableName}</span> không?
             </p>
-            
+
             <div className="flex gap-3">
-              <button 
+              <button
                 onClick={() => setItemToDelete(null)}
                 className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
               >
                 Hủy
               </button>
-              <button 
+              <button
                 onClick={async () => {
                   const { orderId, tableId, tableName, itemIndex, orderItems } = itemToDelete;
                   const newItems = [...orderItems];
                   newItems.splice(itemIndex, 1);
-                  
+
                   try {
                     if (newItems.length === 0) {
                       await deleteDoc(doc(db, 'active_table_orders', orderId));
@@ -1185,7 +1181,7 @@ const POS: React.FC = () => {
             </div>
             <h3 className="text-xl font-bold text-center text-gray-800 mb-2">Đăng xuất Máy Order</h3>
             <p className="text-gray-500 text-center mb-6 text-sm">Vui lòng nhập mật khẩu của tài khoản Máy Order để khóa máy và đăng xuất.</p>
-            
+
             <input
               type="password"
               placeholder="Nhập mật khẩu..."
@@ -1195,16 +1191,16 @@ const POS: React.FC = () => {
               className="w-full px-4 py-3 border border-gray-300 rounded-xl mb-6 focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none text-center text-lg tracking-widest"
               autoFocus
             />
-            
+
             <div className="flex gap-3">
-              <button 
+              <button
                 onClick={() => { setShowLogoutModal(false); setLogoutPassword(''); }}
                 className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
                 disabled={isLoggingOut}
               >
                 Hủy
               </button>
-              <button 
+              <button
                 onClick={handleLogout}
                 disabled={!logoutPassword || isLoggingOut}
                 className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 disabled:bg-gray-300 transition-colors"
@@ -1221,32 +1217,32 @@ const POS: React.FC = () => {
         <>
           <div className="fixed inset-0 bg-black/20 z-40 backdrop-blur-sm transition-opacity" onClick={() => setShowSidebar(false)}></div>
           <div className="fixed inset-y-0 left-0 w-64 bg-white shadow-2xl z-50 flex flex-col border-r border-gray-200 animate-slide-right">
-            
+
             <div className="h-20 flex flex-col items-center justify-center border-b border-gray-200 relative">
               <h1 className="text-2xl font-bold text-blue-600">Chấm Công Pro</h1>
               <span className="text-xs font-medium text-gray-500 uppercase tracking-widest mt-1">POS</span>
-              
+
               <button onClick={() => setShowSidebar(false)} className="absolute right-2 top-2 p-1.5 hover:bg-gray-100 rounded-full text-gray-400 transition-colors">
                 <X size={18} />
               </button>
             </div>
-            
+
             <div className="flex-1 overflow-y-auto py-4">
               <nav className="space-y-1 px-2">
                 <div className="flex items-center py-3 px-4 text-sm font-medium rounded-lg transition-colors relative bg-blue-50 text-blue-700 cursor-default">
                   <span className="mr-3 relative text-blue-700"><ShoppingCart size={20} /></span>
                   <span className="flex-1">Bán hàng (POS)</span>
                 </div>
-                
-                <div 
+
+                <div
                   onClick={() => navigate('/customer-order')}
                   className="flex items-center py-3 px-4 text-sm font-medium rounded-lg transition-colors relative text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer mt-1"
                 >
                   <span className="mr-3 relative text-gray-400"><Store size={20} /></span>
                   <span className="flex-1">Màn hình Khách Order</span>
                 </div>
-                
-                <div 
+
+                <div
                   onClick={() => navigate('/dashboard/orders')}
                   className="flex items-center py-3 px-4 text-sm font-medium rounded-lg transition-colors relative text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer mt-1"
                 >
@@ -1254,7 +1250,7 @@ const POS: React.FC = () => {
                   <span className="flex-1">Lịch sử Hóa đơn</span>
                 </div>
 
-                <div 
+                <div
                   onClick={() => navigate('/dashboard/tables')}
                   className="flex items-center py-3 px-4 text-sm font-medium rounded-lg transition-colors relative text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer mt-1"
                 >
@@ -1263,7 +1259,7 @@ const POS: React.FC = () => {
                 </div>
 
                 {localStorage.getItem('userRole') !== 'POS' && (
-                  <div 
+                  <div
                     onClick={() => navigate('/dashboard')}
                     className="flex items-center py-3 px-4 text-sm font-medium rounded-lg transition-colors relative text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer mt-1"
                   >
@@ -1275,7 +1271,7 @@ const POS: React.FC = () => {
             </div>
 
             <div className="p-4 border-t border-gray-200">
-              <button 
+              <button
                 onClick={() => { setShowSidebar(false); setShowLogoutModal(true); }}
                 className="flex items-center w-full py-2 px-4 text-sm font-medium text-red-600 rounded-lg hover:bg-red-50 transition-colors"
               >
@@ -1283,7 +1279,7 @@ const POS: React.FC = () => {
                 <span>Đăng xuất</span>
               </button>
             </div>
-            
+
           </div>
         </>
       )}
