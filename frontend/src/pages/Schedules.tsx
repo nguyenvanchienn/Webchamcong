@@ -241,8 +241,8 @@ const Schedules: React.FC = () => {
         }
       } else {
         if (userRole === 'SUPER_ADMIN') {
-          if (!viewBranchId || viewBranchId === 'ALL') {
-            toast.error('Vui lòng chọn một cơ sở cụ thể để tạo ca trống!');
+          if (!viewBranchId) {
+            toast.error('Vui lòng chọn cơ sở cho ca trống!');
             return;
           }
         }
@@ -838,7 +838,9 @@ const Schedules: React.FC = () => {
 
           return (
             <div key={sch.id} className={`p-1 rounded text-[10px] flex justify-between items-center border ${sch.employeeId ? 'bg-blue-50 border-blue-200 text-blue-800' : 'bg-orange-50 border-orange-200 text-orange-800'}`}>
-              <span className="truncate mr-1 font-medium">{sch.employeeId ? sch.employeeName : 'Ca trống'}</span>
+              <span className="truncate mr-1 font-medium">
+                {sch.employeeId ? sch.employeeName : `Ca trống${viewBranchId === 'ALL' && sch.branchName ? ` (${sch.branchName})` : ''}`}
+              </span>
               {!isLocked ? (
                 <div className="flex gap-1 flex-shrink-0">
                   <button onClick={() => setEditingSlot(sch.id)} className="text-gray-400 hover:text-blue-600">
@@ -1332,7 +1334,9 @@ const Schedules: React.FC = () => {
                         {s.employeeId ? (
                           <span className="font-medium text-gray-800">{s.employeeName}</span>
                         ) : (
-                          <span className="text-gray-400 italic">Ca trống</span>
+                          <span className="text-orange-500 font-bold italic truncate">
+                            Ca trống {viewBranchId === 'ALL' && s.branchName ? `(${s.branchName})` : ''}
+                          </span>
                         )}
                         {s.employeeId === currentEmployeeId && (
                           <span className="ml-auto text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">Bạn</span>
