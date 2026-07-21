@@ -26,6 +26,7 @@ const TableManager: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [tableName, setTableName] = useState('');
   const [viewingQR, setViewingQR] = useState<Table | null>(null);
+  const [tableToDelete, setTableToDelete] = useState<Table | null>(null);
 
   const userRole = localStorage.getItem('userRole');
   const userBranchId = localStorage.getItem('branchId');
@@ -97,12 +98,13 @@ const TableManager: React.FC = () => {
     }
   };
 
-  const handleDeleteTable = async (id: string) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa bàn này? Các hóa đơn liên quan sẽ không bị ảnh hưởng, nhưng mã QR cũ sẽ không dùng được nữa.')) return;
+  const confirmDeleteTable = async () => {
+    if (!tableToDelete) return;
     try {
-      await deleteDoc(doc(db, 'tables', id));
-      setTables(tables.filter(t => t.id !== id));
+      await deleteDoc(doc(db, 'tables', tableToDelete.id));
+      setTables(tables.filter(t => t.id !== tableToDelete.id));
       toast.success('Đã xóa bàn');
+      setTableToDelete(null);
     } catch (error) {
       console.error(error);
       toast.error('Lỗi khi xóa bàn');
@@ -191,7 +193,7 @@ const TableManager: React.FC = () => {
               <button onClick={() => setViewingQR(table)} className="flex-1 py-2 bg-blue-50 text-blue-600 font-bold rounded-xl hover:bg-blue-100 transition-colors flex justify-center">
                 Mã QR
               </button>
-              <button onClick={() => handleDeleteTable(table.id)} className="p-2 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-colors">
+              <button onClick={() => setTableToDelete(table)} className="p-2 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-colors">
                 <Trash2 size={20} />
               </button>
             </div>
@@ -250,6 +252,36 @@ const TableManager: React.FC = () => {
               <Download size={24} />
               Tải Xuống Mã QR
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirm Modal */}
+      {tableToDelete && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-slide-up">
+            <div className="flex justify-center mb-4 text-red-500 bg-red-50 w-16 h-16 rounded-full items-center mx-auto">
+              <Trash2 size={32} />
+            </div>
+            <h3 className="text-xl font-bold text-center text-gray-800 mb-2">Xác nhận xoá bàn</h3>
+            <p className="text-gray-600 text-center mb-6 text-sm">
+              Bạn có chắc chắn muốn xóa <span className="font-bold text-gray-800">{tableToDelete.name}</span> không? Các hóa đơn liên quan sẽ không bị ảnh hưởng, nhưng mã QR cũ sẽ không dùng được nữa.
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setTableToDelete(null)}
+                className="flex-1 py-3 px-4 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                onClick={confirmDeleteTable}
+                className="flex-1 py-3 px-4 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors shadow-lg shadow-red-500/30"
+              >
+                Xóa Bàn
+              </button>
+            </div>
           </div>
         </div>
       )}
