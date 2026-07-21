@@ -985,10 +985,10 @@ const POS: React.FC = () => {
                                   }
                                 }
                               }}
-                              className="text-red-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 -mr-2"
+                              className="text-red-400 hover:text-red-600 transition-opacity p-1 -mr-2"
                               title="Xóa món này"
                             >
-                              <X size={16} strokeWidth={3} />
+                              <X size={18} strokeWidth={3} />
                             </button>
                           </div>
                         ))}
