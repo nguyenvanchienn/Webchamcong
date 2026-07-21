@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, orderBy, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
 import { CircleDollarSign, Receipt, TrendingUp, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, FileText, Trash2, Edit2, Minus, X } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -27,6 +27,8 @@ interface Order {
   editCount?: number;
   lastEditedBy?: string;
   editHistory?: { editedAt: string; editedBy: string }[];
+  deletedBy?: string;
+  deletedAt?: string;
 }
 
 interface Branch {
@@ -279,14 +281,44 @@ const Revenue: React.FC = () => {
 
   const handleDeleteBill = async () => {
     if (!billModalData) return;
-    if (window.confirm('Bạn có chắc chắn muốn XÓA HOÀN TOÀN hóa đơn này không? Thao tác này không thể hoàn tác!')) {
+    if (window.confirm('Bạn có chắc chắn muốn XÓA hóa đơn này không? Số tiền sẽ về 0 và ghi nhận lịch sử xóa.')) {
       try {
-        await deleteDoc(doc(db, 'orders', billModalData.id));
+        const editorName = userRole === 'SUPER_ADMIN' ? 'Admin' : `${localStorage.getItem('employeeId') || ''} - ${cashierNameMap[auth.currentUser?.email || ''] || 'Quản lý'}`.replace(/^ - | - $/g, '');
+        
+        await updateDoc(doc(db, 'orders', billModalData.id), {
+          totalAmount: 0,
+          deletedBy: editorName,
+          deletedAt: new Date().toISOString()
+        });
         toast.success('Đã xóa hóa đơn');
         setBillModalData(null);
       } catch (error) {
         console.error(error);
         toast.error('Lỗi khi xóa hóa đơn');
+      }
+    }
+  };
+
+  const handleDeleteExpense = async () => {
+    if (!editingExpenseId) return;
+    if (window.confirm('Bạn có chắc chắn muốn XÓA phiếu chi này không? Số tiền sẽ về 0 và ghi nhận lịch sử xóa.')) {
+      try {
+        const editorName = userRole === 'SUPER_ADMIN' ? 'Admin' : `${localStorage.getItem('employeeId') || ''} - ${cashierNameMap[auth.currentUser?.email || ''] || 'Quản lý'}`.replace(/^ - | - $/g, '');
+        
+        await updateDoc(doc(db, 'orders', editingExpenseId), {
+          totalAmount: 0,
+          deletedBy: editorName,
+          deletedAt: new Date().toISOString()
+        });
+        toast.success('Đã xóa phiếu chi');
+        setShowExpenseModal(false);
+        setEditingExpenseId(null);
+        setExpenseReason('');
+        setExpenseAmount('');
+        setExpenseNote('');
+      } catch (error) {
+        console.error(error);
+        toast.error('Lỗi khi xóa phiếu chi');
       }
     }
   };
@@ -513,19 +545,19 @@ const Revenue: React.FC = () => {
                   }
                   
                   const isExpense = order.type === 'EXPENSE';
-                  const canEdit = isExpense && userRole !== 'POS';
+                  const canEdit = isExpense && userRole !== 'POS' && !order.deletedBy;
                   
                   return (
                     <tr 
                       key={order.id} 
                       onClick={() => {
                         if (canEdit) openEditExpense(order);
-                        else if (!isExpense) {
+                        else if (!isExpense && !order.deletedBy) {
                           setBillModalData({ ...order, cashierName, branchAddress: order.branchId ? branchAddressMap[order.branchId] : null });
                           setIsEditBillMode(false);
                         }
                       }}
-                      className={`border-b border-gray-100 transition-colors ${isExpense ? 'bg-red-50' : 'hover:bg-gray-50'} ${(!isExpense || canEdit) ? 'cursor-pointer' : ''} ${canEdit ? 'hover:bg-red-100' : ''}`}
+                      className={`border-b border-gray-100 transition-colors ${isExpense ? 'bg-red-50' : 'hover:bg-gray-50'} ${(!order.deletedBy && (!isExpense || canEdit)) ? 'cursor-pointer' : ''} ${canEdit ? 'hover:bg-red-100' : ''} ${order.deletedBy ? 'opacity-70' : ''}`}
                     >
                       <td className="p-4 text-gray-600 font-medium">{filteredOrders.length - index}</td>
                       <td className={`p-4 font-mono font-medium ${isExpense ? 'text-red-600' : 'text-blue-600'}`}>
@@ -541,14 +573,19 @@ const Revenue: React.FC = () => {
                       <td className="p-4 text-sm text-gray-500 max-w-xs truncate">
                         {order.items?.map(i => isExpense ? i.name : `${i.quantity}x ${i.name}`).join(', ')}
                         {order.note && <span className="block text-xs text-gray-400 mt-0.5">Ghi chú: {order.note}</span>}
-                        {order.editCount && order.editCount > 0 ? (
+                        {order.deletedBy && (
+                          <span className="block text-[11px] text-red-500 font-bold mt-1">
+                            (Đã xóa bởi {formatEditorName(order.deletedBy)})
+                          </span>
+                        )}
+                        {!order.deletedBy && order.editCount && order.editCount > 0 ? (
                           <span className="block text-[10px] text-gray-400 font-medium mt-1">
                             (Đã sửa {order.editCount} lần - Xem chi tiết)
                           </span>
                         ) : null}
                       </td>
-                      <td className={`p-4 font-bold text-right text-lg ${isExpense ? 'text-red-600' : 'text-gray-800'}`}>
-                        {isExpense ? '-' : ''}{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(order.totalAmount)}
+                      <td className={`p-4 font-bold text-right text-lg ${isExpense ? 'text-red-600' : 'text-gray-800'} ${order.deletedBy ? 'line-through text-gray-400' : ''}`}>
+                        {isExpense && !order.deletedBy ? '-' : ''}{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(order.totalAmount)}
                       </td>
                     </tr>
                   );
@@ -842,6 +879,16 @@ const Revenue: React.FC = () => {
               </div>
 
               <div className="flex gap-3 mt-8">
+                {editingExpenseId && (
+                  <button
+                    type="button"
+                    onClick={handleDeleteExpense}
+                    className="py-3 px-4 bg-red-100 text-red-600 font-bold rounded-xl hover:bg-red-200 transition-colors flex items-center justify-center"
+                    title="Xóa Phiếu Chi"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setShowExpenseModal(false)}
