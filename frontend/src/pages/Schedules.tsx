@@ -261,8 +261,6 @@ const Schedules: React.FC = () => {
          datesToProcess.push(formData.date);
       }
 
-      const startH = parseInt(formData.startTime.split(':')[0]);
-      const startM = parseInt(formData.startTime.split(':')[1]);
 
       if (formData.employeeId !== '') {
         let hasConflict = false;
