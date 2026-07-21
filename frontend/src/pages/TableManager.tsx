@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, addDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import { Plus, Trash2, X, Download, QrCode } from 'lucide-react';
+import { EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import { db, auth } from '../config/firebase';
+import { Plus, Trash2, X, Download, QrCode, Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -27,6 +28,8 @@ const TableManager: React.FC = () => {
   const [tableName, setTableName] = useState('');
   const [viewingQR, setViewingQR] = useState<Table | null>(null);
   const [tableToDelete, setTableToDelete] = useState<Table | null>(null);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const userRole = localStorage.getItem('userRole');
   const userBranchId = localStorage.getItem('branchId');
@@ -100,14 +103,30 @@ const TableManager: React.FC = () => {
 
   const confirmDeleteTable = async () => {
     if (!tableToDelete) return;
+    if (!deletePassword) {
+      toast.error('Vui lòng nhập mật khẩu xác nhận');
+      return;
+    }
+    
+    setIsDeleting(true);
     try {
-      await deleteDoc(doc(db, 'tables', tableToDelete.id));
-      setTables(tables.filter(t => t.id !== tableToDelete.id));
-      toast.success('Đã xóa bàn');
-      setTableToDelete(null);
+      if (auth.currentUser && auth.currentUser.email) {
+        const credential = EmailAuthProvider.credential(auth.currentUser.email, deletePassword);
+        await reauthenticateWithCredential(auth.currentUser, credential);
+        
+        await deleteDoc(doc(db, 'tables', tableToDelete.id));
+        setTables(tables.filter(t => t.id !== tableToDelete.id));
+        toast.success('Đã xóa bàn');
+        setTableToDelete(null);
+        setDeletePassword('');
+      } else {
+        toast.error('Lỗi xác thực người dùng');
+      }
     } catch (error) {
       console.error(error);
-      toast.error('Lỗi khi xóa bàn');
+      toast.error('Mật khẩu không chính xác');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -261,25 +280,37 @@ const TableManager: React.FC = () => {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-slide-up">
             <div className="flex justify-center mb-4 text-red-500 bg-red-50 w-16 h-16 rounded-full items-center mx-auto">
-              <Trash2 size={32} />
+              <Lock size={32} />
             </div>
             <h3 className="text-xl font-bold text-center text-gray-800 mb-2">Xác nhận xoá bàn</h3>
-            <p className="text-gray-600 text-center mb-6 text-sm">
-              Bạn có chắc chắn muốn xóa <span className="font-bold text-gray-800">{tableToDelete.name}</span> không? Các hóa đơn liên quan sẽ không bị ảnh hưởng, nhưng mã QR cũ sẽ không dùng được nữa.
+            <p className="text-gray-600 text-center mb-4 text-sm">
+              Nhập mật khẩu quản lý để xác nhận xóa <span className="font-bold text-gray-800">{tableToDelete.name}</span>. Mã QR cũ sẽ bị vô hiệu hóa.
             </p>
+
+            <input
+              type="password"
+              placeholder="Nhập mật khẩu..."
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && confirmDeleteTable()}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl mb-6 focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none text-center text-lg tracking-widest"
+              autoFocus
+            />
 
             <div className="flex gap-3">
               <button
-                onClick={() => setTableToDelete(null)}
+                onClick={() => { setTableToDelete(null); setDeletePassword(''); }}
                 className="flex-1 py-3 px-4 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
+                disabled={isDeleting}
               >
                 Hủy bỏ
               </button>
               <button
                 onClick={confirmDeleteTable}
-                className="flex-1 py-3 px-4 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors shadow-lg shadow-red-500/30"
+                disabled={!deletePassword || isDeleting}
+                className="flex-1 py-3 px-4 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors shadow-lg shadow-red-500/30 disabled:bg-gray-300 disabled:shadow-none"
               >
-                Xóa Bàn
+                {isDeleting ? 'Đang xử lý...' : 'Xóa Bàn'}
               </button>
             </div>
           </div>
