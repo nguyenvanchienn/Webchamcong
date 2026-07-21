@@ -72,6 +72,30 @@ const POS: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
   
+  const activeOrdersRef = React.useRef<ActiveTableOrder[]>([]);
+  useEffect(() => {
+    activeOrdersRef.current = activeTableOrders;
+  }, [activeTableOrders]);
+
+  useEffect(() => {
+    const notifyTimer = setInterval(() => {
+      const orders = activeOrdersRef.current;
+      const waitingOrders = orders.filter(o => o.items.some(i => !i.isServed));
+      
+      if (waitingOrders.length > 0) {
+        waitingOrders.slice(0, 3).forEach(o => {
+          const unservedCount = o.items.filter(i => !i.isServed).reduce((sum, i) => sum + i.quantity, 0);
+          toast(`${o.tableName} có ${unservedCount} món chưa được lên!`, { icon: '⏳', duration: 4000, style: { background: '#fff3cd', color: '#856404', fontWeight: 'bold', border: '1px solid #ffeeba' } });
+        });
+        if (waitingOrders.length > 3) {
+           toast(`Và ${waitingOrders.length - 3} bàn khác đang chờ...`, { duration: 4000 });
+        }
+      }
+    }, 30000);
+    return () => clearInterval(notifyTimer);
+  }, []);
+
+  
   const formatElapsedTime = (startMillis: number) => {
     if (!startMillis) return '';
     const diff = Math.floor((now - startMillis) / 1000);
