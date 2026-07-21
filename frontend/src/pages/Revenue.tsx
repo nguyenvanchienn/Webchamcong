@@ -51,7 +51,8 @@ const Revenue: React.FC = () => {
   const [billEditItems, setBillEditItems] = useState<any[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [selectedItemToAdd, setSelectedItemToAdd] = useState<string>('');
-  const [confirmDialog, setConfirmDialog] = useState<{isOpen: boolean, message: string, onConfirm: () => void} | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{isOpen: boolean, message: string, requireInput?: boolean, onConfirm: (input?: string) => void} | null>(null);
+  const [confirmInput, setConfirmInput] = useState('');
 
   // Expense Modal State
   const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -307,10 +308,12 @@ const Revenue: React.FC = () => {
 
   const handleDeleteBill = () => {
     if (!billModalData) return;
+    setConfirmInput('');
     setConfirmDialog({
       isOpen: true,
-      message: 'Bạn có chắc chắn muốn XÓA hóa đơn này không? Số tiền sẽ về 0 và ghi nhận lịch sử xóa.',
-      onConfirm: async () => {
+      requireInput: true,
+      message: 'Bạn có chắc chắn muốn XÓA hóa đơn này không? Vui lòng nhập lý do xóa để ghi nhận vào lịch sử.',
+      onConfirm: async (reason?: string) => {
         try {
           const editorName = userRole === 'SUPER_ADMIN' ? 'Admin' : `${localStorage.getItem('employeeId') || ''} - ${cashierNameMap[auth.currentUser?.email || ''] || 'Quản lý'}`.replace(/^ - | - $/g, '');
           const newCount = (billModalData.editCount || 0) + 1;
@@ -319,7 +322,7 @@ const Revenue: React.FC = () => {
             editedBy: editorName,
             oldAmount: billModalData.totalAmount,
             newAmount: 0,
-            note: 'XÓA'
+            note: `XÓA - Lý do: ${reason || 'Không có'}`
           }];
           
           await updateDoc(doc(db, 'orders', billModalData.id), {
@@ -341,10 +344,12 @@ const Revenue: React.FC = () => {
 
   const handleDeleteExpense = () => {
     if (!editingExpenseId) return;
+    setConfirmInput('');
     setConfirmDialog({
       isOpen: true,
-      message: 'Bạn có chắc chắn muốn XÓA phiếu chi này không? Số tiền sẽ về 0 và ghi nhận lịch sử xóa.',
-      onConfirm: async () => {
+      requireInput: true,
+      message: 'Bạn có chắc chắn muốn XÓA phiếu chi này không? Vui lòng nhập lý do xóa để ghi nhận vào lịch sử.',
+      onConfirm: async (reason?: string) => {
         try {
           const editorName = userRole === 'SUPER_ADMIN' ? 'Admin' : `${localStorage.getItem('employeeId') || ''} - ${cashierNameMap[auth.currentUser?.email || ''] || 'Quản lý'}`.replace(/^ - | - $/g, '');
           const existingOrder = orders.find(o => o.id === editingExpenseId);
@@ -354,7 +359,7 @@ const Revenue: React.FC = () => {
             editedBy: editorName,
             oldAmount: existingOrder?.totalAmount || 0,
             newAmount: 0,
-            note: 'XÓA'
+            note: `XÓA - Lý do: ${reason || 'Không có'}`
           }];
           
           await updateDoc(doc(db, 'orders', editingExpenseId), {
@@ -780,8 +785,8 @@ const Revenue: React.FC = () => {
                             - Lần {i + 1}: {h.editedAt ? new Date(h.editedAt).toLocaleString('vi-VN') : 'Trước đây'} bởi <strong>{formatEditorName(h.editedBy)}</strong>
                             {h.oldAmount !== undefined && h.newAmount !== undefined && (
                               <span className="block text-gray-400 ml-3">
-                                {h.note === 'XÓA' 
-                                  ? `(Đã xóa, giảm từ ${new Intl.NumberFormat('vi-VN').format(h.oldAmount)}đ)` 
+                                {h.note?.startsWith('XÓA') 
+                                  ? `(${h.note}, giảm từ ${new Intl.NumberFormat('vi-VN').format(h.oldAmount)}đ)` 
                                   : `(Sửa từ ${new Intl.NumberFormat('vi-VN').format(h.oldAmount)}đ -> ${new Intl.NumberFormat('vi-VN').format(h.newAmount)}đ)`}
                               </span>
                             )}
@@ -946,8 +951,8 @@ const Revenue: React.FC = () => {
                                 - Lần {i + 1}: {h.editedAt ? new Date(h.editedAt).toLocaleString('vi-VN') : 'Trước đây'} bởi <strong>{formatEditorName(h.editedBy)}</strong>
                                 {h.oldAmount !== undefined && h.newAmount !== undefined && (
                                   <span className="block text-gray-400 ml-3">
-                                    {h.note === 'XÓA' 
-                                      ? `(Đã xóa, giảm từ ${new Intl.NumberFormat('vi-VN').format(h.oldAmount)}đ)` 
+                                    {h.note?.startsWith('XÓA') 
+                                      ? `(${h.note}, giảm từ ${new Intl.NumberFormat('vi-VN').format(h.oldAmount)}đ)` 
                                       : `(Sửa từ ${new Intl.NumberFormat('vi-VN').format(h.oldAmount)}đ -> ${new Intl.NumberFormat('vi-VN').format(h.newAmount)}đ)`}
                                   </span>
                                 )}
@@ -999,18 +1004,36 @@ const Revenue: React.FC = () => {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 animate-slide-up">
             <h3 className="text-xl font-bold text-gray-800 mb-2">Xác nhận</h3>
-            <p className="text-gray-600 mb-6">{confirmDialog.message}</p>
-            <div className="flex gap-3">
+            <p className="text-gray-600 mb-4">{confirmDialog.message}</p>
+            {confirmDialog.requireInput && (
+              <input
+                type="text"
+                placeholder="Nhập lý do xóa (bắt buộc)..."
+                value={confirmInput}
+                onChange={(e) => setConfirmInput(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 outline-none mb-6 text-sm"
+                autoFocus
+              />
+            )}
+            <div className="flex gap-3 mt-2">
               <button
-                onClick={() => setConfirmDialog(null)}
+                onClick={() => {
+                  setConfirmDialog(null);
+                  setConfirmInput('');
+                }}
                 className="flex-1 py-2.5 px-4 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-colors"
               >
                 Hủy
               </button>
               <button
                 onClick={() => {
-                  confirmDialog.onConfirm();
+                  if (confirmDialog.requireInput && !confirmInput.trim()) {
+                    toast.error("Vui lòng nhập lý do xóa!");
+                    return;
+                  }
+                  confirmDialog.onConfirm(confirmInput.trim());
                   setConfirmDialog(null);
+                  setConfirmInput('');
                 }}
                 className="flex-1 py-2.5 px-4 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 transition-colors"
               >
