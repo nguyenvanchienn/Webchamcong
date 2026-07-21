@@ -91,7 +91,7 @@ const POS: React.FC = () => {
            toast(`Và ${waitingOrders.length - 3} bàn khác đang chờ...`, { duration: 4000 });
         }
       }
-    }, 30000);
+    }, 180000);
     return () => clearInterval(notifyTimer);
   }, []);
 
