@@ -40,6 +40,7 @@ interface Branch {
 }
 
 const Employees: React.FC = () => {
+  const userRole = localStorage.getItem('userRole') || '';
   const [searchParams] = useSearchParams();
   const highlightId = searchParams.get('highlightId');
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -299,16 +300,18 @@ const Employees: React.FC = () => {
           <p className="text-sm text-gray-500">Quản lý hồ sơ nhân sự toàn hệ thống</p>
         </div>
         <div className="flex items-center space-x-4">
-          <select
-            value={filterBranchId}
-            onChange={(e) => setFilterBranchId(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg outline-none focus:border-blue-500"
-          >
-            <option value="all">Tất cả cơ sở</option>
-            {branches.map(b => (
-              <option key={b.id} value={b.id}>{b.name}</option>
-            ))}
-          </select>
+          {userRole === 'SUPER_ADMIN' && (
+            <select
+              value={filterBranchId}
+              onChange={(e) => setFilterBranchId(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg outline-none focus:border-blue-500"
+            >
+              <option value="all">Tất cả cơ sở</option>
+              {branches.map(b => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          )}
           <button 
             onClick={() => openModal()}
             className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
