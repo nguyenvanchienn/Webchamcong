@@ -264,7 +264,7 @@ const TableManager: React.FC = () => {
                 />
               </div>
               <div className="mb-6">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Mật khẩu quản lý</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Mật khẩu tài khoản</label>
                 <input 
                   type="password" 
                   value={addPassword} 
@@ -314,7 +314,7 @@ const TableManager: React.FC = () => {
             </div>
             <h3 className="text-xl font-bold text-center text-gray-800 mb-2">Xác nhận xoá bàn</h3>
             <p className="text-gray-600 text-center mb-4 text-sm">
-              Nhập mật khẩu quản lý để xác nhận xóa <span className="font-bold text-gray-800">{tableToDelete.name}</span>. Mã QR cũ sẽ bị vô hiệu hóa.
+              Nhập mật khẩu tài khoản để xác nhận xóa <span className="font-bold text-gray-800">{tableToDelete.name}</span>. Mã QR cũ sẽ bị vô hiệu hóa.
             </p>
 
             <input
