@@ -262,9 +262,35 @@ const Schedules: React.FC = () => {
       }
 
 
+      const startH = parseInt(formData.startTime.split(':')[0]);
+      const startM = parseInt(formData.startTime.split(':')[1]);
+
+      let validDates = datesToProcess;
+      const invalidDates = datesToProcess.filter(dStr => {
+        const d = new Date(dStr);
+        d.setHours(startH, startM, 0, 0);
+        const lockTime = new Date(d.getTime() - 60 * 60 * 1000);
+        return new Date() >= lockTime;
+      });
+
+      if (invalidDates.length > 0) {
+        if (applyWholeWeek) {
+          // If applying whole week, just filter out the past dates and schedule the rest
+          validDates = datesToProcess.filter(dStr => !invalidDates.includes(dStr));
+          if (validDates.length === 0) {
+            toast.error('Tất cả các ngày trong tuần này đều đã qua (khóa trước 1 tiếng)!');
+            return;
+          }
+          toast(`Đã bỏ qua ${invalidDates.length} ngày trong quá khứ.`, { icon: 'ℹ️' });
+        } else {
+          toast.error('Không thể tạo ca trong quá khứ hoặc quá cận giờ (khóa trước 1 tiếng)!');
+          return;
+        }
+      }
+
       if (formData.employeeId !== '') {
         let hasConflict = false;
-        for (const processDate of datesToProcess) {
+        for (const processDate of validDates) {
           const empSchedules = schedules.filter(s => s.employeeId === empId && s.date === processDate);
           for (const s of empSchedules) {
             if (checkShiftOverlap(s.shift, shiftStr)) {
@@ -281,7 +307,7 @@ const Schedules: React.FC = () => {
         }
 
         const promises = [];
-        for (const processDate of datesToProcess) {
+        for (const processDate of validDates) {
           for (const tb of targetBranches) {
             promises.push(addDoc(collection(db, 'schedules'), {
               employeeId: empId,
@@ -305,7 +331,7 @@ const Schedules: React.FC = () => {
         await Promise.all(promises);
       } else {
         const promises = [];
-        for (const processDate of datesToProcess) {
+        for (const processDate of validDates) {
           for (const tb of targetBranches) {
             for (let i = 0; i < formData.slots; i++) {
               promises.push(

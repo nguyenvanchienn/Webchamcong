@@ -22,6 +22,7 @@ interface Branch {
 const TableManager: React.FC = () => {
   const [tables, setTables] = useState<Table[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [posBranches, setPosBranches] = useState<string[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -46,11 +47,20 @@ const TableManager: React.FC = () => {
           branchList = branchSnap.docs.map(doc => ({ id: doc.id, name: doc.data().name }))
             .filter(b => b.id !== 'all' && b.id !== 'ALL' && b.name !== 'Tất cả cơ sở');
           setBranches(branchList);
+
+          const usersSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'POS')));
+          const posIds = usersSnap.docs.map(d => d.data().branchId).filter(Boolean);
+          setPosBranches(posIds);
           if (branchList.length > 0) {
             setSelectedBranch('all');
           }
         } else if (userBranchId) {
           setSelectedBranch(userBranchId);
+          const usersSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'POS')));
+          const posUsers = usersSnap.docs.filter(d => d.data().branchId === userBranchId);
+          if (posUsers.length > 0) {
+            setPosBranches([userBranchId]);
+          }
         }
       } catch (error) {
         console.error(error);
@@ -75,14 +85,14 @@ const TableManager: React.FC = () => {
         }
         const snap = await getDocs(q);
         const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Table));
-        
+
         list.sort((a, b) => {
           if (a.branchId === b.branchId) return a.name.localeCompare(b.name);
           const branchA = branches.find(br => br.id === a.branchId)?.name || '';
           const branchB = branches.find(br => br.id === b.branchId)?.name || '';
           return branchA.localeCompare(branchB);
         });
-        
+
         setTables(list);
       } catch (error) {
         console.error(error);
@@ -114,45 +124,81 @@ const TableManager: React.FC = () => {
           return;
         }
       }
-        
-        if (selectedBranch === 'all' && branches.length > 0) {
-          const promises = branches.map(async (branch) => {
-            const newTable = {
-              name: tableName.trim(),
-              branchId: branch.id,
-              status: 'AVAILABLE',
-              createdAt: new Date()
-            };
-            const docRef = await addDoc(collection(db, 'tables'), newTable);
-            return { id: docRef.id, ...newTable } as Table;
-          });
-          const newTables = await Promise.all(promises);
-          setTables([...tables, ...newTables].sort((a, b) => {
-            if (a.branchId === b.branchId) return a.name.localeCompare(b.name);
-            const branchA = branches.find(br => br.id === a.branchId)?.name || '';
-            const branchB = branches.find(br => br.id === b.branchId)?.name || '';
-            return branchA.localeCompare(branchB);
-          }));
-          toast.success(`Thêm bàn vào ${branches.length} cơ sở thành công`);
-        } else {
+
+      if (selectedBranch === 'all' && branches.length > 0) {
+        const eligibleBranches = branches.filter(b => posBranches.includes(b.id));
+
+        if (eligibleBranches.length === 0) {
+          toast.error('Chưa có cơ sở nào có tài khoản Máy Order (Menu). Vui lòng tạo tài khoản trước.');
+          setIsAdding(false);
+          return;
+        }
+
+        const branchesToCreate = eligibleBranches.filter(b => 
+          !tables.some(t => t.branchId === b.id && t.name.toLowerCase() === tableName.trim().toLowerCase())
+        );
+
+        if (branchesToCreate.length === 0) {
+          toast.error(`Bàn "${tableName}" đã tồn tại ở tất cả các cơ sở hợp lệ.`);
+          setIsAdding(false);
+          return;
+        }
+
+        const promises = branchesToCreate.map(async (branch) => {
           const newTable = {
             name: tableName.trim(),
-            branchId: selectedBranch !== 'all' ? selectedBranch : (userBranchId || null),
+            branchId: branch.id,
             status: 'AVAILABLE',
             createdAt: new Date()
           };
           const docRef = await addDoc(collection(db, 'tables'), newTable);
-          setTables([...tables, { id: docRef.id, ...newTable } as Table].sort((a, b) => {
-            if (a.branchId === b.branchId) return a.name.localeCompare(b.name);
-            const branchA = branches.find(br => br.id === a.branchId)?.name || '';
-            const branchB = branches.find(br => br.id === b.branchId)?.name || '';
-            return branchA.localeCompare(branchB);
-          }));
-          toast.success('Thêm bàn thành công');
+          return { id: docRef.id, ...newTable } as Table;
+        });
+        const newTables = await Promise.all(promises);
+        setTables([...tables, ...newTables].sort((a, b) => {
+          if (a.branchId === b.branchId) return a.name.localeCompare(b.name);
+          const branchA = branches.find(br => br.id === a.branchId)?.name || '';
+          const branchB = branches.find(br => br.id === b.branchId)?.name || '';
+          return branchA.localeCompare(branchB);
+        }));
+
+        let successMsg = `Thêm bàn vào ${branchesToCreate.length} cơ sở thành công.`;
+        const skippedCount = branches.length - branchesToCreate.length;
+        if (skippedCount > 0) {
+          successMsg += ` Đã bỏ qua ${skippedCount} cơ sở (chưa có máy Order hoặc trùng tên bàn).`;
         }
-        setIsModalOpen(false);
-        setTableName('');
-        setAddPassword('');
+        toast.success(successMsg);
+      } else {
+        const bId = selectedBranch !== 'all' ? selectedBranch : (userBranchId || '');
+        if (!posBranches.includes(bId)) {
+          toast.error('Cơ sở này chưa có tài khoản Máy Order (Menu). Vui lòng tạo tài khoản trước.');
+          setIsAdding(false);
+          return;
+        }
+        if (tables.some(t => t.branchId === bId && t.name.toLowerCase() === tableName.trim().toLowerCase())) {
+          toast.error(`Bàn "${tableName}" đã tồn tại ở cơ sở này.`);
+          setIsAdding(false);
+          return;
+        }
+
+        const newTable = {
+          name: tableName.trim(),
+          branchId: selectedBranch !== 'all' ? selectedBranch : (userBranchId || null),
+          status: 'AVAILABLE',
+          createdAt: new Date()
+        };
+        const docRef = await addDoc(collection(db, 'tables'), newTable);
+        setTables([...tables, { id: docRef.id, ...newTable } as Table].sort((a, b) => {
+          if (a.branchId === b.branchId) return a.name.localeCompare(b.name);
+          const branchA = branches.find(br => br.id === a.branchId)?.name || '';
+          const branchB = branches.find(br => br.id === b.branchId)?.name || '';
+          return branchA.localeCompare(branchB);
+        }));
+        toast.success('Thêm bàn thành công');
+      }
+      setIsModalOpen(false);
+      setTableName('');
+      setAddPassword('');
     } catch (error) {
       console.error(error);
       toast.error('Mật khẩu không chính xác');
@@ -167,7 +213,7 @@ const TableManager: React.FC = () => {
       toast.error('Vui lòng nhập mật khẩu xác nhận');
       return;
     }
-    
+
     setIsDeleting(true);
     try {
       if (requiresPassword) {
@@ -180,12 +226,12 @@ const TableManager: React.FC = () => {
           return;
         }
       }
-        
-        await deleteDoc(doc(db, 'tables', tableToDelete.id));
-        setTables(tables.filter(t => t.id !== tableToDelete.id));
-        toast.success('Đã xóa bàn');
-        setTableToDelete(null);
-        setDeletePassword('');
+
+      await deleteDoc(doc(db, 'tables', tableToDelete.id));
+      setTables(tables.filter(t => t.id !== tableToDelete.id));
+      toast.success('Đã xóa bàn');
+      setTableToDelete(null);
+      setDeletePassword('');
     } catch (error) {
       console.error(error);
       toast.error('Mật khẩu không chính xác');
@@ -206,7 +252,7 @@ const TableManager: React.FC = () => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     const img = new Image();
-    
+
     img.onload = () => {
       // Add padding and white background
       canvas.width = img.width + 40;
@@ -215,7 +261,7 @@ const TableManager: React.FC = () => {
         ctx.fillStyle = 'white';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 20, 20);
-        
+
         const pngFile = canvas.toDataURL('image/png');
         const downloadLink = document.createElement('a');
         downloadLink.download = `QR_${viewingQR?.name}.png`;
@@ -223,7 +269,7 @@ const TableManager: React.FC = () => {
         downloadLink.click();
       }
     };
-    
+
     img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
   };
 
@@ -269,7 +315,7 @@ const TableManager: React.FC = () => {
                 {branches.find(b => b.id === table.branchId)?.name || 'Cơ sở không xác định'}
               </p>
             )}
-            
+
             <div className={`bg-gray-50 p-4 rounded-xl border border-gray-200 relative cursor-pointer group/qr ${selectedBranch === 'all' ? 'mb-4' : 'mb-4 mt-3'}`} onClick={() => setViewingQR(table)}>
               <QRCodeSVG value={getQRUrl(table.id, table.branchId)} size={120} />
               <div className="absolute inset-0 bg-black/50 backdrop-blur-sm rounded-xl opacity-0 group-hover/qr:opacity-100 transition-opacity flex flex-col items-center justify-center text-white gap-2">
@@ -277,7 +323,7 @@ const TableManager: React.FC = () => {
                 <span className="font-medium text-sm">Xem QR Lớn</span>
               </div>
             </div>
-            
+
             <div className="flex gap-2 w-full mt-auto">
               <button onClick={() => setViewingQR(table)} className="flex-1 py-2 bg-blue-50 text-blue-600 font-bold rounded-xl hover:bg-blue-100 transition-colors flex justify-center">
                 Mã QR
@@ -306,26 +352,26 @@ const TableManager: React.FC = () => {
             <form onSubmit={handleAddTable} className="p-6">
               <div className="mb-4">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Tên bàn (VD: Bàn 1, Bàn Ngoài Sân...)</label>
-                <input 
-                  type="text" 
-                  value={tableName} 
-                  onChange={e => setTableName(e.target.value)} 
-                  required 
+                <input
+                  type="text"
+                  value={tableName}
+                  onChange={e => setTableName(e.target.value)}
+                  required
                   autoFocus
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" 
-                  placeholder="Nhập tên bàn..." 
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="Nhập tên bàn..."
                 />
               </div>
               {requiresPassword && (
                 <div className="mb-6">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Mật khẩu tài khoản</label>
-                  <input 
-                    type="password" 
-                    value={addPassword} 
-                    onChange={e => setAddPassword(e.target.value)} 
-                    required 
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none tracking-widest font-medium text-gray-800" 
-                    placeholder="Nhập mật khẩu..." 
+                  <input
+                    type="password"
+                    value={addPassword}
+                    onChange={e => setAddPassword(e.target.value)}
+                    required
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none tracking-widest font-medium text-gray-800"
+                    placeholder="Nhập mật khẩu..."
                   />
                 </div>
               )}
@@ -347,11 +393,11 @@ const TableManager: React.FC = () => {
             <button onClick={() => setViewingQR(null)} className="absolute top-4 right-4 text-gray-400 hover:bg-gray-100 p-2 rounded-full"><X size={24} /></button>
             <h2 className="text-3xl font-black text-gray-800 mb-2">{viewingQR.name}</h2>
             <p className="text-gray-500 mb-8 text-center text-sm">Quét mã QR dưới đây để xem Menu và Gọi món</p>
-            
+
             <div className="bg-white p-4 rounded-2xl border-4 border-blue-100 shadow-xl mb-8">
               <QRCodeSVG id="qr-code-svg" value={getQRUrl(viewingQR.id, viewingQR.branchId)} size={240} level="H" />
             </div>
-            
+
             <button onClick={downloadQR} className="w-full py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 flex items-center justify-center gap-2 text-lg shadow-md shadow-blue-500/30">
               <Download size={24} />
               Tải Xuống Mã QR
