@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { collection, doc, getDoc, getDocs, addDoc, updateDoc, query, where, serverTimestamp } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { db, auth } from '../config/firebase';
+import { signInAnonymously } from 'firebase/auth';
 import { ShoppingCart, Plus, Minus, Search, Image as ImageIcon, Clock, ChefHat } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -47,6 +48,18 @@ const TableOrder: React.FC = () => {
     const fetchData = async () => {
       if (!branchId || !tableId) return;
       try {
+        // Sign in anonymously first to pass Firebase security rules
+        if (!auth.currentUser) {
+          try {
+            await signInAnonymously(auth);
+          } catch (authError) {
+            console.error('Anonymous auth failed:', authError);
+            toast.error('Lỗi xác thực (Vui lòng bật Anonymous Auth trên Firebase)');
+            setLoading(false);
+            return;
+          }
+        }
+
         // Fetch Table info
         const tableDoc = await getDoc(doc(db, 'tables', tableId));
         if (tableDoc.exists()) {
