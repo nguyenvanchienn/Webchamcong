@@ -221,12 +221,12 @@ const Revenue: React.FC = () => {
 
     setIsSubmittingExpense(true);
     try {
+      const editorName = userRole === 'SUPER_ADMIN' ? 'Admin' : `${localStorage.getItem('employeeId') || ''} - ${cashierNameMap[auth.currentUser?.email || ''] || 'Quản lý'}`.replace(/^ - | - $/g, '');
+
       if (editingExpenseId) {
         const expenseRef = doc(db, 'orders', editingExpenseId);
         const existingOrder = orders.find(o => o.id === editingExpenseId);
         const newCount = (existingOrder?.editCount || 0) + 1;
-        
-        const editorName = userRole === 'SUPER_ADMIN' ? 'Admin' : `${localStorage.getItem('employeeId') || ''} - ${cashierNameMap[auth.currentUser?.email || ''] || 'Quản lý'}`.replace(/^ - | - $/g, '');
         
         const newHistory = [...(existingOrder?.editHistory || []), { 
           editedAt: new Date().toISOString(), 
@@ -250,8 +250,8 @@ const Revenue: React.FC = () => {
           items: [{ name: expenseReason, quantity: 1, price: Number(expenseAmount.replace(/\./g, '')) }],
           totalAmount: Number(expenseAmount.replace(/\./g, '')),
           createdAt: serverTimestamp(),
-          cashierEmail: auth.currentUser?.email || 'Unknown',
-          employeeId: 'Unknown',
+          cashierEmail: editorName,
+          employeeId: localStorage.getItem('employeeId') || 'Unknown',
           status: 'COMPLETED',
           branchId: selectedBranch !== 'all' ? selectedBranch : (userBranchId || null),
           type: 'EXPENSE',
