@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, orderBy, getDocs } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import { CircleDollarSign, Receipt, TrendingUp, Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { collection, query, orderBy, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db, auth } from '../config/firebase';
+import { CircleDollarSign, Receipt, TrendingUp, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface Order {
@@ -14,6 +14,8 @@ interface Order {
   employeeId: string;
   status: string;
   branchId?: string;
+  type?: 'INCOME' | 'EXPENSE';
+  note?: string;
 }
 
 interface Branch {
@@ -32,6 +34,13 @@ const Revenue: React.FC = () => {
   const [branchAddressMap, setBranchAddressMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [billModalData, setBillModalData] = useState<any | null>(null);
+
+  // Expense Modal State
+  const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [expenseReason, setExpenseReason] = useState('');
+  const [expenseAmount, setExpenseAmount] = useState('');
+  const [expenseNote, setExpenseNote] = useState('');
+  const [isSubmittingExpense, setIsSubmittingExpense] = useState(false);
 
   const userRole = localStorage.getItem('userRole');
   const userBranchId = localStorage.getItem('branchId');
@@ -91,7 +100,7 @@ const Revenue: React.FC = () => {
       }
     };
     fetchData();
-  }, []);
+  }, [showExpenseModal]); // Refetch when modal closes to update list
 
   const filteredOrders = orders.filter(o => {
     if (userRole !== 'SUPER_ADMIN' && o.branchId !== userBranchId) {
@@ -182,10 +191,49 @@ const Revenue: React.FC = () => {
     }
   };
 
-  const totalRevenue = filteredOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
-  const totalOrders = filteredOrders.length;
+  const handleAddExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!expenseReason.trim() || !expenseAmount) return;
+
+    setIsSubmittingExpense(true);
+    try {
+      const expenseData = {
+        orderCode: 'CHI-' + Date.now().toString().slice(-6),
+        items: [{ name: expenseReason, quantity: 1, price: Number(expenseAmount) }],
+        totalAmount: Number(expenseAmount),
+        createdAt: serverTimestamp(),
+        cashierEmail: auth.currentUser?.email || 'Unknown',
+        employeeId: 'Unknown',
+        status: 'COMPLETED',
+        branchId: selectedBranch !== 'all' ? selectedBranch : (userBranchId || null),
+        type: 'EXPENSE',
+        note: expenseNote
+      };
+
+      await addDoc(collection(db, 'orders'), expenseData);
+      toast.success('Đã tạo phiếu chi');
+      setShowExpenseModal(false);
+      setExpenseReason('');
+      setExpenseAmount('');
+      setExpenseNote('');
+    } catch (error) {
+      console.error(error);
+      toast.error('Lỗi khi tạo phiếu chi');
+    } finally {
+      setIsSubmittingExpense(false);
+    }
+  };
+
+  const incomeOrders = filteredOrders.filter(o => o.type !== 'EXPENSE');
+  const expenseOrders = filteredOrders.filter(o => o.type === 'EXPENSE');
+
+  const totalIncome = incomeOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+  const totalExpense = expenseOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+  const profit = totalIncome - totalExpense;
   
-  // Calculate today's revenue
+  const totalOrders = incomeOrders.length;
+  
+  // Calculate today's stats
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todayOrders = filteredOrders.filter(o => {
@@ -193,7 +241,10 @@ const Revenue: React.FC = () => {
     const date = o.createdAt.toDate ? o.createdAt.toDate() : new Date(o.createdAt);
     return date >= today;
   });
-  const todayRevenue = todayOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+  
+  const todayIncome = todayOrders.filter(o => o.type !== 'EXPENSE').reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+  const todayExpense = todayOrders.filter(o => o.type === 'EXPENSE').reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+  const todayProfit = todayIncome - todayExpense;
 
   if (loading) return <div className="p-8 text-center text-gray-500">Đang tải dữ liệu doanh thu...</div>;
 
@@ -250,30 +301,50 @@ const Revenue: React.FC = () => {
               </select>
             </div>
           )}
+
+          <button
+            onClick={() => setShowExpenseModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 shadow-sm transition-colors font-medium ml-2"
+          >
+            <Plus size={18} />
+            <span>Thêm Phiếu Chi</span>
+          </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
           <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
-            <TrendingUp size={28} />
+            <CircleDollarSign size={28} />
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-500 mb-1">Tổng doanh thu</p>
-            <h3 className="text-2xl font-black text-gray-800">
-              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(totalRevenue)}
+            <p className="text-sm font-medium text-gray-500 mb-1">Tổng Thu</p>
+            <h3 className="text-2xl font-black text-blue-600">
+              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(totalIncome)}
+            </h3>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+          <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center text-red-600">
+            <FileText size={28} />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-gray-500 mb-1">Tổng Chi</p>
+            <h3 className="text-2xl font-black text-red-600">
+              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(totalExpense)}
             </h3>
           </div>
         </div>
 
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
           <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center text-green-600">
-            <CircleDollarSign size={28} />
+            <TrendingUp size={28} />
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-500 mb-1">Doanh thu Hôm nay</p>
-            <h3 className="text-2xl font-black text-gray-800">
-              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(todayRevenue)}
+            <p className="text-sm font-medium text-gray-500 mb-1">Lợi Nhuận</p>
+            <h3 className="text-2xl font-black text-green-600">
+              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(profit)}
             </h3>
           </div>
         </div>
@@ -283,7 +354,7 @@ const Revenue: React.FC = () => {
             <Receipt size={28} />
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-500 mb-1">Tổng Số Hóa đơn</p>
+            <p className="text-sm font-medium text-gray-500 mb-1">Số Hóa đơn Bán</p>
             <h3 className="text-2xl font-black text-gray-800">
               {totalOrders} <span className="text-base font-normal text-gray-500">đơn</span>
             </h3>
@@ -324,14 +395,19 @@ const Revenue: React.FC = () => {
                     }
                   }
                   
+                  const isExpense = order.type === 'EXPENSE';
+                  
                   return (
                     <tr 
                       key={order.id} 
-                      onClick={() => setBillModalData({ ...order, cashierName, branchAddress: order.branchId ? branchAddressMap[order.branchId] : null })}
-                      className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
+                      onClick={() => !isExpense && setBillModalData({ ...order, cashierName, branchAddress: order.branchId ? branchAddressMap[order.branchId] : null })}
+                      className={`border-b border-gray-100 transition-colors ${isExpense ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-gray-50 cursor-pointer'}`}
                     >
                       <td className="p-4 text-gray-600 font-medium">{filteredOrders.length - index}</td>
-                      <td className="p-4 font-mono font-medium text-blue-600">#{order.orderCode || order.id.slice(-6).toUpperCase()}</td>
+                      <td className={`p-4 font-mono font-medium ${isExpense ? 'text-red-600' : 'text-blue-600'}`}>
+                        {isExpense && <span className="bg-red-100 text-red-600 px-2 py-0.5 rounded text-xs mr-2 font-bold">[CHI]</span>}
+                        #{order.orderCode || order.id.slice(-6).toUpperCase()}
+                      </td>
                       <td className="p-4 text-gray-600">{(order as any).branchName}</td>
                       <td className="p-4 text-gray-600 flex items-center gap-2">
                         <CalendarIcon size={14} className="text-gray-400" />
@@ -339,10 +415,11 @@ const Revenue: React.FC = () => {
                       </td>
                       <td className="p-4 text-gray-600">{cashierName}</td>
                       <td className="p-4 text-sm text-gray-500 max-w-xs truncate">
-                        {order.items?.map(i => `${i.quantity}x ${i.name}`).join(', ')}
+                        {order.items?.map(i => isExpense ? i.name : `${i.quantity}x ${i.name}`).join(', ')}
+                        {order.note && <span className="block text-xs text-gray-400 mt-0.5">Ghi chú: {order.note}</span>}
                       </td>
-                      <td className="p-4 font-bold text-gray-800 text-right text-lg">
-                        {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(order.totalAmount)}
+                      <td className={`p-4 font-bold text-right text-lg ${isExpense ? 'text-red-600' : 'text-gray-800'}`}>
+                        {isExpense ? '-' : ''}{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(order.totalAmount)}
                       </td>
                     </tr>
                   );
@@ -457,6 +534,76 @@ const Revenue: React.FC = () => {
                 Đóng
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Expense Modal */}
+      {showExpenseModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full animate-slide-up">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-red-50 rounded-t-2xl">
+              <div className="flex items-center gap-3 text-red-600">
+                <FileText size={24} />
+                <h2 className="text-xl font-bold">Thêm Phiếu Chi</h2>
+              </div>
+            </div>
+            
+            <form onSubmit={handleAddExpense} className="p-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Lý do chi (VD: Nhập đá, Trả tiền điện...)</label>
+                  <input
+                    type="text"
+                    value={expenseReason}
+                    onChange={(e) => setExpenseReason(e.target.value)}
+                    placeholder="Nhập lý do chi..."
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 outline-none"
+                    required
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Số tiền chi (VNĐ)</label>
+                  <input
+                    type="number"
+                    value={expenseAmount}
+                    onChange={(e) => setExpenseAmount(e.target.value)}
+                    placeholder="Nhập số tiền..."
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 outline-none"
+                    required
+                    min="1000"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Ghi chú thêm (Không bắt buộc)</label>
+                  <textarea
+                    value={expenseNote}
+                    onChange={(e) => setExpenseNote(e.target.value)}
+                    placeholder="Ghi chú chi tiết (nếu có)..."
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 outline-none min-h-[80px]"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-8">
+                <button
+                  type="button"
+                  onClick={() => setShowExpenseModal(false)}
+                  className="flex-1 py-3 px-4 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
+                  disabled={isSubmittingExpense}
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingExpense || !expenseReason || !expenseAmount}
+                  className="flex-1 py-3 px-4 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-200 disabled:bg-gray-300 disabled:shadow-none"
+                >
+                  {isSubmittingExpense ? 'Đang lưu...' : 'Lưu Phiếu Chi'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
