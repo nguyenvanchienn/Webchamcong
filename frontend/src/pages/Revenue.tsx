@@ -40,7 +40,9 @@ interface Branch {
 const Revenue: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
-  const [selectedBranch, setSelectedBranch] = useState<string>('all');
+  const userRole = localStorage.getItem('userRole');
+  const userBranchId = localStorage.getItem('branchId');
+  const [selectedBranch, setSelectedBranch] = useState<string>(userRole === 'SUPER_ADMIN' ? 'all' : (userBranchId || 'all'));
   const [filterMode, setFilterMode] = useState<'day'|'week'|'month'>('day');
   const [refDate, setRefDate] = useState<Date>(new Date());
   const [cashierNameMap, setCashierNameMap] = useState<Record<string, string>>({});
@@ -62,8 +64,7 @@ const Revenue: React.FC = () => {
   const [isSubmittingExpense, setIsSubmittingExpense] = useState(false);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
 
-  const userRole = localStorage.getItem('userRole');
-  const userBranchId = localStorage.getItem('branchId');
+
 
   useEffect(() => {
     const fetchData = async () => {

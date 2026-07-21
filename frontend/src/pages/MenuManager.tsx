@@ -13,6 +13,7 @@ interface MenuItem {
   isAvailable: boolean;
   description?: string;
   subCategory?: string;
+  branchId?: string | null;
 }
 
 const compressImage = (file: File): Promise<string> => {
@@ -58,6 +59,9 @@ const MenuManager: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [viewingItem, setViewingItem] = useState<MenuItem | null>(null);
+  
+  const userRole = localStorage.getItem('userRole');
+  const userBranchId = localStorage.getItem('branchId');
   const [isUploading, setIsUploading] = useState(false);
   const [priceText, setPriceText] = useState('');
   const [customCategory, setCustomCategory] = useState('');
@@ -80,7 +84,17 @@ const MenuManager: React.FC = () => {
   const fetchItems = async () => {
     try {
       const snap = await getDocs(collection(db, 'menu_items'));
-      const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as MenuItem));
+      const list: MenuItem[] = [];
+      snap.docs.forEach(doc => {
+        const data = doc.data();
+        if (userRole === 'BRANCH_ADMIN') {
+          if (!data.branchId || data.branchId === userBranchId) {
+            list.push({ id: doc.id, ...data } as MenuItem);
+          }
+        } else {
+          list.push({ id: doc.id, ...data } as MenuItem);
+        }
+      });
       setItems(list);
     } catch (error) {
       console.error(error);
@@ -163,34 +177,34 @@ const MenuManager: React.FC = () => {
     }
 
     setIsUploading(true);
-
-    let finalImageUrl = formData.imageUrl;
     
-    if (localImageFile) {
-      try {
-        finalImageUrl = await compressImage(localImageFile);
-      } catch (error) {
-         toast.error("Lỗi khi xử lý ảnh");
-         setIsUploading(false);
-         return;
-      }
-    }
-
-    const finalCategory = formData.category === 'Khác' ? (customCategory.trim() || 'Khác') : formData.category;
-
-    const dataToSave = {
-      ...formData,
-      category: finalCategory,
-      imageUrl: finalImageUrl
-    };
-
     try {
+      let imageUrl = formData.imageUrl;
+      if (localImageFile) {
+        imageUrl = await compressImage(localImageFile);
+      }
+      
+      const payload: any = {
+        name: formData.name,
+        price: formData.price,
+        category: formData.category === 'Khác' ? customCategory : formData.category,
+        imageUrl: imageUrl,
+        isAvailable: formData.isAvailable,
+        description: formData.description,
+        subCategory: formData.subCategory
+      };
+
       if (editingItem) {
-        await updateDoc(doc(db, 'menu_items', editingItem.id), dataToSave);
-        toast.success('Cập nhật món thành công');
+        await updateDoc(doc(db, 'menu_items', editingItem.id), payload);
+        toast.success('Đã cập nhật món ăn');
       } else {
-        await addDoc(collection(db, 'menu_items'), dataToSave);
-        toast.success('Thêm món mới thành công');
+        if (userRole === 'BRANCH_ADMIN') {
+           payload.branchId = userBranchId;
+        } else {
+           payload.branchId = null;
+        }
+        await addDoc(collection(db, 'menu_items'), payload);
+        toast.success('Đã thêm món ăn mới');
       }
       setIsModalOpen(false);
       fetchItems();
@@ -245,7 +259,7 @@ const MenuManager: React.FC = () => {
             </thead>
             <tbody>
               {items.length === 0 ? (
-                <tr><td colSpan={6} className="p-8 text-center text-gray-500 italic">Chưa có món nào trong thực đơn</td></tr>
+                <tr><td colSpan={7} className="p-8 text-center text-gray-500 italic">Chưa có món nào trong thực đơn</td></tr>
               ) : (
                 items.map((item, index) => (
                   <tr key={item.id} onClick={() => setViewingItem(item)} className="border-b border-gray-100 hover:bg-blue-50/50 transition-colors cursor-pointer group">
@@ -274,9 +288,31 @@ const MenuManager: React.FC = () => {
                         {item.isAvailable ? 'Đang bán' : 'Hết hàng'}
                       </span>
                     </td>
-                    <td className="p-4 text-right">
-                      <button onClick={(e) => { e.stopPropagation(); openModal(item); }} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg mr-2 transition-colors"><Edit2 size={18} /></button>
-                      <button onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }} className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"><Trash2 size={18} /></button>
+                    <td className="p-4 flex gap-2 justify-end">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); openModal(item); }}
+                        className={`p-2 rounded-lg transition-colors ${
+                          (userRole === 'BRANCH_ADMIN' && !item.branchId) 
+                            ? 'text-gray-400 bg-gray-100 cursor-not-allowed' 
+                            : 'text-blue-600 hover:bg-blue-50'
+                        }`}
+                        title={(userRole === 'BRANCH_ADMIN' && !item.branchId) ? "Không có quyền sửa món chung" : "Sửa"}
+                        disabled={userRole === 'BRANCH_ADMIN' && !item.branchId}
+                      >
+                        <Edit2 size={18} />
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
+                        className={`p-2 rounded-lg transition-colors ${
+                          (userRole === 'BRANCH_ADMIN' && !item.branchId) 
+                            ? 'text-gray-400 bg-gray-100 cursor-not-allowed' 
+                            : 'text-red-600 hover:bg-red-50'
+                        }`}
+                        title={(userRole === 'BRANCH_ADMIN' && !item.branchId) ? "Không có quyền xóa món chung" : "Xóa"}
+                        disabled={userRole === 'BRANCH_ADMIN' && !item.branchId}
+                      >
+                        <Trash2 size={18} />
+                      </button>
                     </td>
                   </tr>
                 ))

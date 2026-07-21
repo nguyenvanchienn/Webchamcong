@@ -42,6 +42,9 @@ const Accounts: React.FC = () => {
   });
   const [showPassword, setShowPassword] = useState(false);
 
+  const userRole = localStorage.getItem('userRole');
+  const userBranchId = localStorage.getItem('branchId');
+
   // Đổi mật khẩu Modal
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [passwordFormData, setPasswordFormData] = useState({ id: '', email: '', oldPassword: '', password: '', confirmPassword: '' });
@@ -55,7 +58,13 @@ const Accounts: React.FC = () => {
       userSnap.forEach((doc) => {
         const data = doc.data();
         if (data.role !== 'SUPER_ADMIN') {
-          userList.push({ id: doc.id, ...data } as UserAccount);
+          if (userRole === 'BRANCH_ADMIN') {
+            if (data.branchId === userBranchId) {
+              userList.push({ id: doc.id, ...data } as UserAccount);
+            }
+          } else {
+            userList.push({ id: doc.id, ...data } as UserAccount);
+          }
         }
       });
       setAccounts(userList);
@@ -97,7 +106,7 @@ const Accounts: React.FC = () => {
         await updateDoc(doc(db, 'users', editingAccount.id), {
           role: formData.role,
           employeeId: formData.employeeId || null,
-          branchId: formData.branchId || null
+          branchId: userRole === 'BRANCH_ADMIN' ? userBranchId : (formData.branchId || null)
         });
         toast.success('Cập nhật quyền hạn thành công!');
         closeModal();
@@ -129,7 +138,7 @@ const Accounts: React.FC = () => {
         email: formData.email,
         role: formData.role,
         employeeId: formData.employeeId || null,
-        branchId: formData.branchId || null,
+        branchId: userRole === 'BRANCH_ADMIN' ? userBranchId : (formData.branchId || null),
         status: 'ACTIVE',
         createdAt: new Date().toISOString(),
         requirePasswordChange: needsPasswordChange
@@ -233,20 +242,27 @@ const Accounts: React.FC = () => {
     }
   };
 
-  const openModal = (acc?: UserAccount) => {
-    if (acc) {
-      setEditingAccount(acc);
+  const openModal = (account?: UserAccount) => {
+    if (account) {
+      setEditingAccount(account);
       setFormData({
-        email: acc.email,
+        email: account.email,
         password: '',
         confirmPassword: '',
-        role: acc.role || 'EMPLOYEE',
-        employeeId: acc.employeeId || '',
-        branchId: acc.branchId || ''
+        role: account.role,
+        employeeId: account.employeeId || '',
+        branchId: account.branchId || ''
       });
     } else {
       setEditingAccount(null);
-      setFormData({ email: '', password: '', confirmPassword: '', role: 'EMPLOYEE', employeeId: '', branchId: '' });
+      setFormData({
+        email: '',
+        password: '',
+        confirmPassword: '',
+        role: 'EMPLOYEE',
+        employeeId: '',
+        branchId: userRole === 'BRANCH_ADMIN' ? (userBranchId || '') : (branches.length > 0 ? branches[0].id : '')
+      });
     }
     setIsModalOpen(true);
   };
@@ -494,7 +510,7 @@ const Accounts: React.FC = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
                 >
                   <option value="EMPLOYEE">Nhân viên</option>
-                  <option value="BRANCH_ADMIN">Quản lý cơ sở</option>
+                  {userRole === 'SUPER_ADMIN' && <option value="BRANCH_ADMIN">Quản lý cơ sở</option>}
                   <option value="KIOSK">Thiết bị điểm danh (Kiosk)</option>
                   <option value="POS">Máy Order (Menu)</option>
                 </select>
@@ -505,9 +521,10 @@ const Accounts: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Cơ sở áp dụng <span className="text-red-500">*</span></label>
                   <select 
                     required
+                    disabled={userRole === 'BRANCH_ADMIN'}
                     value={formData.branchId}
                     onChange={(e) => setFormData({...formData, branchId: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
+                    className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none ${userRole === 'BRANCH_ADMIN' ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
                   >
                     <option value="" disabled>-- Chọn cơ sở --</option>
                     {branches.map(b => (
