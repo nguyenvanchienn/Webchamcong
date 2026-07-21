@@ -84,7 +84,7 @@ const TableManager: React.FC = () => {
           q = query(collection(db, 'tables'), where('branchId', '==', selectedBranch));
         }
         const snap = await getDocs(q);
-        const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Table));
+        const list = snap.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as Table));
 
         list.sort((a, b) => {
           if (a.branchId === b.branchId) return a.name.localeCompare(b.name);
