@@ -51,6 +51,7 @@ const Revenue: React.FC = () => {
   const [billEditItems, setBillEditItems] = useState<any[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [selectedItemToAdd, setSelectedItemToAdd] = useState<string>('');
+  const [confirmDialog, setConfirmDialog] = useState<{isOpen: boolean, message: string, onConfirm: () => void} | null>(null);
 
   // Expense Modal State
   const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -279,48 +280,56 @@ const Revenue: React.FC = () => {
     setShowExpenseModal(true);
   };
 
-  const handleDeleteBill = async () => {
+  const handleDeleteBill = () => {
     if (!billModalData) return;
-    if (window.confirm('Bạn có chắc chắn muốn XÓA hóa đơn này không? Số tiền sẽ về 0 và ghi nhận lịch sử xóa.')) {
-      try {
-        const editorName = userRole === 'SUPER_ADMIN' ? 'Admin' : `${localStorage.getItem('employeeId') || ''} - ${cashierNameMap[auth.currentUser?.email || ''] || 'Quản lý'}`.replace(/^ - | - $/g, '');
-        
-        await updateDoc(doc(db, 'orders', billModalData.id), {
-          totalAmount: 0,
-          deletedBy: editorName,
-          deletedAt: new Date().toISOString()
-        });
-        toast.success('Đã xóa hóa đơn');
-        setBillModalData(null);
-      } catch (error) {
-        console.error(error);
-        toast.error('Lỗi khi xóa hóa đơn');
+    setConfirmDialog({
+      isOpen: true,
+      message: 'Bạn có chắc chắn muốn XÓA hóa đơn này không? Số tiền sẽ về 0 và ghi nhận lịch sử xóa.',
+      onConfirm: async () => {
+        try {
+          const editorName = userRole === 'SUPER_ADMIN' ? 'Admin' : `${localStorage.getItem('employeeId') || ''} - ${cashierNameMap[auth.currentUser?.email || ''] || 'Quản lý'}`.replace(/^ - | - $/g, '');
+          
+          await updateDoc(doc(db, 'orders', billModalData.id), {
+            totalAmount: 0,
+            deletedBy: editorName,
+            deletedAt: new Date().toISOString()
+          });
+          toast.success('Đã xóa hóa đơn');
+          setBillModalData(null);
+        } catch (error) {
+          console.error(error);
+          toast.error('Lỗi khi xóa hóa đơn');
+        }
       }
-    }
+    });
   };
 
-  const handleDeleteExpense = async () => {
+  const handleDeleteExpense = () => {
     if (!editingExpenseId) return;
-    if (window.confirm('Bạn có chắc chắn muốn XÓA phiếu chi này không? Số tiền sẽ về 0 và ghi nhận lịch sử xóa.')) {
-      try {
-        const editorName = userRole === 'SUPER_ADMIN' ? 'Admin' : `${localStorage.getItem('employeeId') || ''} - ${cashierNameMap[auth.currentUser?.email || ''] || 'Quản lý'}`.replace(/^ - | - $/g, '');
-        
-        await updateDoc(doc(db, 'orders', editingExpenseId), {
-          totalAmount: 0,
-          deletedBy: editorName,
-          deletedAt: new Date().toISOString()
-        });
-        toast.success('Đã xóa phiếu chi');
-        setShowExpenseModal(false);
-        setEditingExpenseId(null);
-        setExpenseReason('');
-        setExpenseAmount('');
-        setExpenseNote('');
-      } catch (error) {
-        console.error(error);
-        toast.error('Lỗi khi xóa phiếu chi');
+    setConfirmDialog({
+      isOpen: true,
+      message: 'Bạn có chắc chắn muốn XÓA phiếu chi này không? Số tiền sẽ về 0 và ghi nhận lịch sử xóa.',
+      onConfirm: async () => {
+        try {
+          const editorName = userRole === 'SUPER_ADMIN' ? 'Admin' : `${localStorage.getItem('employeeId') || ''} - ${cashierNameMap[auth.currentUser?.email || ''] || 'Quản lý'}`.replace(/^ - | - $/g, '');
+          
+          await updateDoc(doc(db, 'orders', editingExpenseId), {
+            totalAmount: 0,
+            deletedBy: editorName,
+            deletedAt: new Date().toISOString()
+          });
+          toast.success('Đã xóa phiếu chi');
+          setShowExpenseModal(false);
+          setEditingExpenseId(null);
+          setExpenseReason('');
+          setExpenseAmount('');
+          setExpenseNote('');
+        } catch (error) {
+          console.error(error);
+          toast.error('Lỗi khi xóa phiếu chi');
+        }
       }
-    }
+    });
   };
 
   const handleSaveBillEdit = async () => {
@@ -906,6 +915,33 @@ const Revenue: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Confirm Dialog */}
+      {confirmDialog?.isOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 animate-slide-up">
+            <h3 className="text-xl font-bold text-gray-800 mb-2">Xác nhận</h3>
+            <p className="text-gray-600 mb-6">{confirmDialog.message}</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmDialog(null)}
+                className="flex-1 py-2.5 px-4 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-colors"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={() => {
+                  confirmDialog.onConfirm();
+                  setConfirmDialog(null);
+                }}
+                className="flex-1 py-2.5 px-4 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 transition-colors"
+              >
+                Đồng ý
+              </button>
+            </div>
           </div>
         </div>
       )}
