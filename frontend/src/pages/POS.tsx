@@ -1030,8 +1030,9 @@ const POS: React.FC = () => {
                   {activeTableOrders.map(order => (
                     <div
                       key={order.id}
-                      className={`bg-white rounded-xl border-2 p-4 cursor-pointer hover:shadow-md transition-all ${currentTableOrderId === order.id ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200 hover:border-blue-300'
-                        }`}
+                      className={`bg-white border-2 rounded-2xl p-4 cursor-pointer transition-all ${
+                        currentTableOrderId === order.id ? 'border-blue-500 shadow-md ring-4 ring-blue-50' : 'border-transparent shadow-sm hover:shadow-md hover:border-gray-200'
+                      }`}
                       onClick={async () => {
                         // Mark as read if it has new items
                         if (order.hasNewItems) {
@@ -1064,10 +1065,22 @@ const POS: React.FC = () => {
                     >
                       <div className="flex justify-between items-start mb-3">
                         <div>
-                          <h4 className="font-black text-lg text-gray-800 flex items-center gap-2">
-                            {order.tableName}
-                            {order.hasNewItems && <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>}
-                          </h4>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-black text-lg text-gray-800 flex items-center gap-2">
+                              {order.tableName}
+                              {order.hasNewItems && <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>}
+                            </h4>
+                            <span className="text-xs font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-md">
+                              {(() => {
+                                const ts = order.createdAt || order.updatedAt;
+                                if (!ts) return '';
+                                let millis = 0;
+                                if (typeof ts.toMillis === 'function') millis = ts.toMillis();
+                                else if (ts.seconds) millis = ts.seconds * 1000;
+                                return millis ? new Date(millis).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '';
+                              })()}
+                            </span>
+                          </div>
                           <p className="text-xs text-gray-500 font-medium">{order.items.reduce((s, i) => s + i.quantity, 0)} món ăn/nước</p>
                         </div>
                         <div className="text-right">
@@ -1093,9 +1106,18 @@ const POS: React.FC = () => {
                                 }}
                                 className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 mt-0.5 cursor-pointer shrink-0"
                               />
-                              <span className={`${item.isServed ? 'line-through text-gray-400' : 'font-medium text-gray-800'}`}>
-                                {item.quantity}x {item.name}
-                              </span>
+                              <div className="flex flex-col">
+                                <span className={`${item.isServed ? 'line-through text-gray-400' : 'font-medium text-gray-800'}`}>
+                                  {item.quantity}x {item.name}
+                                </span>
+                                <span className="text-[10px] font-bold text-gray-400">
+                                  {(() => {
+                                    if (!item.cartItemId) return '';
+                                    const t = parseInt(item.cartItemId.substring(0, 13));
+                                    return isNaN(t) ? '' : new Date(t).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                                  })()}
+                                </span>
+                              </div>
                             </div>
                             <button
                               onClick={(e) => {
