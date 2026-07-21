@@ -43,7 +43,8 @@ const TableManager: React.FC = () => {
         let branchList: Branch[] = [];
         if (userRole === 'SUPER_ADMIN') {
           const branchSnap = await getDocs(collection(db, 'branches'));
-          branchList = branchSnap.docs.map(doc => ({ id: doc.id, name: doc.data().name }));
+          branchList = branchSnap.docs.map(doc => ({ id: doc.id, name: doc.data().name }))
+            .filter(b => b.id !== 'all' && b.id !== 'ALL' && b.name !== 'Tất cả cơ sở');
           setBranches(branchList);
           if (branchList.length > 0) {
             setSelectedBranch('all');

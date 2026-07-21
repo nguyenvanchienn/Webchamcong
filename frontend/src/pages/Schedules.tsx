@@ -218,6 +218,9 @@ const Schedules: React.FC = () => {
         if (emp) {
           empId = emp.id;
           empName = emp.fullName;
+          if (userRole === 'SUPER_ADMIN' && viewBranchId === 'ALL') {
+             targetBranches = [{ id: emp.branchId || '', name: emp.branchName || '' }];
+          }
         }
       } else {
         if (userRole === 'SUPER_ADMIN') {
