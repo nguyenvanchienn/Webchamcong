@@ -235,6 +235,84 @@ const POS: React.FC = () => {
 
   const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
+  const handleSaveTableOrder = async () => {
+    if (!currentTableOrderId || cart.length === 0) return;
+    setIsProcessing(true);
+    try {
+      const orderRef = doc(db, 'active_table_orders', currentTableOrderId);
+      const snap = await getDoc(orderRef);
+      
+      if (snap.exists()) {
+        const latestItems = snap.data().items || [];
+        const newItems = [...latestItems];
+        
+        // Calculate differences
+        for (const cartItem of cart) {
+           const existingCount = latestItems.filter((i:any) => i.id === cartItem.id).length;
+           const targetCount = cartItem.quantity;
+           
+           if (targetCount > existingCount) {
+             // Add new items
+             const diff = targetCount - existingCount;
+             for (let i = 0; i < diff; i++) {
+                newItems.push({
+                   ...cartItem,
+                   quantity: 1,
+                   cartItemId: Date.now().toString() + Math.random().toString(36).substring(2, 9),
+                   isServed: false
+                });
+             }
+           } else if (targetCount < existingCount) {
+             // Remove items (prefer unserved first)
+             let diff = existingCount - targetCount;
+             for (let i = newItems.length - 1; i >= 0 && diff > 0; i--) {
+                if (newItems[i].id === cartItem.id && !newItems[i].isServed) {
+                   newItems.splice(i, 1);
+                   diff--;
+                }
+             }
+             // If still need to remove, just remove from the end
+             for (let i = newItems.length - 1; i >= 0 && diff > 0; i--) {
+                if (newItems[i].id === cartItem.id) {
+                   newItems.splice(i, 1);
+                   diff--;
+                }
+             }
+           }
+        }
+        
+        // Remove items that are completely gone from cart
+        const cartIds = cart.map(c => c.id);
+        for (let i = newItems.length - 1; i >= 0; i--) {
+           if (!cartIds.includes(newItems[i].id)) {
+              newItems.splice(i, 1);
+           }
+        }
+        
+        const newTotal = newItems.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+        
+        await updateDoc(orderRef, {
+           items: newItems,
+           totalAmount: newTotal,
+           updatedAt: serverTimestamp()
+        });
+        
+        toast.success('Đã lưu đơn bàn!');
+        // Clear cart to return to default POS view
+        setCart([]);
+        setCurrentTableOrderId(null);
+        setCurrentTableId(null);
+        setCurrentTableName(null);
+        updatePosState({ cart: [], currentTableOrderId: null, currentTableId: null, currentTableName: null });
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error('Lỗi khi lưu đơn');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleCheckout = async () => {
     if (cart.length === 0) return;
     setIsProcessing(true);
@@ -566,23 +644,39 @@ const POS: React.FC = () => {
               {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(totalAmount)}
             </span>
           </div>
-          <button
-            onClick={() => {
-              setPaymentMethod('CASH');
-              setAmountTendered('0');
-              setShowPaymentModal(true);
-              updatePosState({ paymentMethod: 'CASH', amountTendered: '0', showPaymentModal: true });
-            }}
-            disabled={cart.length === 0 || isProcessing}
-            className="w-full flex items-center justify-center gap-2 py-4 bg-blue-600 text-white font-bold text-lg rounded-xl hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed shadow-lg shadow-blue-500/30 transition-all active:scale-[0.98]"
-          >
-            {isProcessing ? 'Đang xử lý...' : (
-              <>
-                <Receipt size={24} />
-                Thanh toán
-              </>
+          <div className="flex gap-2">
+            {currentTableOrderId && (
+              <button
+                onClick={handleSaveTableOrder}
+                disabled={cart.length === 0 || isProcessing}
+                className="flex-1 flex flex-col items-center justify-center gap-1 py-3 bg-orange-500 text-white font-bold rounded-xl hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed shadow-lg shadow-orange-500/30 transition-all active:scale-[0.98]"
+              >
+                {isProcessing ? 'Đang lưu...' : (
+                  <>
+                    <Store size={20} />
+                    <span>Lưu đơn</span>
+                  </>
+                )}
+              </button>
             )}
-          </button>
+            <button
+              onClick={() => {
+                setPaymentMethod('CASH');
+                setAmountTendered('0');
+                setShowPaymentModal(true);
+                updatePosState({ paymentMethod: 'CASH', amountTendered: '0', showPaymentModal: true });
+              }}
+              disabled={cart.length === 0 || isProcessing}
+              className={`flex flex-col items-center justify-center gap-1 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed shadow-lg shadow-blue-500/30 transition-all active:scale-[0.98] ${currentTableOrderId ? 'flex-[2]' : 'w-full flex-row text-lg'}`}
+            >
+              {isProcessing ? 'Đang xử lý...' : (
+                <>
+                  <Receipt size={currentTableOrderId ? 20 : 24} />
+                  <span>Thanh toán</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
