@@ -60,6 +60,7 @@ const POS: React.FC = () => {
   const [currentTableOrderId, setCurrentTableOrderId] = useState<string | null>(null);
   const [currentTableId, setCurrentTableId] = useState<string | null>(null);
   const [currentTableName, setCurrentTableName] = useState<string | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<{ orderId: string; tableId: string; tableName: string; itemIndex: number; itemName: string; orderItems: any[] } | null>(null);
 
   const navigate = useNavigate();
 
@@ -966,24 +967,16 @@ const POS: React.FC = () => {
                               </span>
                             </div>
                             <button
-                              onClick={async (e) => {
+                              onClick={(e) => {
                                 e.stopPropagation();
-                                if (window.confirm(`Bạn có chắc muốn xoá ${item.name} khỏi đơn của ${order.tableName}?`)) {
-                                  const newItems = [...order.items];
-                                  newItems.splice(idx, 1);
-                                  
-                                  if (newItems.length === 0) {
-                                    await deleteDoc(doc(db, 'active_table_orders', order.id));
-                                    await updateDoc(doc(db, 'tables', order.tableId), { status: 'AVAILABLE' });
-                                    toast.success(`Đã xoá bàn ${order.tableName}`);
-                                  } else {
-                                    const newTotal = newItems.reduce((sum, i) => sum + (i.price * i.quantity), 0);
-                                    await updateDoc(doc(db, 'active_table_orders', order.id), {
-                                      items: newItems,
-                                      totalAmount: newTotal
-                                    });
-                                  }
-                                }
+                                setItemToDelete({
+                                  orderId: order.id,
+                                  tableId: order.tableId,
+                                  tableName: order.tableName,
+                                  itemIndex: idx,
+                                  itemName: item.name,
+                                  orderItems: order.items
+                                });
                               }}
                               className="text-red-400 hover:text-red-600 transition-opacity p-1 -mr-2"
                               title="Xóa món này"
@@ -1006,6 +999,58 @@ const POS: React.FC = () => {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Xác nhận Xóa món */}
+      {itemToDelete && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-slide-up">
+            <div className="flex justify-center mb-4 text-red-500 bg-red-50 w-16 h-16 rounded-full items-center mx-auto">
+              <Trash2 size={32} />
+            </div>
+            <h3 className="text-xl font-bold text-center text-gray-800 mb-2">Xác nhận xoá món</h3>
+            <p className="text-gray-600 text-center mb-6 text-sm">
+              Bạn có chắc chắn muốn xoá <span className="font-bold text-gray-800">{itemToDelete.itemName}</span> khỏi đơn của <span className="font-bold text-blue-600">{itemToDelete.tableName}</span> không?
+            </p>
+            
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setItemToDelete(null)}
+                className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
+              >
+                Hủy
+              </button>
+              <button 
+                onClick={async () => {
+                  const { orderId, tableId, tableName, itemIndex, orderItems } = itemToDelete;
+                  const newItems = [...orderItems];
+                  newItems.splice(itemIndex, 1);
+                  
+                  try {
+                    if (newItems.length === 0) {
+                      await deleteDoc(doc(db, 'active_table_orders', orderId));
+                      await updateDoc(doc(db, 'tables', tableId), { status: 'AVAILABLE' });
+                      toast.success(`Đã xoá bàn ${tableName}`);
+                    } else {
+                      const newTotal = newItems.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+                      await updateDoc(doc(db, 'active_table_orders', orderId), {
+                        items: newItems,
+                        totalAmount: newTotal
+                      });
+                      toast.success('Đã xoá món');
+                    }
+                  } catch (e) {
+                    toast.error('Có lỗi xảy ra');
+                  }
+                  setItemToDelete(null);
+                }}
+                className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-200"
+              >
+                Xác nhận xoá
+              </button>
             </div>
           </div>
         </div>
