@@ -392,6 +392,8 @@ const POS: React.FC = () => {
     }
   };
 
+  const unservedTablesCount = activeTableOrders.filter(order => order.items.some(item => !item.isServed)).length;
+
   return (
     <div className="flex w-screen h-screen overflow-hidden bg-gray-100">
       {/* Cột trái: Menu */}
@@ -408,11 +410,11 @@ const POS: React.FC = () => {
             onClick={() => setShowTableOrdersModal(true)}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm shadow-sm transition-colors border ${activeTableOrders.length > 0 ? 'bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
           >
-            <Coffee size={18} className={activeTableOrders.length > 0 ? 'animate-pulse' : ''} />
+            <Coffee size={18} className={unservedTablesCount > 0 ? 'animate-pulse' : ''} />
             Bàn gọi món
-            {activeTableOrders.length > 0 && (
+            {unservedTablesCount > 0 && (
               <span className="bg-orange-500 text-white w-5 h-5 flex items-center justify-center rounded-full text-xs ml-1">
-                {activeTableOrders.length}
+                {unservedTablesCount}
               </span>
             )}
           </button>
