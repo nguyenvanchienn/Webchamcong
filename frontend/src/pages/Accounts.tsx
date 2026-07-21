@@ -301,6 +301,7 @@ const Accounts: React.FC = () => {
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="p-4 font-semibold text-gray-600 text-sm">Tài khoản (Email)</th>
                 <th className="p-4 font-semibold text-gray-600 text-sm">Quyền hạn</th>
+                <th className="p-4 font-semibold text-gray-600 text-sm">Cơ sở</th>
                 <th className="p-4 font-semibold text-gray-600 text-sm">Liên kết Hồ sơ</th>
                 <th className="p-4 font-semibold text-gray-600 text-sm text-right">Thao Tác</th>
               </tr>
@@ -316,7 +317,7 @@ const Accounts: React.FC = () => {
                 return false;
               }).length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="p-8 text-center text-gray-500">Chưa có tài khoản nào.</td>
+                  <td colSpan={5} className="p-8 text-center text-gray-500">Chưa có tài khoản nào.</td>
                 </tr>
               ) : (
                 accounts.filter(acc => {
@@ -340,6 +341,14 @@ const Accounts: React.FC = () => {
                     }`}>
                       {acc.role === 'KIOSK' ? 'Máy điểm danh' : acc.role === 'POS' ? 'Máy Order' : acc.role}
                     </span>
+                  </td>
+                  <td className="p-4 text-sm text-gray-600 font-medium">
+                    {acc.branchId 
+                      ? (branches.find(b => b.id === acc.branchId)?.name || 'Cơ sở không tồn tại') 
+                      : (acc.employeeId 
+                         ? (branches.find(b => b.id === employees.find(e => e.id === acc.employeeId)?.branchId)?.name || 'Không xác định') 
+                         : 'Tất cả cơ sở'
+                        )}
                   </td>
                   <td className="p-4 text-sm text-gray-600">
                     {acc.role === 'SUPER_ADMIN' ? 'Toàn quyền hệ thống' : 
