@@ -49,6 +49,7 @@ const Employees: React.FC = () => {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
   const [viewingSchedules, setViewingSchedules] = useState<any[]>([]);
+  const [filterBranchId, setFilterBranchId] = useState<string>('all');
 
   useEffect(() => {
     if (viewingEmployee) {
@@ -297,13 +298,25 @@ const Employees: React.FC = () => {
           <h2 className="text-xl font-bold text-gray-800">Danh sách Nhân viên</h2>
           <p className="text-sm text-gray-500">Quản lý hồ sơ nhân sự toàn hệ thống</p>
         </div>
-        <button 
-          onClick={() => openModal()}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center text-sm font-medium transition-colors"
-        >
-          <Plus size={18} className="mr-2" />
-          Thêm Nhân viên
-        </button>
+        <div className="flex items-center space-x-4">
+          <select
+            value={filterBranchId}
+            onChange={(e) => setFilterBranchId(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg outline-none focus:border-blue-500"
+          >
+            <option value="all">Tất cả cơ sở</option>
+            {branches.map(b => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+          <button 
+            onClick={() => openModal()}
+            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus size={20} className="mr-2" />
+            Thêm Nhân viên
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto overflow-y-hidden">
@@ -324,12 +337,14 @@ const Employees: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {employees.length === 0 ? (
+                {employees.filter(emp => filterBranchId === 'all' || emp.branchId === filterBranchId).length === 0 ? (
                   <tr>
                     <td colSpan={7} className="p-8 text-center text-gray-500">Chưa có nhân viên nào. Hãy thêm mới!</td>
                   </tr>
                 ) : (
-                  employees.map((emp) => (
+                  employees
+                    .filter(emp => filterBranchId === 'all' || emp.branchId === filterBranchId)
+                    .map((emp) => (
                     <tr 
                       key={emp.id} 
                       id={`emp-row-${emp.id}`}
