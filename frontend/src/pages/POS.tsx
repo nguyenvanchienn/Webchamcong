@@ -65,13 +65,13 @@ const POS: React.FC = () => {
   const [itemToDelete, setItemToDelete] = useState<{ orderId: string; tableId: string; tableName: string; itemIndex: number; itemName: string; orderItems: any[] } | null>(null);
 
   const navigate = useNavigate();
-  
+
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 60000);
     return () => clearInterval(timer);
   }, []);
-  
+
   const activeOrdersRef = React.useRef<ActiveTableOrder[]>([]);
   useEffect(() => {
     activeOrdersRef.current = activeTableOrders;
@@ -81,29 +81,29 @@ const POS: React.FC = () => {
     const notifyTimer = setInterval(() => {
       const orders = activeOrdersRef.current;
       const waitingOrders = orders.filter(o => o.items.some(i => !i.isServed));
-      
+
       if (waitingOrders.length > 0) {
         waitingOrders.slice(0, 3).forEach(o => {
           const unservedCount = o.items.filter(i => !i.isServed).reduce((sum, i) => sum + i.quantity, 0);
           toast(`${o.tableName} có ${unservedCount} món chưa được lên!`, { icon: '⏳', duration: 4000, style: { background: '#fff3cd', color: '#856404', fontWeight: 'bold', border: '1px solid #ffeeba' } });
         });
         if (waitingOrders.length > 3) {
-           toast(`Và ${waitingOrders.length - 3} bàn khác đang chờ...`, { duration: 4000 });
+          toast(`Và ${waitingOrders.length - 3} bàn khác đang chờ...`, { duration: 4000 });
         }
       }
-    }, 180000);
+    }, 180000); // 3 phút một lần thông báo đơn hàng chưa được giao
     return () => clearInterval(notifyTimer);
   }, []);
 
-  
+
   const formatElapsedTime = (startMillis: number) => {
     if (!startMillis) return '';
     const diff = Math.floor((now - startMillis) / 1000);
     if (diff < 60) return 'Vừa xong';
-    
+
     const hours = Math.floor(diff / 3600);
     const minutes = Math.floor((diff % 3600) / 60);
-    
+
     if (hours > 0) {
       return `${hours}h ${minutes}p`;
     }
@@ -171,13 +171,13 @@ const POS: React.FC = () => {
         const bItems = b.items || [];
         const aUnserved = aItems.filter(i => !i.isServed);
         const bUnserved = bItems.filter(i => !i.isServed);
-        
+
         const aHasUnserved = aUnserved.length > 0;
         const bHasUnserved = bUnserved.length > 0;
-        
+
         if (aHasUnserved && !bHasUnserved) return -1;
         if (!aHasUnserved && bHasUnserved) return 1;
-        
+
         if (aHasUnserved && bHasUnserved) {
           const getOldestUnservedTime = (unservedItems: CartItem[]) => {
             return Math.min(...unservedItems.map(i => {
@@ -187,7 +187,7 @@ const POS: React.FC = () => {
           };
           return getOldestUnservedTime(aUnserved) - getOldestUnservedTime(bUnserved);
         }
-        
+
         // Both have NO unserved items (or both are fully served)
         const getTime = (dateObj: any) => {
           if (!dateObj) return Infinity; // Put new/pending orders at the bottom
@@ -219,6 +219,68 @@ const POS: React.FC = () => {
     return () => unsub();
   }, []);
 
+  const getActiveCashierName = async (branchIdStr: string) => {
+    try {
+      const role = localStorage.getItem('userRole');
+      const userEmail = auth.currentUser?.email || '';
+      if (role === 'SUPER_ADMIN') return 'Admin';
+      
+      if (role === 'MANAGER') {
+        const empQ = query(collection(db, 'employees'), where('email', '==', userEmail));
+        const empSnap = await getDocs(empQ);
+        if (!empSnap.empty) {
+          const empData = empSnap.docs[0].data();
+          return `${empData.employeeId} - ${empData.name}`;
+        }
+        return `${localStorage.getItem('employeeId') || ''} - Quản lý`.replace(/^ - /, '');
+      }
+
+      // If POS, determine active cashiers by scanning shift and attendance
+      const empQ = query(collection(db, 'employees'), where('branchId', '==', branchIdStr), where('position', '==', 'Thu ngân'));
+      const empSnap = await getDocs(empQ);
+      const cashierIds = empSnap.docs.map(d => d.id);
+      
+      const todayStr = new Date().toLocaleDateString('en-CA');
+      const schQ = query(collection(db, 'schedules'), where('branchId', '==', branchIdStr), where('date', '==', todayStr));
+      const schSnap = await getDocs(schQ);
+
+      const attQ = query(collection(db, 'attendance'), where('date', '==', todayStr), where('branchId', '==', branchIdStr));
+      const attSnap = await getDocs(attQ);
+      const checkedInEmployeeIds = attSnap.docs.map(d => d.data().checkInTime ? d.data().employeeId : null).filter(Boolean);
+
+      const now = new Date();
+      let activeCashiers: string[] = [];
+
+      schSnap.forEach(d => {
+        const data = d.data();
+        if (data.employeeId && cashierIds.includes(data.employeeId) && checkedInEmployeeIds.includes(data.employeeId)) {
+          const match = data.shift.match(/\((\d{2}):(\d{2}) - (\d{2}):(\d{2})\)/);
+          if (match) {
+            const startH = parseInt(match[1]);
+            const startM = parseInt(match[2]);
+            let endH = parseInt(match[3]);
+            const endM = parseInt(match[4]);
+            if (endH < startH) endH += 24;
+
+            const shiftStart = new Date();
+            shiftStart.setHours(startH, startM, 0, 0);
+            const shiftEnd = new Date();
+            shiftEnd.setHours(endH, endM, 0, 0);
+
+            if (now >= shiftStart && now <= shiftEnd) {
+              activeCashiers.push(`${data.employeeId} - ${data.employeeName}`);
+            }
+          }
+        }
+      });
+      if (activeCashiers.length > 0) return activeCashiers.join(' & ');
+      return null;
+    } catch (e) {
+      console.error("Lỗi lấy thông tin thu ngân", e);
+      return null;
+    }
+  };
+
   useEffect(() => {
     const fetchMenu = async () => {
       try {
@@ -239,42 +301,8 @@ const POS: React.FC = () => {
               setStoreName(branchDoc.data().name);
               setStoreAddress(branchDoc.data().address || null);
             }
-            const empQ = query(collection(db, 'employees'), where('branchId', '==', branchId), where('position', '==', 'Thu ngân'));
-            const empSnap = await getDocs(empQ);
-            const cashierIds = empSnap.docs.map(d => d.id);
-
-            // Find scheduled cashier for today
-            const todayStr = new Date().toLocaleDateString('en-CA');
-            const schQ = query(collection(db, 'schedules'), where('branchId', '==', branchId), where('date', '==', todayStr));
-            const schSnap = await getDocs(schQ);
-
-            const now = new Date();
-            let activeCashier = null;
-
-            schSnap.forEach(d => {
-              const data = d.data();
-              if (data.employeeId && cashierIds.includes(data.employeeId)) {
-                const match = data.shift.match(/\((\d{2}):(\d{2}) - (\d{2}):(\d{2})\)/);
-                if (match) {
-                  const startH = parseInt(match[1]);
-                  const startM = parseInt(match[2]);
-                  let endH = parseInt(match[3]);
-                  const endM = parseInt(match[4]);
-                  if (endH < startH) endH += 24;
-
-                  const shiftStart = new Date();
-                  shiftStart.setHours(startH, startM, 0, 0);
-                  const shiftEnd = new Date();
-                  shiftEnd.setHours(endH, endM, 0, 0);
-
-                  if (now >= shiftStart && now <= shiftEnd) {
-                    activeCashier = data.employeeName;
-                  }
-                }
-              }
-            });
-
-            setCashierName(activeCashier);
+            const activeName = await getActiveCashierName(branchId);
+            setCashierName(activeName);
           } catch (e) {
             console.error("Error fetching branch/cashier info", e);
           }
@@ -409,39 +437,8 @@ const POS: React.FC = () => {
       const branchIdStr = localStorage.getItem('branchId');
       let finalCashierName = cashierName;
       if (branchIdStr) {
-        try {
-          const empQ = query(collection(db, 'employees'), where('branchId', '==', branchIdStr), where('position', '==', 'Thu ngân'));
-          const empSnap = await getDocs(empQ);
-          const cashierIds = empSnap.docs.map(d => d.id);
-          const todayStr = new Date().toLocaleDateString('en-CA');
-          const schQ = query(collection(db, 'schedules'), where('branchId', '==', branchIdStr), where('date', '==', todayStr));
-          const schSnap = await getDocs(schQ);
-          const now = new Date();
-          let activeCashier = null;
-          schSnap.forEach(d => {
-            const data = d.data();
-            if (data.employeeId && cashierIds.includes(data.employeeId)) {
-              const match = data.shift.match(/\((\d{2}):(\d{2}) - (\d{2}):(\d{2})\)/);
-              if (match) {
-                const startH = parseInt(match[1]);
-                const startM = parseInt(match[2]);
-                let endH = parseInt(match[3]);
-                const endM = parseInt(match[4]);
-                if (endH < startH) endH += 24;
-                const shiftStart = new Date();
-                shiftStart.setHours(startH, startM, 0, 0);
-                const shiftEnd = new Date();
-                shiftEnd.setHours(endH, endM, 0, 0);
-                if (now >= shiftStart && now <= shiftEnd) {
-                  activeCashier = data.employeeName;
-                }
-              }
-            }
-          });
-          if (activeCashier) finalCashierName = activeCashier;
-        } catch (e) {
-          console.error("Lỗi lấy thông tin ca lúc thanh toán", e);
-        }
+        const activeName = await getActiveCashierName(branchIdStr);
+        if (activeName) finalCashierName = activeName;
       }
 
       // Get sequential order code using transaction
@@ -791,8 +788,8 @@ const POS: React.FC = () => {
                     updatePosState({ paymentMethod: 'CASH', amountTendered: '0' });
                   }}
                   className={`flex-1 py-3 rounded-xl border-2 font-bold transition-all ${paymentMethod === 'CASH'
-                      ? 'border-blue-600 bg-blue-50 text-blue-700'
-                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                    ? 'border-blue-600 bg-blue-50 text-blue-700'
+                    : 'border-gray-200 text-gray-500 hover:border-gray-300'
                     }`}
                 >
                   Tiền mặt
@@ -803,8 +800,8 @@ const POS: React.FC = () => {
                     updatePosState({ paymentMethod: 'TRANSFER' });
                   }}
                   className={`flex-1 py-3 rounded-xl border-2 font-bold transition-all ${paymentMethod === 'TRANSFER'
-                      ? 'border-blue-600 bg-blue-50 text-blue-700'
-                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                    ? 'border-blue-600 bg-blue-50 text-blue-700'
+                    : 'border-gray-200 text-gray-500 hover:border-gray-300'
                     }`}
                 >
                   Chuyển khoản
@@ -1074,9 +1071,8 @@ const POS: React.FC = () => {
                   {activeTableOrders.map(order => (
                     <div
                       key={order.id}
-                      className={`bg-white border-2 rounded-2xl p-4 cursor-pointer transition-all ${
-                        currentTableOrderId === order.id ? 'border-blue-500 shadow-md ring-4 ring-blue-50' : 'border-transparent shadow-sm hover:shadow-md hover:border-gray-200'
-                      }`}
+                      className={`bg-white border-2 rounded-2xl p-4 cursor-pointer transition-all ${currentTableOrderId === order.id ? 'border-blue-500 shadow-md ring-4 ring-blue-50' : 'border-transparent shadow-sm hover:shadow-md hover:border-gray-200'
+                        }`}
                       onClick={async () => {
                         // Mark as read if it has new items
                         if (order.hasNewItems) {
