@@ -29,6 +29,7 @@ interface ActiveTableOrder {
   items: CartItem[];
   totalAmount: number;
   hasNewItems?: boolean;
+  createdAt?: any;
   updatedAt?: any;
 }
 
@@ -120,16 +121,30 @@ const POS: React.FC = () => {
 
       // Sort tables: 
       // 1. Tables with unserved items at the top
-      // 2. Older updatedAt first (waiting longest)
+      // 2. Sort unserved tables by the timestamp of their OLDEST unserved item
       list.sort((a, b) => {
         const aItems = a.items || [];
         const bItems = b.items || [];
-        const aHasUnserved = aItems.some(i => !i.isServed);
-        const bHasUnserved = bItems.some(i => !i.isServed);
-
+        const aUnserved = aItems.filter(i => !i.isServed);
+        const bUnserved = bItems.filter(i => !i.isServed);
+        
+        const aHasUnserved = aUnserved.length > 0;
+        const bHasUnserved = bUnserved.length > 0;
+        
         if (aHasUnserved && !bHasUnserved) return -1;
         if (!aHasUnserved && bHasUnserved) return 1;
-
+        
+        if (aHasUnserved && bHasUnserved) {
+          const getOldestUnservedTime = (unservedItems: CartItem[]) => {
+            return Math.min(...unservedItems.map(i => {
+              const ts = parseInt(i.cartItemId?.substring(0, 13) || '');
+              return isNaN(ts) ? Infinity : ts;
+            }));
+          };
+          return getOldestUnservedTime(aUnserved) - getOldestUnservedTime(bUnserved);
+        }
+        
+        // Both have NO unserved items (or both are fully served)
         const getTime = (dateObj: any) => {
           if (!dateObj) return Infinity; // Put new/pending orders at the bottom
           if (typeof dateObj.toMillis === 'function') return dateObj.toMillis();
@@ -137,9 +152,9 @@ const POS: React.FC = () => {
           return Infinity;
         };
 
-        const timeA = getTime(a.createdAt || a.updatedAt);
-        const timeB = getTime(b.createdAt || b.updatedAt);
-        return timeA - timeB;
+        const timeA = getTime(a.updatedAt);
+        const timeB = getTime(b.updatedAt);
+        return timeB - timeA; // Descending (most recently served at the top of the "served" group)
       });
 
       setActiveTableOrders(list);
