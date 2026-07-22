@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, doc, onSnapshot, updateDoc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { ShoppingCart, Trash2, Plus, Minus, Store, X, LayoutDashboard, Receipt } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
