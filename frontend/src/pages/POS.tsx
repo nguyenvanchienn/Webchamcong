@@ -3,7 +3,7 @@ import { collection, getDocs, getDoc, addDoc, serverTimestamp, query, where, doc
 import { db, auth } from '../config/firebase';
 import { EmailAuthProvider, reauthenticateWithCredential, signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingCart, Trash2, Plus, Minus, Receipt, CheckCircle, Printer, LogOut, Lock, X, Grip, LayoutDashboard, Store, Coffee, QrCode, ClipboardCheck } from 'lucide-react';
+import { ShoppingCart, Trash2, Plus, Minus, Receipt, CheckCircle, Printer, LogOut, Lock, X, Grip, LayoutDashboard, Store, Coffee, QrCode, ClipboardCheck, MonitorSmartphone, MonitorOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface MenuItem {
@@ -70,6 +70,7 @@ const POS: React.FC = () => {
 
   const navigate = useNavigate();
 
+  const [isSyncToCustomerEnabled, setIsSyncToCustomerEnabled] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollTimeoutRef = useRef<any>(null);
   const isSyncingScroll = useRef(false);
@@ -129,7 +130,7 @@ const POS: React.FC = () => {
   };
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    if (isSyncingScroll.current) return;
+    if (isSyncingScroll.current || !isSyncToCustomerEnabled) return;
     const scrollTop = e.currentTarget.scrollTop;
     if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
     scrollTimeoutRef.current = setTimeout(() => {
@@ -607,6 +608,15 @@ const POS: React.FC = () => {
             )}
           </button>
 
+          <button
+            onClick={() => setIsSyncToCustomerEnabled(!isSyncToCustomerEnabled)}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm shadow-sm transition-colors border ${isSyncToCustomerEnabled ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100' : 'bg-gray-100 border-gray-200 text-gray-500 hover:bg-gray-200'}`}
+            title={isSyncToCustomerEnabled ? 'Đang đồng bộ màn hình khách' : 'Đã tắt đồng bộ màn hình khách'}
+          >
+            {isSyncToCustomerEnabled ? <MonitorSmartphone size={18} /> : <MonitorOff size={18} />}
+            {isSyncToCustomerEnabled ? 'Đồng bộ KH' : 'Tắt đồng bộ'}
+          </button>
+
           <div className="w-px h-8 bg-gray-300 mx-2 shrink-0"></div>
 
           {categories.map(c => (
@@ -614,7 +624,9 @@ const POS: React.FC = () => {
               key={c}
               onClick={() => {
                 setActiveCategory(c);
-                updatePosState({ activeCategory: c });
+                if (isSyncToCustomerEnabled) {
+                  updatePosState({ activeCategory: c });
+                }
               }}
               className={`px-5 py-2.5 rounded-full font-bold text-sm transition-all shadow-sm ${activeCategory === c
                 ? 'bg-blue-600 text-white shadow-blue-500/30'
