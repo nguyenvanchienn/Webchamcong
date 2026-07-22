@@ -224,58 +224,50 @@ const POS: React.FC = () => {
   const getActiveCashierName = async (branchIdStr: string) => {
     try {
       const role = localStorage.getItem('userRole');
-      const userEmail = auth.currentUser?.email || '';
+      const empId = localStorage.getItem('employeeId');
+
       if (role === 'SUPER_ADMIN') return 'Admin';
       
-      if (role === 'MANAGER') {
-        const empQ = query(collection(db, 'employees'), where('email', '==', userEmail));
-        const empSnap = await getDocs(empQ);
-        if (!empSnap.empty) {
-          const empData = empSnap.docs[0].data();
-          return `${empData.employeeId} - ${empData.name}`;
+      if (role === 'BRANCH_ADMIN') {
+        if (empId) {
+          const empDoc = await getDoc(doc(db, 'employees', empId));
+          if (empDoc.exists()) return `${empDoc.data().employeeId} - ${empDoc.data().fullName || empDoc.data().name || ''}`;
         }
-        return `${localStorage.getItem('employeeId') || ''} - Quản lý`.replace(/^ - /, '');
+        return `Quản lý`;
       }
 
-      // If POS, determine active cashiers by scanning shift and attendance
-      const empQ = query(collection(db, 'employees'), where('branchId', '==', branchIdStr), where('position', '==', 'Thu ngân'));
-      const empSnap = await getDocs(empQ);
-      const cashierIds = empSnap.docs.map(d => d.id);
-      
-      const todayStr = new Date().toLocaleDateString('en-CA');
-      const schQ = query(collection(db, 'schedules'), where('branchId', '==', branchIdStr), where('date', '==', todayStr));
-      const schSnap = await getDocs(schQ);
+      // Nếu đăng nhập bằng tài khoản nhân viên / thu ngân cá nhân
+      if (empId && (role === 'CASHIER' || role === 'EMPLOYEE')) {
+         const empDoc = await getDoc(doc(db, 'employees', empId));
+         if (empDoc.exists()) return `${empDoc.data().employeeId} - ${empDoc.data().fullName || empDoc.data().name || ''}`;
+      }
 
+      // Nếu là tài khoản POS dùng chung (role === 'POS'), tìm nhân viên Thu ngân đang check-in
+      const todayStr = new Date().toLocaleDateString('en-CA');
       const attQ = query(collection(db, 'attendance'), where('date', '==', todayStr), where('branchId', '==', branchIdStr));
       const attSnap = await getDocs(attQ);
-      const checkedInEmployeeIds = attSnap.docs.map(d => d.data().checkInTime ? d.data().employeeId : null).filter(Boolean);
+      // Lấy danh sách ID của những người đang check-in (chưa check-out)
+      const checkedInEmployeeIds = attSnap.docs.map(d => (d.data().checkIn && !d.data().checkOut) ? d.data().employeeId : null).filter(Boolean);
 
-      const now = new Date();
-      let activeCashiers: string[] = [];
-
-      schSnap.forEach(d => {
-        const data = d.data();
-        if (data.employeeId && cashierIds.includes(data.employeeId) && checkedInEmployeeIds.includes(data.employeeId)) {
-          const match = data.shift.match(/\((\d{2}):(\d{2}) - (\d{2}):(\d{2})\)/);
-          if (match) {
-            const startH = parseInt(match[1]);
-            const startM = parseInt(match[2]);
-            let endH = parseInt(match[3]);
-            const endM = parseInt(match[4]);
-            if (endH < startH) endH += 24;
-
-            const shiftStart = new Date();
-            shiftStart.setHours(startH, startM, 0, 0);
-            const shiftEnd = new Date();
-            shiftEnd.setHours(endH, endM, 0, 0);
-
-            if (now >= shiftStart && now <= shiftEnd) {
-              activeCashiers.push(`${data.employeeId} - ${data.employeeName}`);
-            }
-          }
+      if (checkedInEmployeeIds.length > 0) {
+        const activeCashiers: string[] = [];
+        for (const id of checkedInEmployeeIds) {
+           const empDoc = await getDoc(doc(db, 'employees', id as string));
+           if (empDoc.exists()) {
+              const pos = (empDoc.data().position || '').toLowerCase();
+              // Ưu tiên người có chức vụ thu ngân hoặc quản lý
+              if (pos.includes('thu ngân') || pos.includes('cashier') || pos.includes('quản lý') || pos.includes('manager')) {
+                activeCashiers.push(`${empDoc.data().employeeId} - ${empDoc.data().fullName || empDoc.data().name || ''}`);
+              }
+           }
         }
-      });
-      if (activeCashiers.length > 0) return activeCashiers.join(' & ');
+        if (activeCashiers.length > 0) return activeCashiers.join(' & ');
+        
+        // Nếu không có thu ngân nào, cứ lấy đại người đang check-in đầu tiên
+        const firstEmpDoc = await getDoc(doc(db, 'employees', checkedInEmployeeIds[0] as string));
+        if (firstEmpDoc.exists()) return `${firstEmpDoc.data().employeeId} - ${firstEmpDoc.data().fullName || firstEmpDoc.data().name || ''}`;
+      }
+      
       return null;
     } catch (e) {
       console.error("Lỗi lấy thông tin thu ngân", e);
