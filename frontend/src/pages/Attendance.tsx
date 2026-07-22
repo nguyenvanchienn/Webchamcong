@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, getDocs, addDoc, updateDoc, doc, query, where, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import toast from 'react-hot-toast';
-import { Clock, Edit2, Check, X, CheckCircle } from 'lucide-react';
+import { Clock, Edit2, Check, X, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { TimeInput24 } from '../components/TimeInput24';
 
 interface Employee {
@@ -245,9 +245,9 @@ const Attendance: React.FC = () => {
         const timeA = (a.checkIn instanceof Date && !isNaN(a.checkIn.getTime())) ? a.checkIn.getTime() : 0;
         const timeB = (b.checkIn instanceof Date && !isNaN(b.checkIn.getTime())) ? b.checkIn.getTime() : 0;
         
-        // Nếu cả 2 đều chưa check-in (time = 0), xếp theo tên
+        // Nếu cả 2 đều chưa check-in (time = 0), xếp theo mã nhân viên để ổn định thứ tự (Z-A để STT chạy từ A-Z)
         if (timeA === 0 && timeB === 0) {
-          return (a.employeeName || '').localeCompare(b.employeeName || '');
+          return (b.employeeCode || '').localeCompare(a.employeeCode || '');
         }
         
         // Ai chưa check-in thì đẩy xuống dưới cùng
@@ -412,18 +412,38 @@ const Attendance: React.FC = () => {
   };
 
 
+  const handlePrevDay = () => {
+    const d = new Date(filterDate);
+    d.setDate(d.getDate() - 1);
+    setFilterDate(d.toLocaleDateString('en-CA'));
+  };
+
+  const handleNextDay = () => {
+    const d = new Date(filterDate);
+    d.setDate(d.getDate() + 1);
+    setFilterDate(d.toLocaleDateString('en-CA'));
+  };
+
   return (
     <div className="space-y-6">
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
           <h2 className="text-xl font-bold text-gray-800">Quản lý Chấm công</h2>
           <div className="flex items-center gap-3 mt-2">
-            <input 
-              type="date"
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
-              className="px-3 py-1.5 border border-gray-300 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm"
-            />
+            <div className="flex items-center gap-1">
+              <button onClick={handlePrevDay} className="p-1 hover:bg-gray-100 rounded text-gray-600 transition-colors" title="Ngày hôm trước">
+                <ChevronLeft size={20} />
+              </button>
+              <input 
+                type="date"
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                className="px-3 py-1.5 border border-gray-300 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm"
+              />
+              <button onClick={handleNextDay} className="p-1 hover:bg-gray-100 rounded text-gray-600 transition-colors" title="Ngày hôm sau">
+                <ChevronRight size={20} />
+              </button>
+            </div>
             {localStorage.getItem('userRole') === 'SUPER_ADMIN' && (
               <select
                 value={filterBranchId}
