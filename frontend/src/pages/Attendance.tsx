@@ -12,6 +12,7 @@ interface Employee {
   branchName: string;
   branchId?: string;
   salaryPerHour?: number;
+  position?: string;
 }
 
 interface AttendanceRecord {
@@ -89,7 +90,7 @@ const Attendance: React.FC = () => {
            return;
         }
 
-        empList.push({ id: d.id, fullName: data.fullName, employeeCode: data.employeeCode, branchName: data.branchName, branchId: data.branchId });
+        empList.push({ id: d.id, fullName: data.fullName, employeeCode: data.employeeCode, branchName: data.branchName, branchId: data.branchId, position: data.position || 'Khác' });
       });
       setEmployees(empList);
 
@@ -464,13 +465,36 @@ const Attendance: React.FC = () => {
             className="px-3 py-2 border border-gray-300 rounded-lg outline-none"
           >
             <option value="">-- Chọn nhân viên --</option>
-            {employees
-              .filter(e => localStorage.getItem('userRole') !== 'SUPER_ADMIN' || filterBranchId === 'ALL' || e.branchId === filterBranchId)
-              .map(e => (
-                <option key={e.id} value={e.id}>
-                  [{e.employeeCode || 'No ID'}] {e.fullName} - {e.branchName}
-                </option>
-              ))}
+            {(() => {
+              const filtered = employees.filter(e => localStorage.getItem('userRole') !== 'SUPER_ADMIN' || filterBranchId === 'ALL' || e.branchId === filterBranchId);
+              
+              const grouped: Record<string, Employee[]> = {};
+              filtered.forEach(e => {
+                const pos = e.position || 'Khác';
+                if (!grouped[pos]) grouped[pos] = [];
+                grouped[pos].push(e);
+              });
+
+              const positionOrder = ['Quản lý', 'Quản lý cơ sở', 'Trưởng ca', 'Thu ngân', 'Pha chế', 'Phục vụ', 'Nhân viên', 'Bảo vệ', 'Tạp vụ', 'Khác'];
+              const sortedPositions = Object.keys(grouped).sort((a, b) => {
+                const idxA = positionOrder.indexOf(a);
+                const idxB = positionOrder.indexOf(b);
+                if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                if (idxA !== -1) return -1;
+                if (idxB !== -1) return 1;
+                return a.localeCompare(b);
+              });
+
+              return sortedPositions.map(pos => (
+                <optgroup key={pos} label={`--- ${pos} ---`}>
+                  {grouped[pos].map(e => (
+                    <option key={e.id} value={e.id}>
+                      [{e.employeeCode || 'No ID'}] {e.fullName} - {e.branchName}
+                    </option>
+                  ))}
+                </optgroup>
+              ));
+            })()}
           </select>
           <button 
             onClick={handleAction}
