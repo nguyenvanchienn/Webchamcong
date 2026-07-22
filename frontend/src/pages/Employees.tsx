@@ -578,13 +578,12 @@ const Employees: React.FC = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:border-blue-500 bg-white"
                   >
                     <option value="Quản lý">Quản lý</option>
-                    <option value="Trưởng ca">Trưởng ca</option>
                     <option value="Nhân viên">Nhân viên</option>
                     <option value="Nhân viên phục vụ">Nhân viên phục vụ</option>
                     <option value="Thu ngân">Thu ngân</option>
                     <option value="Pha chế">Pha chế</option>
+                    <option value="Bếp">Bếp</option>
                     <option value="Bảo vệ">Bảo vệ</option>
-                    <option value="Tạp vụ">Tạp vụ</option>
                   </select>
                 </div>
                 <div>
