@@ -50,8 +50,8 @@ const Accounts: React.FC = () => {
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [passwordFormData, setPasswordFormData] = useState({ id: '', email: '', oldPassword: '', password: '', confirmPassword: '' });
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       // Get employees for dropdown and mapping
       const empSnap = await getDocs(collection(db, 'employees'));
@@ -106,7 +106,7 @@ const Accounts: React.FC = () => {
     } catch (error) {
       console.error("Lỗi lấy danh sách tài khoản:", error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -128,7 +128,7 @@ const Accounts: React.FC = () => {
         });
         toast.success('Cập nhật quyền hạn thành công!');
         closeModal();
-        fetchData();
+        fetchData(true);
       } catch (error: any) {
         toast.error('Lỗi: ' + error.message);
       }
@@ -166,7 +166,7 @@ const Accounts: React.FC = () => {
 
       toast.success('Tạo tài khoản thành công!');
       closeModal();
-      fetchData();
+      fetchData(true);
     } catch (error: any) {
       toast.error('Lỗi: ' + error.message);
     }
@@ -189,7 +189,7 @@ const Accounts: React.FC = () => {
         import('firebase/firestore').then(({ deleteDoc, doc }) => {
            deleteDoc(doc(db, 'users', id)).then(() => {
              toast.success('Đã xóa tài khoản khỏi hệ thống!');
-             fetchData();
+             fetchData(true);
            });
         });
       } catch (error) {

@@ -64,8 +64,8 @@ const ShiftHandovers = () => {
   const [tempRevenueCash, setTempRevenueCash] = useState(0);
   const [tempRevenueTransfer, setTempRevenueTransfer] = useState(0);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       // 1. Fetch Branches
       const branchSnap = await getDocs(collection(db, 'branches'));
@@ -165,8 +165,9 @@ const ShiftHandovers = () => {
 
     } catch (error) {
       console.error("Lỗi lấy dữ liệu ca:", error);
-    }
-    setLoading(false);
+    } finally {
+      if (!silent) setLoading(false);
+    };
   };
 
   useEffect(() => {
@@ -203,6 +204,10 @@ const ShiftHandovers = () => {
       console.error("Lỗi tính doanh thu:", err);
       return { revCash: 0, revTrans: 0 };
     }
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
   };
 
   const handleOpenShift = () => {
@@ -279,6 +284,8 @@ const ShiftHandovers = () => {
           notes
         });
         toast.success('Mở ca thành công!');
+        fetchData(true);
+        closeModal();
       } else if (modalMode === 'CLOSE') {
         // Đóng ca
         if (!activeShift) return;
@@ -296,6 +303,8 @@ const ShiftHandovers = () => {
         });
         toast.success('Chốt ca thành công!');
         setActiveShift(null);
+        fetchData(true);
+        closeModal();
       } else if (modalMode === 'EDIT' && editingShiftId && activeShift) {
         const changes: string[] = [];
         
@@ -349,9 +358,9 @@ const ShiftHandovers = () => {
         toast.success('Cập nhật ca thành công!');
         setActiveShift(null);
         setEditingShiftId(null);
+        fetchData(true);
+        closeModal();
       }
-      setIsModalOpen(false);
-      fetchData();
     } catch (err) {
       console.error("Lỗi khi lưu ca:", err);
       toast.error('Lỗi khi lưu ca làm việc');
@@ -363,7 +372,7 @@ const ShiftHandovers = () => {
       try {
         await deleteDoc(doc(db, 'shift_reports', id));
         toast.success('Đã xóa báo cáo');
-        fetchData();
+        fetchData(true);
       } catch (err) {
         toast.error('Lỗi khi xóa');
       }

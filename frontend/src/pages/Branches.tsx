@@ -28,8 +28,8 @@ const Branches: React.FC = () => {
     status: 'ACTIVE'
   });
 
-  const fetchBranches = async () => {
-    setLoading(true);
+  const fetchBranches = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       // Get all active BRANCH_ADMINs
       const usersSnap = await getDocs(collection(db, 'users'));
@@ -67,7 +67,7 @@ const Branches: React.FC = () => {
     } catch (error) {
       console.error("Lỗi lấy danh sách cơ sở:", error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -89,7 +89,7 @@ const Branches: React.FC = () => {
         toast.success('Thêm cơ sở mới thành công!');
       }
       closeModal();
-      fetchBranches();
+      fetchBranches(true);
     } catch (error) {
       console.error("Lỗi lưu cơ sở:", error);
       toast.error('Có lỗi xảy ra khi lưu dữ liệu!');
@@ -110,7 +110,7 @@ const Branches: React.FC = () => {
       try {
         await deleteDoc(doc(db, 'branches', id));
         toast.success('Đã xóa cơ sở!');
-        fetchBranches();
+        fetchBranches(true);
       } catch (error) {
         console.error("Lỗi xóa cơ sở:", error);
         toast.error('Lỗi khi xóa!');

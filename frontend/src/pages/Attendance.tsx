@@ -50,8 +50,8 @@ const Attendance: React.FC = () => {
   const [editCheckIn, setEditCheckIn] = useState<string>('');
   const [editCheckOut, setEditCheckOut] = useState<string>('');
 
-  const fetchAttendance = async () => {
-    setLoading(true);
+  const fetchAttendance = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const userRole = localStorage.getItem('userRole');
       const currentUserEmployeeId = localStorage.getItem('employeeId');
@@ -261,9 +261,9 @@ const Attendance: React.FC = () => {
 
       setRecords(attList);
     } catch (error) {
-      console.error("Lỗi lấy dữ liệu chấm công:", error);
+      console.error(error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -340,7 +340,7 @@ const Attendance: React.FC = () => {
         }
         toast.success(`Đã Check-in cho ${emp.fullName}!`);
       }
-      fetchAttendance();
+      fetchAttendance(true);
     } catch (error) {
       toast.error('Có lỗi xảy ra!');
       console.error(error);
@@ -403,7 +403,7 @@ const Attendance: React.FC = () => {
           await updateDoc(doc(db, 'attendance', record.id), updates);
         }
         toast.success('Cập nhật giờ thành công!');
-        fetchAttendance();
+        fetchAttendance(true);
       }
       setEditingId(null);
     } catch (error) {

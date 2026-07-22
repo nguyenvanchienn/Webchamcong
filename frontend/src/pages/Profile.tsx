@@ -59,8 +59,8 @@ const Profile: React.FC = () => {
   const employeeId = localStorage.getItem('employeeId');
   const userEmail = localStorage.getItem('userEmail');
 
-  const fetchProfile = async () => {
-    setLoading(true);
+  const fetchProfile = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       if (employeeId) {
         const empDoc = await getDoc(doc(db, 'employees', employeeId));
@@ -86,7 +86,7 @@ const Profile: React.FC = () => {
     } catch (error) {
       console.error("Lỗi lấy thông tin:", error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -158,7 +158,7 @@ const Profile: React.FC = () => {
       });
       
       toast.success('Cập nhật thông tin thành công!');
-      fetchProfile();
+      fetchProfile(true);
     } catch (err: any) {
       console.error(err);
       toast.error('Lỗi cập nhật: ' + err.message);

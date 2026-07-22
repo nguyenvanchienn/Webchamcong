@@ -103,8 +103,8 @@ const Schedules: React.FC = () => {
   const [myInfo, setMyInfo] = useState<Employee | null>(null);
   const [viewBranchId, setViewBranchId] = useState('ALL');
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const empSnap = await getDocs(collection(db, 'employees'));
       const allEmps: Employee[] = [];
@@ -199,7 +199,7 @@ const Schedules: React.FC = () => {
     } catch (error) {
       console.error("Lỗi lấy lịch làm việc:", error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -352,7 +352,7 @@ const Schedules: React.FC = () => {
       }
       
       toast.success('Đã tạo ca làm việc thành công!');
-      fetchData();
+      fetchData(true);
     } catch (error) {
       toast.error('Lỗi khi phân ca!');
     }
@@ -370,7 +370,7 @@ const Schedules: React.FC = () => {
     if (result.isConfirmed) {
       try {
         await deleteDoc(doc(db, 'schedules', id));
-        fetchData();
+        fetchData(true);
       } catch (error) {
         toast.error('Lỗi xóa ca!');
       }
@@ -463,7 +463,7 @@ const Schedules: React.FC = () => {
       }
       toast.success('Đã cập nhật ca làm việc!');
       setEditingSlot(null);
-      fetchData();
+      fetchData(true);
     } catch (error) {
       toast.error('Lỗi khi cập nhật ca!');
     }
@@ -486,7 +486,7 @@ const Schedules: React.FC = () => {
         const promises = shiftsInSlot.map(s => deleteDoc(doc(db, 'schedules', s.id)));
         await Promise.all(promises);
         toast.success(`Đã xóa thành công ${shiftsInSlot.length} vị trí!`);
-        fetchData();
+        fetchData(true);
       } catch (error) {
         toast.error('Lỗi khi xóa ca!');
       }
@@ -558,7 +558,7 @@ const Schedules: React.FC = () => {
       await Promise.all(promises);
       toast.success('Đã cập nhật cấu trúc ca làm việc!');
       setEditBlockModal({ ...editBlockModal, isOpen: false });
-      fetchData();
+      fetchData(true);
     } catch (error) {
       toast.error('Lỗi khi cập nhật ca làm việc!');
     }
@@ -615,7 +615,7 @@ const Schedules: React.FC = () => {
       }
 
       toast.success('Đăng ký ca làm thành công!');
-      fetchData();
+      fetchData(true);
     } catch (error) {
       toast.error('Lỗi khi đăng ký ca!');
     }
@@ -651,7 +651,7 @@ const Schedules: React.FC = () => {
         }
         
         toast.success('Đã hủy đăng ký ca!');
-        fetchData();
+        fetchData(true);
       } catch (error) {
         toast.error('Lỗi khi hủy ca!');
       }

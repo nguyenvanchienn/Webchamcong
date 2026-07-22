@@ -103,8 +103,8 @@ const Employees: React.FC = () => {
     status: 'ACTIVE'
   });
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       // Load Branches for Select Option
       const branchSnap = await getDocs(collection(db, 'branches'));
@@ -160,7 +160,7 @@ const Employees: React.FC = () => {
     } catch (error) {
       console.error("Lỗi lấy dữ liệu:", error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -222,7 +222,7 @@ const Employees: React.FC = () => {
         toast.success('Thêm nhân viên mới thành công!');
       }
       closeModal();
-      fetchData();
+      fetchData(true);
     } catch (error) {
       console.error("Lỗi lưu nhân viên:", error);
       toast.error('Có lỗi xảy ra khi lưu dữ liệu!');
@@ -242,7 +242,7 @@ const Employees: React.FC = () => {
       try {
         await deleteDoc(doc(db, 'employees', id));
         toast.success('Đã xóa nhân viên!');
-        fetchData();
+        fetchData(true);
       } catch (error) {
         console.error("Lỗi xóa nhân viên:", error);
         toast.error('Có lỗi xảy ra khi xóa!');
