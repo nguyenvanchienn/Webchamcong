@@ -355,6 +355,7 @@ const Accounts: React.FC = () => {
           <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="p-4 font-semibold text-gray-600 text-sm">STT</th>
                 <th className="p-4 font-semibold text-gray-600 text-sm">Tài khoản (Email)</th>
                 <th className="p-4 font-semibold text-gray-600 text-sm">Quyền hạn</th>
                 <th className="p-4 font-semibold text-gray-600 text-sm">Cơ sở</th>
@@ -373,7 +374,7 @@ const Accounts: React.FC = () => {
                 return false;
               }).length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="p-8 text-center text-gray-500">Chưa có tài khoản nào.</td>
+                  <td colSpan={6} className="p-8 text-center text-gray-500">Chưa có tài khoản nào.</td>
                 </tr>
               ) : (
                 accounts.filter(acc => {
@@ -384,8 +385,9 @@ const Accounts: React.FC = () => {
                     if (emp && emp.branchId === filterBranchId) return true;
                   }
                   return false;
-                }).map((acc) => (
+                }).map((acc, index) => (
                 <tr key={acc.id} className="border-b border-gray-100 hover:bg-gray-50">
+                  <td className="p-4 text-sm text-gray-600 font-medium">{index + 1}</td>
                   <td className="p-4 text-sm font-medium text-gray-800">{acc.email}</td>
                   <td className="p-4">
                     <span className={`px-2 py-1 rounded-full text-xs font-semibold ${

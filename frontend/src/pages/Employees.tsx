@@ -330,6 +330,7 @@ const Employees: React.FC = () => {
             <table className="w-full text-left border-collapse whitespace-nowrap">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="p-4 font-semibold text-gray-600 text-sm">STT</th>
                   <th className="p-4 font-semibold text-gray-600 text-sm">Họ và Tên</th>
                   <th className="p-4 font-semibold text-gray-600 text-sm">Chức vụ</th>
                   <th className="p-4 font-semibold text-gray-600 text-sm">Cơ sở làm việc</th>
@@ -342,17 +343,18 @@ const Employees: React.FC = () => {
               <tbody>
                 {employees.filter(emp => filterBranchId === 'all' || emp.branchId === filterBranchId).length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-gray-500">Chưa có nhân viên nào. Hãy thêm mới!</td>
+                    <td colSpan={8} className="p-8 text-center text-gray-500">Chưa có nhân viên nào. Hãy thêm mới!</td>
                   </tr>
                 ) : (
                   employees
                     .filter(emp => filterBranchId === 'all' || emp.branchId === filterBranchId)
-                    .map((emp) => (
+                    .map((emp, index) => (
                     <tr 
                       key={emp.id} 
                       id={`emp-row-${emp.id}`}
                       className={`border-b border-gray-100 transition-colors ${highlightId === emp.id ? 'bg-yellow-50 hover:bg-yellow-100' : 'hover:bg-gray-50'}`}
                     >
+                      <td className="p-4 text-sm text-gray-600 font-medium">{index + 1}</td>
                       <td className="p-4 text-sm font-medium text-gray-800">
                         <button 
                           onClick={() => setViewingEmployee(emp)} 
