@@ -129,8 +129,8 @@ const Payroll: React.FC = () => {
     }
   }, [userRole]);
 
-  const fetchPayroll = async () => {
-    setLoading(true);
+  const fetchPayroll = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       let latePenaltyMap: Record<string, number> = { ALL: 0 };
       const settingsDoc = await getDoc(doc(db, 'settings', 'general'));
@@ -510,7 +510,7 @@ const Payroll: React.FC = () => {
     } catch (error) {
       console.error("Lỗi tính lương:", error);
     } finally {
-      setLoading(false);
+        if (!silent) setLoading(false);
     }
   };
 
@@ -560,7 +560,7 @@ const Payroll: React.FC = () => {
 
       setPaymentModalData(null);
       toast.success('Đã đánh dấu thanh toán!');
-      fetchPayroll(); // refresh
+      fetchPayroll(true); // refresh without full loading screen
     } catch (error) {
       console.error(error);
       toast.error('Lỗi cập nhật thanh toán');
