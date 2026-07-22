@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, query, where, doc, getDoc, addDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { Wallet, CalendarDays, Clock, X, CheckCircle } from 'lucide-react';
+import { Wallet, CalendarDays, Clock, X, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -661,17 +661,40 @@ const Payroll: React.FC = () => {
                 </select>
               )}
               <label className="text-sm font-medium text-gray-700">Chọn tháng:</label>
-              <input 
-                type="month" 
-                value={month}
-                onChange={e => setMonth(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 outline-none"
-              />
+              <div className="flex items-center space-x-1 bg-white border border-gray-300 rounded-lg p-0.5">
+                <button 
+                  onClick={() => {
+                    const [y, m] = month.split('-');
+                    let date = new Date(parseInt(y), parseInt(m) - 2, 1);
+                    setMonth(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
+                  }}
+                  className="p-1.5 hover:bg-gray-100 rounded-md text-gray-600 transition-colors"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <input 
+                  type="month" 
+                  value={month}
+                  onChange={e => setMonth(e.target.value)}
+                  className="px-2 py-1.5 text-sm outline-none bg-transparent w-[120px] text-center font-medium"
+                />
+                <button 
+                  onClick={() => {
+                    const [y, m] = month.split('-');
+                    let date = new Date(parseInt(y), parseInt(m), 1);
+                    setMonth(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
+                  }}
+                  className="p-1.5 hover:bg-gray-100 rounded-md text-gray-600 transition-colors"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
             </div>
           </div>
           <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="p-4 font-semibold text-gray-600 text-sm text-center w-12">STT</th>
                 <th className="p-4 font-semibold text-gray-600 text-sm">Nhân viên</th>
                 <th className="p-4 font-semibold text-gray-600 text-sm">Cơ sở</th>
                 <th className="p-4 font-semibold text-gray-600 text-sm text-center">Số ca hoàn thành</th>
@@ -684,13 +707,14 @@ const Payroll: React.FC = () => {
             <tbody>
               {adminPayroll.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-gray-500 italic">Chưa có dữ liệu chấm công nào được ghi nhận.</td>
+                  <td colSpan={8} className="p-8 text-center text-gray-500 italic">Chưa có dữ liệu chấm công nào được ghi nhận.</td>
                 </tr>
               ) : (
-                adminPayroll.map((item) => {
+                adminPayroll.map((item, index) => {
                   const displayBranch = item.employeeInfo.branchName;
                   return (
                   <tr key={item.groupKey} className={`border-b border-gray-100 transition-colors ${item.isPaid ? 'bg-green-50/50 hover:bg-green-50' : 'hover:bg-gray-50'}`}>
+                    <td className="p-4 text-sm text-center font-medium text-gray-500">{index + 1}</td>
                     <td className="p-4 text-sm font-bold text-gray-800">
                       <button 
                         onClick={() => navigate(`/dashboard/employees?highlightId=${item.employeeInfo.id}`)}
