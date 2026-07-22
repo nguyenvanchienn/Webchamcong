@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, updateDoc, doc, query, where, orderBy, deleteDoc, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, doc, query, where, orderBy, deleteDoc, Timestamp, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { Wallet, CheckCircle2, Plus, X, Trash2, ArrowRightLeft } from 'lucide-react';
+import { Wallet, CheckCircle2, Plus, X, Trash2, ArrowRightLeft, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface Branch {
