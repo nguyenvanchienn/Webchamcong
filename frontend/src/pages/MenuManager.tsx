@@ -247,9 +247,6 @@ const MenuManager: React.FC = () => {
 
   const displayedItems = items.filter(item => {
     if (userRole === 'SUPER_ADMIN' && filterBranch !== 'all') {
-      if (filterBranch === 'global') {
-        return !item.branchId || item.branchId === 'all';
-      }
       return item.branchId === filterBranch;
     }
     return true;
@@ -267,7 +264,6 @@ const MenuManager: React.FC = () => {
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 outline-none bg-white font-medium shadow-sm"
             >
               <option value="all">Tất cả cơ sở</option>
-              <option value="global">Chỉ món dùng chung (Không thuộc cơ sở nào)</option>
               {branches.map(b => (
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}
@@ -409,7 +405,7 @@ const MenuManager: React.FC = () => {
                     onChange={e => setFormData({...formData, branchId: e.target.value})} 
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white shadow-sm font-medium text-gray-700"
                   >
-                    <option value="all">Tất cả cơ sở (Dùng chung)</option>
+                    <option value="all">Tất cả cơ sở</option>
                     {branches.map(b => (
                       <option key={b.id} value={b.id}>{b.name}</option>
                     ))}
