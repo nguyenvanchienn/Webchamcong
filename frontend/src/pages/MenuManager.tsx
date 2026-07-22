@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { Plus, Edit2, Trash2, X, Image as ImageIcon, Camera } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -205,6 +205,45 @@ const MenuManager: React.FC = () => {
         description: formData.description,
         subCategory: formData.subCategory
       };
+
+      const targetBranchId = userRole === 'BRANCH_ADMIN' ? userBranchId : (formData.branchId === 'all' ? null : formData.branchId);
+
+      // 1. Validate POS exists
+      const usersQ = query(collection(db, 'users'), where('role', '==', 'POS'));
+      const usersSnap = await getDocs(usersQ);
+      const posBranchIds = usersSnap.docs.map(doc => doc.data().branchId).filter(Boolean);
+
+      if (targetBranchId) {
+        if (!posBranchIds.includes(targetBranchId)) {
+          toast.error('Cơ sở này chưa có tài khoản Máy Order (POS)!');
+          setIsUploading(false);
+          return;
+        }
+      } else {
+        const branchesWithoutPos = branches.filter(b => !posBranchIds.includes(b.id));
+        if (branchesWithoutPos.length > 0) {
+          const names = branchesWithoutPos.map(b => b.name).join(', ');
+          toast.error(`Không thể thêm! Các cơ sở sau chưa có Máy Order: ${names}`);
+          setIsUploading(false);
+          return;
+        }
+      }
+
+      // 2. Validate Duplicate Name
+      const isDuplicate = items.some(item => {
+        if (editingItem && item.id === editingItem.id) return false;
+        if (item.name.toLowerCase().trim() !== formData.name.toLowerCase().trim()) return false;
+        
+        if (!item.branchId || item.branchId === 'all') return true;
+        if (!targetBranchId || targetBranchId === 'all') return true;
+        return item.branchId === targetBranchId;
+      });
+
+      if (isDuplicate) {
+        toast.error(`Món "${formData.name.trim()}" đã tồn tại!`);
+        setIsUploading(false);
+        return;
+      }
 
       if (editingItem) {
         if (userRole === 'SUPER_ADMIN') {
