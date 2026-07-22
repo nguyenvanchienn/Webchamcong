@@ -861,7 +861,7 @@ const Payroll: React.FC = () => {
       {/* PAYMENT MODAL */}
       {paymentModalData && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-fade-in-up flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-fade-in-up flex flex-col max-h-[90vh]">
             <div className="bg-blue-600 p-4 text-white flex justify-between items-center shrink-0">
               <h3 className="font-bold text-lg">Thông tin thanh toán</h3>
               <button onClick={() => setPaymentModalData(null)} className="text-white/80 hover:text-white transition-colors">
@@ -910,7 +910,7 @@ const Payroll: React.FC = () => {
                           return paymentModalData.bankName!.split(' ')[0].toLowerCase();
                         })()}-${paymentModalData.bankAccountNum}-compact2.jpg?amount=${paymentModalData.amount}&addInfo=${encodeURIComponent(`Thanh toan luong thang ${month}`)}&accountName=${encodeURIComponent(paymentModalData.bankAccountName || '')}`} 
                         alt="VietQR"
-                        className="w-48 h-48 rounded-lg shadow-md border border-gray-200 object-contain bg-white"
+                        className="w-56 h-56 rounded-lg shadow-md border border-gray-200 object-contain bg-white"
                         onError={(e) => {
                           (e.target as HTMLImageElement).style.display = 'none';
                         }}
