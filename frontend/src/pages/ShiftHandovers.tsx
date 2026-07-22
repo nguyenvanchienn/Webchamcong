@@ -185,7 +185,46 @@ const ShiftHandovers = () => {
     setIsModalOpen(false);
   };
 
-  const handleOpenShift = () => {
+  const handleOpenShift = async () => {
+    // Kiểm tra xem đã chấm công chưa (chỉ áp dụng cho thu ngân / nhân viên)
+    if (userRole === 'CASHIER' || userRole === 'EMPLOYEE' || userRole === 'POS') {
+      const empId = localStorage.getItem('employeeId');
+      if (!empId) {
+        toast.error('Tài khoản chưa liên kết với nhân viên. Vui lòng liên hệ Quản lý.');
+        return;
+      }
+      try {
+        const now = new Date();
+        const todayStr = now.toLocaleDateString('en-CA');
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toLocaleDateString('en-CA');
+        
+        const attQuery = query(
+          collection(db, 'attendance'),
+          where('date', '>=', yesterdayStr),
+          where('date', '<=', todayStr)
+        );
+        const snap = await getDocs(attQuery);
+        let hasActiveCheckIn = false;
+        snap.forEach(doc => {
+          const data = doc.data();
+          if (data.employeeId === empId && data.checkIn && !data.checkOut) {
+            hasActiveCheckIn = true;
+          }
+        });
+        
+        if (!hasActiveCheckIn) {
+          toast.error('Bạn phải Chấm công (Check-in) trước khi được phép Mở ca!');
+          return;
+        }
+      } catch (err) {
+         console.error('Lỗi kiểm tra chấm công:', err);
+         toast.error('Lỗi khi kiểm tra chấm công.');
+         return;
+      }
+    }
+
     setModalMode('OPEN');
     setStartCash(0);
     setStartTransfer(0);
