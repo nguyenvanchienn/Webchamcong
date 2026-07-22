@@ -101,53 +101,28 @@ const ShiftHandovers = () => {
       }
 
       // 3. Fetch History Reports
-      let reportsQuery: any;
-      
       const startOfDay = new Date(filterDate);
       startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date(filterDate);
       endOfDay.setHours(23, 59, 59, 999);
 
-      if (userRole === 'SUPER_ADMIN') {
-        if (filterBranchId === 'all') {
-          reportsQuery = query(
-            collection(db, 'shift_reports'),
-            where('startTime', '>=', Timestamp.fromDate(startOfDay)),
-            where('startTime', '<=', Timestamp.fromDate(endOfDay)),
-            orderBy('startTime', 'desc')
-          );
-        } else {
-          reportsQuery = query(
-            collection(db, 'shift_reports'),
-            where('branchId', '==', filterBranchId),
-            where('startTime', '>=', Timestamp.fromDate(startOfDay)),
-            where('startTime', '<=', Timestamp.fromDate(endOfDay)),
-            orderBy('startTime', 'desc')
-          );
-        }
-      } else if (userRole === 'BRANCH_ADMIN') {
-        reportsQuery = query(
-          collection(db, 'shift_reports'),
-          where('branchId', '==', currentBranchId),
-          where('startTime', '>=', Timestamp.fromDate(startOfDay)),
-          where('startTime', '<=', Timestamp.fromDate(endOfDay)),
-          orderBy('startTime', 'desc')
-        );
-      } else {
-        // Thu ngân chỉ xem ca của mình
-        reportsQuery = query(
-          collection(db, 'shift_reports'),
-          where('cashierEmail', '==', currentUserEmail),
-          where('startTime', '>=', Timestamp.fromDate(startOfDay)),
-          where('startTime', '<=', Timestamp.fromDate(endOfDay)),
-          orderBy('startTime', 'desc')
-        );
-      }
+      // Lấy tất cả ca trong ngày và lọc ở client để tránh lỗi thiếu index kép trên Firestore
+      const reportsQuery = query(
+        collection(db, 'shift_reports'),
+        where('startTime', '>=', Timestamp.fromDate(startOfDay)),
+        where('startTime', '<=', Timestamp.fromDate(endOfDay)),
+        orderBy('startTime', 'desc')
+      );
 
       const snap = await getDocs(reportsQuery);
       const list: ShiftReport[] = [];
       snap.forEach(doc => {
         const data = doc.data() as any;
+        
+        // Lọc theo phân quyền
+        if (userRole === 'SUPER_ADMIN' && filterBranchId !== 'all' && data.branchId !== filterBranchId) return;
+        if (userRole === 'BRANCH_ADMIN' && data.branchId !== currentBranchId) return;
+        if (userRole === 'CASHIER' && data.cashierEmail !== currentUserEmail) return;
         const editHistory = data.editHistory ? data.editHistory.map((eh: any) => ({
           ...eh,
           timestamp: eh.timestamp.toDate()
@@ -472,6 +447,7 @@ const ShiftHandovers = () => {
           <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="p-4 font-semibold text-gray-600 text-sm text-center w-12">STT</th>
                 <th className="p-4 font-semibold text-gray-600 text-sm">Thời gian</th>
                 <th className="p-4 font-semibold text-gray-600 text-sm">Cơ sở / Thu ngân</th>
                 <th className="p-4 font-semibold text-gray-600 text-sm">Tiền đầu ca (Mặt / CK)</th>
@@ -487,18 +463,19 @@ const ShiftHandovers = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-gray-500">Đang tải...</td>
+                  <td colSpan={9} className="p-8 text-center text-gray-500">Đang tải...</td>
                 </tr>
               ) : reports.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-gray-500 italic">Không có dữ liệu ca làm việc</td>
+                  <td colSpan={9} className="p-8 text-center text-gray-500 italic">Không có dữ liệu ca làm việc</td>
                 </tr>
               ) : (
-                reports.map(r => {
+                reports.map((r, index) => {
                   const varianceCash = (r.endCash ?? 0) - (r.startCash + (r.revenueCash ?? 0));
                   const varianceTransfer = (r.endTransfer ?? 0) - (r.startTransfer + (r.revenueTransfer ?? 0));
                   return (
                     <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                      <td className="p-4 text-sm text-center font-medium text-gray-500">{index + 1}</td>
                       <td className="p-4">
                         <div className="font-medium text-gray-800">{r.startTime.toLocaleTimeString('vi-VN')}</div>
                         <div className="text-xs text-gray-500">{r.startTime.toLocaleDateString('vi-VN')}</div>
