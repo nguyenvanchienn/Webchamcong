@@ -35,6 +35,7 @@ const ShiftHandovers = () => {
   const userRole = localStorage.getItem('userRole') || 'EMPLOYEE';
   const currentUserEmail = localStorage.getItem('userEmail') || '';
   const currentBranchId = localStorage.getItem('branchId') || '';
+  const currentEmployeeId = localStorage.getItem('employeeId') || '';
   
   // States cho Lọc
   const [filterBranchId, setFilterBranchId] = useState(userRole === 'BRANCH_ADMIN' ? currentBranchId : 'all');
@@ -43,7 +44,8 @@ const ShiftHandovers = () => {
   // States cho Mở / Chốt ca
   const [activeShift, setActiveShift] = useState<ShiftReport | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState<'OPEN' | 'CLOSE'>('OPEN');
+  const [modalMode, setModalMode] = useState<'OPEN' | 'CLOSE' | 'EDIT'>('OPEN');
+  const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
   
   // Dữ liệu nhập
   const [startCash, setStartCash] = useState(0);
@@ -216,6 +218,18 @@ const ShiftHandovers = () => {
     setIsModalOpen(true);
   };
 
+  const handleEditShift = (shift: ShiftReport) => {
+    setActiveShift(shift);
+    setStartCash(shift.startCash);
+    setStartTransfer(shift.startTransfer);
+    setEndCash(shift.endCash || 0);
+    setEndTransfer(shift.endTransfer || 0);
+    setNotes(shift.notes || '');
+    setEditingShiftId(shift.id);
+    setModalMode('EDIT');
+    setIsModalOpen(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentBranchId) {
@@ -225,14 +239,22 @@ const ShiftHandovers = () => {
 
     try {
       if (modalMode === 'OPEN') {
-        // Lấy tên user
-        const userSnap = await getDocs(query(collection(db, 'users'), where('email', '==', currentUserEmail)));
-        const cashierName = userSnap.empty ? currentUserEmail : (userSnap.docs[0].data().fullName || currentUserEmail);
+        let cashierDisplayName = currentUserEmail;
+        if (currentEmployeeId) {
+          const empDoc = await getDoc(doc(db, 'employees', currentEmployeeId));
+          if (empDoc.exists()) {
+            const empData = empDoc.data();
+            cashierDisplayName = `${empData.employeeCode} - ${empData.fullName}`;
+          }
+        } else {
+           const userSnap = await getDocs(query(collection(db, 'users'), where('email', '==', currentUserEmail)));
+           cashierDisplayName = userSnap.empty ? currentUserEmail : (userSnap.docs[0].data().fullName || currentUserEmail);
+        }
 
         await addDoc(collection(db, 'shift_reports'), {
           branchId: currentBranchId,
           cashierEmail: currentUserEmail,
-          cashierName: cashierName,
+          cashierName: cashierDisplayName,
           startTime: new Date(),
           endTime: null,
           startCash,
@@ -245,7 +267,7 @@ const ShiftHandovers = () => {
           notes
         });
         toast.success('Mở ca thành công!');
-      } else {
+      } else if (modalMode === 'CLOSE') {
         // Đóng ca
         if (!activeShift) return;
         const now = new Date();
@@ -262,6 +284,17 @@ const ShiftHandovers = () => {
         });
         toast.success('Chốt ca thành công!');
         setActiveShift(null);
+      } else if (modalMode === 'EDIT' && editingShiftId) {
+        await updateDoc(doc(db, 'shift_reports', editingShiftId), {
+          startCash,
+          startTransfer,
+          endCash,
+          endTransfer,
+          notes
+        });
+        toast.success('Cập nhật ca thành công!');
+        setActiveShift(null);
+        setEditingShiftId(null);
       }
       setIsModalOpen(false);
       fetchData();
@@ -441,7 +474,10 @@ const ShiftHandovers = () => {
                         </span>
                       </td>
                       {(userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') && (
-                        <td className="p-4 text-right">
+                        <td className="p-4 text-right flex items-center justify-end gap-2">
+                          <button onClick={() => handleEditShift(r)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded transition-colors" title="Sửa báo cáo">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                          </button>
                           <button onClick={() => handleDelete(r.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors" title="Xóa báo cáo">
                             <Trash2 size={16} />
                           </button>
@@ -460,10 +496,10 @@ const ShiftHandovers = () => {
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
-            <div className={`p-4 border-b flex justify-between items-center text-white ${modalMode === 'OPEN' ? 'bg-blue-600' : 'bg-green-600'}`}>
+            <div className={`p-4 border-b flex justify-between items-center text-white ${modalMode === 'OPEN' ? 'bg-blue-600' : modalMode === 'EDIT' ? 'bg-orange-500' : 'bg-green-600'}`}>
               <h3 className="font-bold text-lg flex items-center">
-                {modalMode === 'OPEN' ? <Plus size={20} className="mr-2" /> : <CheckCircle2 size={20} className="mr-2" />}
-                {modalMode === 'OPEN' ? 'Mở ca làm việc mới' : 'Chốt ca làm việc'}
+                {modalMode === 'OPEN' ? <Plus size={20} className="mr-2" /> : modalMode === 'EDIT' ? <FileText size={20} className="mr-2" /> : <CheckCircle2 size={20} className="mr-2" />}
+                {modalMode === 'OPEN' ? 'Mở ca làm việc mới' : modalMode === 'EDIT' ? 'Sửa thông tin ca' : 'Chốt ca làm việc'}
               </h3>
               <button onClick={() => setIsModalOpen(false)} className="text-white/80 hover:text-white transition-colors">
                 <X size={24} />
@@ -472,13 +508,13 @@ const ShiftHandovers = () => {
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
               
-              {modalMode === 'OPEN' ? (
+              {modalMode === 'OPEN' || modalMode === 'EDIT' ? (
                 <>
                   <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 mb-4">
-                    <p className="text-sm text-blue-800">Vui lòng kiểm tra và nhập chính xác số tiền bạn đang nhận để bắt đầu ca làm việc.</p>
+                    <p className="text-sm text-blue-800">Vui lòng kiểm tra và nhập chính xác số tiền quỹ đầu ca.</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Số tiền mặt nhận (VNĐ)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Số tiền mặt đầu ca (VNĐ)</label>
                     <input 
                       type="text" required
                       value={startCash.toLocaleString('vi-VN')}
@@ -495,6 +531,28 @@ const ShiftHandovers = () => {
                       className="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg font-bold text-gray-800"
                     />
                   </div>
+                  {modalMode === 'EDIT' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1 mt-4">Tiền mặt THỰC TẾ cuối ca</label>
+                        <input 
+                          type="text" 
+                          value={endCash.toLocaleString('vi-VN')}
+                          onChange={(e) => setEndCash(Number(e.target.value.replace(/[^0-9]/g, '')))}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-lg font-bold text-gray-800"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Tiền tài khoản cuối ca</label>
+                        <input 
+                          type="text" 
+                          value={endTransfer.toLocaleString('vi-VN')}
+                          onChange={(e) => setEndTransfer(Number(e.target.value.replace(/[^0-9]/g, '')))}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-lg font-bold text-gray-800"
+                        />
+                      </div>
+                    </>
+                  )}
                 </>
               ) : (
                 <>
@@ -551,7 +609,7 @@ const ShiftHandovers = () => {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú {modalMode === 'CLOSE' && '(Bắt buộc nếu có chênh lệch)'}</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú {(modalMode === 'CLOSE' || modalMode === 'EDIT') && '(Lý do chênh lệch/chỉnh sửa)'}</label>
                 <textarea 
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
@@ -570,9 +628,9 @@ const ShiftHandovers = () => {
                 </button>
                 <button 
                   type="submit"
-                  className={`px-8 py-2.5 text-white rounded-xl font-bold transition-colors shadow-sm ${modalMode === 'OPEN' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700'}`}
+                  className={`px-8 py-2.5 text-white rounded-xl font-bold transition-colors shadow-sm ${modalMode === 'OPEN' ? 'bg-blue-600 hover:bg-blue-700' : modalMode === 'EDIT' ? 'bg-orange-500 hover:bg-orange-600' : 'bg-green-600 hover:bg-green-700'}`}
                 >
-                  {modalMode === 'OPEN' ? 'Xác nhận Mở ca' : 'Hoàn tất Chốt ca'}
+                  {modalMode === 'OPEN' ? 'Xác nhận Mở ca' : modalMode === 'EDIT' ? 'Lưu chỉnh sửa' : 'Hoàn tất Chốt ca'}
                 </button>
               </div>
             </form>
