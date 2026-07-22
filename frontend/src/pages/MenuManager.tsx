@@ -247,7 +247,7 @@ const MenuManager: React.FC = () => {
 
   const displayedItems = items.filter(item => {
     if (userRole === 'SUPER_ADMIN' && filterBranch !== 'all') {
-      return item.branchId === filterBranch;
+      return item.branchId === filterBranch || !item.branchId || item.branchId === 'all';
     }
     return true;
   });
