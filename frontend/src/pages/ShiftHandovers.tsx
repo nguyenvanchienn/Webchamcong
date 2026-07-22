@@ -24,6 +24,11 @@ interface ShiftReport {
   revenueTransfer: number | null;
   status: 'OPEN' | 'CLOSED';
   notes: string;
+  editHistory?: {
+    timestamp: Date;
+    editorEmail: string;
+    changes: string[];
+  }[];
 }
 
 const ShiftHandovers = () => {
@@ -142,11 +147,17 @@ const ShiftHandovers = () => {
       const list: ShiftReport[] = [];
       snap.forEach(doc => {
         const data = doc.data() as any;
+        const editHistory = data.editHistory ? data.editHistory.map((eh: any) => ({
+          ...eh,
+          timestamp: eh.timestamp.toDate()
+        })) : [];
+
         list.push({
           id: doc.id,
           ...data,
           startTime: data.startTime.toDate(),
-          endTime: data.endTime ? data.endTime.toDate() : null
+          endTime: data.endTime ? data.endTime.toDate() : null,
+          editHistory
         } as ShiftReport);
       });
       setReports(list);
@@ -284,13 +295,41 @@ const ShiftHandovers = () => {
         });
         toast.success('Chốt ca thành công!');
         setActiveShift(null);
-      } else if (modalMode === 'EDIT' && editingShiftId) {
+      } else if (modalMode === 'EDIT' && editingShiftId && activeShift) {
+        const changes: string[] = [];
+        
+        if (activeShift.startCash !== startCash) {
+          changes.push(`Tiền mặt đầu ca: ${activeShift.startCash} -> ${startCash}`);
+        }
+        if (activeShift.startTransfer !== startTransfer) {
+          changes.push(`Tiền CK đầu ca: ${activeShift.startTransfer} -> ${startTransfer}`);
+        }
+        if (activeShift.endCash !== endCash) {
+          changes.push(`Tiền mặt cuối ca: ${activeShift.endCash} -> ${endCash}`);
+        }
+        if (activeShift.endTransfer !== endTransfer) {
+          changes.push(`Tiền CK cuối ca: ${activeShift.endTransfer} -> ${endTransfer}`);
+        }
+        if (activeShift.notes !== notes) {
+          changes.push(`Ghi chú thay đổi`);
+        }
+
+        const editHistory = activeShift.editHistory || [];
+        if (changes.length > 0) {
+          editHistory.push({
+            timestamp: new Date(),
+            editorEmail: currentUserEmail,
+            changes
+          });
+        }
+
         await updateDoc(doc(db, 'shift_reports', editingShiftId), {
           startCash,
           startTransfer,
           endCash,
           endTransfer,
-          notes
+          notes,
+          editHistory
         });
         toast.success('Cập nhật ca thành công!');
         setActiveShift(null);
@@ -478,6 +517,24 @@ const ShiftHandovers = () => {
                         <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${r.status === 'OPEN' ? 'bg-orange-100 text-orange-700 border border-orange-200' : 'bg-gray-100 text-gray-600 border border-gray-200'}`}>
                           {r.status === 'OPEN' ? 'ĐANG MỞ' : 'ĐÃ CHỐT'}
                         </span>
+                        {r.editHistory && r.editHistory.length > 0 && (
+                          <div className="mt-2 text-[10px] text-gray-500 bg-gray-100 p-1 rounded group relative max-w-[120px]">
+                            <span className="cursor-help border-b border-dashed border-gray-400">Đã sửa ({r.editHistory.length} lần)</span>
+                            <div className="hidden group-hover:block absolute z-50 left-0 top-full mt-1 w-64 bg-white border shadow-lg rounded p-2 text-xs text-left">
+                              <p className="font-bold mb-1 border-b pb-1">Lịch sử chỉnh sửa</p>
+                              {r.editHistory.map((eh, idx) => (
+                                <div key={idx} className="mb-2 last:mb-0">
+                                  <p className="text-blue-600 font-semibold">{eh.editorEmail} <span className="text-gray-400 font-normal">({eh.timestamp.toLocaleString('vi-VN')})</span></p>
+                                  <ul className="list-disc pl-4 text-gray-700">
+                                    {eh.changes.map((c, i) => (
+                                      <li key={i}>{c}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </td>
                       {(userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') && (
                         <td className="p-4 text-right flex items-center justify-end gap-2">
