@@ -162,9 +162,9 @@ const CustomerOrder: React.FC = () => {
   if (loading) return <div className="p-8 text-center text-gray-500 font-medium">Đang tải thực đơn...</div>;
 
   return (
-    <div className="flex w-screen h-screen overflow-hidden bg-gray-50">
+    <div className="flex flex-col lg:flex-row w-screen h-[100dvh] overflow-hidden bg-gray-50">
       {/* Cột trái: Menu */}
-      <div className="flex-1 flex flex-col p-6 h-full pointer-events-auto">
+      <div className="flex-1 flex flex-col p-3 lg:p-6 h-1/2 lg:h-full pointer-events-auto">
         <div className="flex items-center gap-4 mb-6">
           <button 
             onDoubleClick={() => setShowSidebar(true)}
@@ -236,8 +236,8 @@ const CustomerOrder: React.FC = () => {
       </div>
 
       {/* Cột phải: Giỏ hàng */}
-      <div className="w-[400px] bg-white shadow-2xl flex flex-col border-l border-gray-100 z-10 rounded-l-[2rem] overflow-hidden pointer-events-auto">
-        <div className="p-6 border-b border-gray-100 bg-gradient-to-b from-blue-50/50 to-white flex items-center justify-between">
+      <div className="w-full lg:w-[400px] h-1/2 lg:h-full bg-white shadow-2xl flex flex-col border-t lg:border-t-0 lg:border-l border-gray-100 z-10 rounded-t-[2rem] lg:rounded-t-none lg:rounded-l-[2rem] overflow-hidden pointer-events-auto">
+        <div className="p-4 lg:p-6 border-b border-gray-100 bg-gradient-to-b from-blue-50/50 to-white flex items-center justify-between">
           <div className="flex items-center gap-3 text-gray-800">
             <div className="p-2.5 bg-blue-100 text-blue-600 rounded-xl">
               <ShoppingCart size={24} />

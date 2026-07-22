@@ -584,9 +584,9 @@ const POS: React.FC = () => {
   const unservedTablesCount = activeTableOrders.filter(order => order.items.some(item => !item.isServed)).length;
 
   return (
-    <div className="flex w-screen h-screen overflow-hidden bg-gray-100">
+    <div className="flex flex-col lg:flex-row w-screen h-[100dvh] overflow-hidden bg-gray-100">
       {/* Cột trái: Menu */}
-      <div className="flex-1 flex flex-col p-4 h-full">
+      <div className="flex-1 flex flex-col p-2 lg:p-4 h-1/2 lg:h-full">
         <div className="mb-4 overflow-x-auto whitespace-nowrap pb-2 flex items-center gap-2 custom-scrollbar">
           <button
             onClick={() => setShowSidebar(true)}
@@ -678,8 +678,8 @@ const POS: React.FC = () => {
       </div>
 
       {/* Cột phải: Giỏ hàng */}
-      <div className="w-96 bg-white shadow-xl flex flex-col border-l border-gray-200 z-10">
-        <div className="p-5 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between shrink-0">
+      <div className="w-full lg:w-96 h-1/2 lg:h-full bg-white shadow-xl flex flex-col border-t lg:border-t-0 lg:border-l border-gray-200 z-10 rounded-t-2xl lg:rounded-t-none">
+        <div className="p-4 lg:p-5 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2 text-gray-800">
             <ShoppingCart size={24} className="text-blue-600" />
             <h2 className="text-xl font-black">Giỏ Hàng {currentTableName ? `(${currentTableName})` : ''}</h2>
