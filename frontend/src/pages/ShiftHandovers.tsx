@@ -752,7 +752,7 @@ const ShiftHandovers = () => {
                         {eh.changes.map((c, i) => (
                           <li key={i} className="text-sm text-gray-700 flex items-start">
                             <span className="mr-2 text-blue-400 mt-0.5">•</span>
-                            <span>{c}</span>
+                            <span>{c.replace(/\b\d+\b/g, (m) => Number(m).toLocaleString('vi-VN'))}</span>
                           </li>
                         ))}
                       </ul>
