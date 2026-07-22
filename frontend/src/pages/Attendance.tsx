@@ -241,6 +241,15 @@ const Attendance: React.FC = () => {
         }
       });
 
+      attList.sort((a, b) => {
+        const timeA = a.checkIn ? a.checkIn.getTime() : 0;
+        const timeB = b.checkIn ? b.checkIn.getTime() : 0;
+        if (timeA === timeB) {
+          return (a.employeeName || '').localeCompare(b.employeeName || '');
+        }
+        return timeB - timeA;
+      });
+
       setRecords(attList);
     } catch (error) {
       console.error("Lỗi lấy dữ liệu chấm công:", error);
