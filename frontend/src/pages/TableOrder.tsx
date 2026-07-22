@@ -14,6 +14,7 @@ interface MenuItem {
   imageUrl?: string;
   isAvailable: boolean;
   description?: string;
+  branchId?: string | null;
 }
 
 interface CartItem extends MenuItem {

@@ -10,6 +10,7 @@ interface MenuItem {
   price: number;
   category: string;
   isAvailable: boolean;
+  branchId?: string | null;
 }
 
 interface Order {
