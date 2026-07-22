@@ -336,11 +336,13 @@ const Payroll: React.FC = () => {
         const adminBonusMap: Record<string, number> = {};
         const adminBonusDetails: Record<string, any[]> = {};
         adminBonusSnap.forEach(d => {
-           const b = d.data();
-           if (!adminBonusMap[b.employeeId]) adminBonusMap[b.employeeId] = 0;
-           if (!adminBonusDetails[b.employeeId]) adminBonusDetails[b.employeeId] = [];
-           adminBonusMap[b.employeeId] += b.amount || 0;
-           adminBonusDetails[b.employeeId].push(b);
+           const b = { id: d.id, ...d.data() };
+           if (!b.isPaid) {
+             if (!adminBonusMap[b.employeeId]) adminBonusMap[b.employeeId] = 0;
+             if (!adminBonusDetails[b.employeeId]) adminBonusDetails[b.employeeId] = [];
+             adminBonusMap[b.employeeId] += b.amount || 0;
+             adminBonusDetails[b.employeeId].push(b);
+           }
         });
 
         const adminList: any[] = [];
@@ -532,6 +534,18 @@ const Payroll: React.FC = () => {
           isPaid: true,
           paymentId: historyRef.id
         });
+      }
+      
+      // Update bonus docs
+      if (paymentModalData.bonuses) {
+        for (const bonus of paymentModalData.bonuses) {
+          if (bonus.id) {
+            await updateDoc(doc(db, 'bonuses', bonus.id), {
+              isPaid: true,
+              paymentId: historyRef.id
+            });
+          }
+        }
       }
       
       // Send notification to employee
