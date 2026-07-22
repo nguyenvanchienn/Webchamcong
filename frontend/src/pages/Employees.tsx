@@ -97,9 +97,9 @@ const Employees: React.FC = () => {
     bankName: '',
     bankAccountNum: '',
     bankAccountName: '',
-    position: 'Nhân viên phục vụ',
-    branchId: '',
+    position: 'Nhân viên',
     salaryPerHour: 25000,
+    branchId: '',
     status: 'ACTIVE'
   });
 
@@ -579,7 +579,6 @@ const Employees: React.FC = () => {
                   >
                     <option value="Quản lý">Quản lý</option>
                     <option value="Nhân viên">Nhân viên</option>
-                    <option value="Nhân viên phục vụ">Nhân viên phục vụ</option>
                     <option value="Thu ngân">Thu ngân</option>
                     <option value="Pha chế">Pha chế</option>
                     <option value="Bếp">Bếp</option>

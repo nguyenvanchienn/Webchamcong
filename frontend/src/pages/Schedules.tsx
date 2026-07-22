@@ -1010,7 +1010,7 @@ const Schedules: React.FC = () => {
       )}
 
       {/* ---------------- EMPLOYEE VIEW: XEM VÀ ĐĂNG KÝ CA ---------------- */}
-      {userRole === 'EMPLOYEE' && registrationDeadline !== '' && new Date() > new Date(registrationDeadline) ? (
+      {['EMPLOYEE', 'CASHIER', 'BARTENDER', 'KITCHEN', 'GUARD'].includes(userRole) && registrationDeadline !== '' && new Date() > new Date(registrationDeadline) ? (
         <div className="flex flex-col items-center justify-center p-16 bg-white rounded-xl border border-gray-200 shadow-sm mt-6">
           <Clock size={48} className="text-gray-400 mb-4" />
           <h3 className="text-xl font-bold text-gray-700 mb-2">Đăng ký lịch làm việc đã khóa</h3>
@@ -1025,7 +1025,7 @@ const Schedules: React.FC = () => {
         <div className="flex justify-between items-center p-4 bg-white border-b border-gray-200">
           <h3 className="font-bold text-gray-800 text-lg flex items-center">
             <CalendarDays className="mr-2 text-[#253e7a]" />
-            {userRole === 'EMPLOYEE' ? 'Đăng ký Lịch Làm Việc (Theo tuần)' : 'Bảng Lịch Làm Việc (Theo tuần)'}
+            {['EMPLOYEE', 'CASHIER', 'BARTENDER', 'KITCHEN', 'GUARD'].includes(userRole) ? 'Đăng ký Lịch Làm Việc (Theo tuần)' : 'Bảng Lịch Làm Việc (Theo tuần)'}
           </h3>
           <div className="flex items-center space-x-2">
             <button onClick={() => setWeekOffset(prev => prev - 1)} className="p-1 hover:bg-gray-100 rounded text-gray-500">
@@ -1234,7 +1234,7 @@ const Schedules: React.FC = () => {
                                 </div>
                                 
                                 <div className="mt-auto">
-                                  {userRole === 'EMPLOYEE' 
+                                  {['EMPLOYEE', 'CASHIER', 'BARTENDER', 'KITCHEN', 'GUARD'].includes(userRole) 
                                     ? renderEmployeeSlot(shiftsInSlot)
                                     : renderAdminSlot(shiftsInSlot)
                                   }

@@ -144,7 +144,7 @@ const Payroll: React.FC = () => {
       const endDate = `${month}-${endDay}`;
 
       // --- PERSONAL PAYROLL ---
-      if (currentEmployeeId && (userRole === 'EMPLOYEE' || userRole === 'BRANCH_ADMIN')) {
+      if (currentEmployeeId && (['EMPLOYEE', 'CASHIER', 'BARTENDER', 'KITCHEN', 'GUARD'].includes(userRole) || userRole === 'BRANCH_ADMIN')) {
         // Lấy thông tin lương/giờ của NV
         const empDoc = await getDoc(doc(db, 'employees', currentEmployeeId));
         if (!empDoc.exists()) return;
@@ -598,10 +598,10 @@ const Payroll: React.FC = () => {
             <Wallet className="mr-2 text-green-600" /> Bảng Lương Tự Động
           </h2>
           <p className="text-sm text-gray-500 mt-1">
-            {(userRole === 'EMPLOYEE' || activeTab === 'personal') ? 'Lương được tính toán dựa trên số giờ Check-in/Check-out thực tế' : 'Tổng hợp lương nhân viên toàn hệ thống'}
+            {(['EMPLOYEE', 'CASHIER', 'BARTENDER', 'KITCHEN', 'GUARD'].includes(userRole) || activeTab === 'personal') ? 'Lương được tính toán dựa trên số giờ Check-in/Check-out thực tế' : 'Tổng hợp lương nhân viên toàn hệ thống'}
           </p>
         </div>
-        {(userRole === 'EMPLOYEE' || (userRole === 'BRANCH_ADMIN' && activeTab === 'personal')) && (
+        {(['EMPLOYEE', 'CASHIER', 'BARTENDER', 'KITCHEN', 'GUARD'].includes(userRole) || (userRole === 'BRANCH_ADMIN' && activeTab === 'personal')) && (
           <div className="bg-green-50 px-4 py-2 rounded-lg border border-green-200 text-right">
             <p className="text-xs font-semibold text-green-800 uppercase tracking-wider">Tổng Thu Nhập Tạm Tính</p>
             <p className="text-2xl font-bold text-green-600">
@@ -735,7 +735,7 @@ const Payroll: React.FC = () => {
       )}
 
       {/* CHI TIẾT CÁ NHÂN (Dành cho Nhân viên) */}
-      {(userRole === 'EMPLOYEE' || (userRole === 'BRANCH_ADMIN' && activeTab === 'personal')) && (
+      {(['EMPLOYEE', 'CASHIER', 'BARTENDER', 'KITCHEN', 'GUARD'].includes(userRole) || (userRole === 'BRANCH_ADMIN' && activeTab === 'personal')) && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto overflow-y-hidden">
           <div className="p-4 bg-gray-50 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <h3 className="font-bold text-gray-800 flex items-center">

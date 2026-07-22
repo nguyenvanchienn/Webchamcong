@@ -298,7 +298,15 @@ const Accounts: React.FC = () => {
     if (formData.role === 'BRANCH_ADMIN') {
       if (emp.position !== 'Quản lý') return false;
     } else if (formData.role === 'EMPLOYEE') {
-      if (emp.position === 'Quản lý') return false;
+      if (emp.position !== 'Nhân viên') return false;
+    } else if (formData.role === 'CASHIER') {
+      if (emp.position !== 'Thu ngân') return false;
+    } else if (formData.role === 'BARTENDER') {
+      if (emp.position !== 'Pha chế') return false;
+    } else if (formData.role === 'KITCHEN') {
+      if (emp.position !== 'Bếp') return false;
+    } else if (formData.role === 'GUARD') {
+      if (emp.position !== 'Bảo vệ') return false;
     }
 
     if (editingAccount && editingAccount.employeeId === emp.id) return true;
@@ -542,6 +550,10 @@ const Accounts: React.FC = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
                 >
                   <option value="EMPLOYEE">Nhân viên</option>
+                  <option value="CASHIER">Thu ngân</option>
+                  <option value="BARTENDER">Pha chế</option>
+                  <option value="KITCHEN">Bếp</option>
+                  <option value="GUARD">Bảo vệ</option>
                   {userRole === 'SUPER_ADMIN' && <option value="BRANCH_ADMIN">Quản lý cơ sở</option>}
                   {userRole === 'SUPER_ADMIN' && <option value="KIOSK">Thiết bị điểm danh (Kiosk)</option>}
                   <option value="POS">Máy Order (Menu)</option>
