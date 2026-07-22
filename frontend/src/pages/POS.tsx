@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { collection, getDocs, getDoc, addDoc, serverTimestamp, query, where, doc, runTransaction, onSnapshot, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
 import { EmailAuthProvider, reauthenticateWithCredential, signOut } from 'firebase/auth';
@@ -70,6 +70,10 @@ const POS: React.FC = () => {
 
   const navigate = useNavigate();
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isSyncingScroll = useRef(false);
+
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 60000);
@@ -124,6 +128,15 @@ const POS: React.FC = () => {
     }
   };
 
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (isSyncingScroll.current) return;
+    const scrollTop = e.currentTarget.scrollTop;
+    if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+    scrollTimeoutRef.current = setTimeout(() => {
+      updatePosState({ scrollPosition: scrollTop });
+    }, 150);
+  };
+
   useEffect(() => {
     const branchId = localStorage.getItem('branchId');
     if (!branchId) return;
@@ -151,6 +164,13 @@ const POS: React.FC = () => {
         setPendingOrderCode(data.pendingOrderCode || null);
         if (data.activeCategory) {
            setActiveCategory(data.activeCategory);
+        }
+        if (data.scrollPosition !== undefined && scrollRef.current) {
+           if (Math.abs(scrollRef.current.scrollTop - data.scrollPosition) > 5) {
+             isSyncingScroll.current = true;
+             scrollRef.current.scrollTop = data.scrollPosition;
+             setTimeout(() => { isSyncingScroll.current = false; }, 50);
+           }
         }
       }
     });
@@ -606,7 +626,11 @@ const POS: React.FC = () => {
           ))}
         </div>
 
-        <div className="flex-1 overflow-y-auto pr-2 pb-16">
+        <div 
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto pr-2 pb-16"
+        >
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {filteredMenu.map(item => (
               <div

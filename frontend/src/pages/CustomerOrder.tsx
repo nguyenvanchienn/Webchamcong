@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { collection, getDocs, query, where, doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { ShoppingCart, Trash2, Plus, Minus, Store, X, LayoutDashboard, Receipt } from 'lucide-react';
@@ -37,6 +37,10 @@ const CustomerOrder: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isSyncingScroll = useRef(false);
+
   useEffect(() => {
     const branchId = localStorage.getItem('branchId');
     if (!branchId) return;
@@ -63,6 +67,14 @@ const CustomerOrder: React.FC = () => {
         setPendingOrderCode(data.pendingOrderCode || null);
         if (data.activeCategory) {
            setActiveCategory(data.activeCategory);
+        }
+        if (data.scrollPosition !== undefined && scrollRef.current) {
+           // allow small margin of error (e.g. < 5px) to prevent bouncing
+           if (Math.abs(scrollRef.current.scrollTop - data.scrollPosition) > 5) {
+             isSyncingScroll.current = true;
+             scrollRef.current.scrollTop = data.scrollPosition;
+             setTimeout(() => { isSyncingScroll.current = false; }, 50);
+           }
         }
       } else {
         // Init if not exists
@@ -103,6 +115,15 @@ const CustomerOrder: React.FC = () => {
     } catch (e) {
       console.error("Error updating POS state", e);
     }
+  };
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (isSyncingScroll.current) return;
+    const scrollTop = e.currentTarget.scrollTop;
+    if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+    scrollTimeoutRef.current = setTimeout(() => {
+      updatePosState({ scrollPosition: scrollTop });
+    }, 150);
   };
 
   const addToCart = (item: MenuItem) => {
@@ -175,7 +196,11 @@ const CustomerOrder: React.FC = () => {
           ))}
         </div>
 
-        <div className="flex-1 overflow-y-auto pr-2 pb-16 custom-scrollbar">
+        <div 
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto pr-2 pb-16 custom-scrollbar"
+        >
           <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredMenu.map(item => (
               <div
