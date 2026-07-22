@@ -877,6 +877,43 @@ const Payroll: React.FC = () => {
               </div>
 
               <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 space-y-3">
+                {paymentModalData.bankName && paymentModalData.bankAccountNum && (
+                  <div className="flex flex-col items-center justify-center space-y-2 mb-4 border-b border-gray-200 pb-4">
+                    <img 
+                      src={`https://img.vietqr.io/image/${(() => {
+                        const lower = paymentModalData.bankName!.toLowerCase().replace(/\s/g, '');
+                        if (lower.includes('mb') || lower.includes('quandoi')) return 'mb';
+                        if (lower.includes('vcb') || lower.includes('vietcombank')) return 'vcb';
+                        if (lower.includes('techcombank') || lower.includes('tcb')) return 'tcb';
+                        if (lower.includes('vpbank') || lower.includes('vpb')) return 'vpbank';
+                        if (lower.includes('acb')) return 'acb';
+                        if (lower.includes('bidv')) return 'bidv';
+                        if (lower.includes('agribank')) return 'agribank';
+                        if (lower.includes('vietinbank') || lower.includes('ctg')) return 'vietinbank';
+                        if (lower.includes('sacombank') || lower.includes('stb')) return 'sacombank';
+                        if (lower.includes('tpbank') || lower.includes('tpb')) return 'tpbank';
+                        if (lower.includes('vib')) return 'vib';
+                        if (lower.includes('hdbank') || lower.includes('hdb')) return 'hdbank';
+                        if (lower.includes('msb')) return 'msb';
+                        if (lower.includes('shb')) return 'shb';
+                        if (lower.includes('ocb')) return 'ocb';
+                        if (lower.includes('scb')) return 'scb';
+                        if (lower.includes('seabank')) return 'seabank';
+                        if (lower.includes('abbank')) return 'abbank';
+                        if (lower.includes('eximbank')) return 'eximbank';
+                        if (lower.includes('lpbank') || lower.includes('lienviet')) return 'lpbank';
+                        return paymentModalData.bankName!.split(' ')[0].toLowerCase();
+                      })()}-${paymentModalData.bankAccountNum}-compact2.jpg?amount=${paymentModalData.amount}&addInfo=${encodeURIComponent(`Thanh toan luong thang ${month}`)}&accountName=${encodeURIComponent(paymentModalData.bankAccountName || '')}`} 
+                      alt="VietQR"
+                      className="w-48 h-48 rounded-lg shadow-sm border border-gray-200 object-contain bg-white"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                    <p className="text-[11px] text-gray-500 italic text-center">Quét mã QR để thanh toán nhanh</p>
+                  </div>
+                )}
+                
                 <h4 className="font-semibold text-gray-700 mb-2 border-b border-gray-200 pb-2">Tài khoản thụ hưởng</h4>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-500">Ngân hàng:</span>
