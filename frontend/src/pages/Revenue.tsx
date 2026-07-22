@@ -550,23 +550,49 @@ const Revenue: React.FC = () => {
           <button
             onClick={async () => {
               if (userRole === 'POS') {
-                const todayStr = new Date().toLocaleDateString('en-CA');
                 const branchIdStr = userBranchId || '';
-                const attQ = query(collection(db, 'attendance'), where('date', '==', todayStr), where('branchId', '==', branchIdStr));
-                const attSnap = await getDocs(attQ);
-                const checkedInIds = attSnap.docs
-                  .map(d => (d.data().checkIn && !d.data().checkOut) ? d.data().employeeId : null)
-                  .filter(Boolean);
+                let cashiers: {id: string, name: string}[] = [];
+
+                // 1. Kiểm tra ca đang mở (ưu tiên giống trên bill)
+                const shiftQ = query(
+                  collection(db, 'shift_reports'),
+                  where('branchId', '==', branchIdStr),
+                  where('status', '==', 'OPEN')
+                );
+                const shiftSnap = await getDocs(shiftQ);
                 
-                const cashiers = [];
-                for (const id of checkedInIds) {
-                   const empDoc = await getDoc(doc(db, 'employees', id as string));
-                   if (empDoc.exists()) {
-                      const code = empDoc.data().employeeCode || empDoc.id;
-                      const name = empDoc.data().fullName || empDoc.data().name || '';
-                      cashiers.push({ id: id as string, name: `${code} - ${name}` });
+                if (!shiftSnap.empty) {
+                   const openShifts = shiftSnap.docs.map(d => d.data());
+                   openShifts.sort((a, b) => {
+                      const timeA = a.startTime?.toMillis ? a.startTime.toMillis() : 0;
+                      const timeB = b.startTime?.toMillis ? b.startTime.toMillis() : 0;
+                      return timeB - timeA;
+                   });
+                   const openShift = openShifts[0];
+                   if (openShift.cashierName && openShift.cashierEmail) {
+                      cashiers.push({ id: openShift.cashierEmail, name: openShift.cashierName });
                    }
                 }
+
+                // 2. Nếu không có ca mở, lấy tất cả những người đang check in
+                if (cashiers.length === 0) {
+                  const todayStr = new Date().toLocaleDateString('en-CA');
+                  const attQ = query(collection(db, 'attendance'), where('date', '==', todayStr), where('branchId', '==', branchIdStr));
+                  const attSnap = await getDocs(attQ);
+                  const checkedInIds = attSnap.docs
+                    .map(d => (d.data().checkIn && !d.data().checkOut) ? d.data().employeeId : null)
+                    .filter(Boolean);
+                  
+                  for (const id of checkedInIds) {
+                     const empDoc = await getDoc(doc(db, 'employees', id as string));
+                     if (empDoc.exists()) {
+                        const code = empDoc.data().employeeCode || empDoc.id;
+                        const name = empDoc.data().fullName || empDoc.data().name || '';
+                        cashiers.push({ id: empDoc.data().email || id as string, name: `${code} - ${name}` });
+                     }
+                  }
+                }
+
                 setActiveCashiers(cashiers);
                 setSelectedCashierId(cashiers.length === 1 ? cashiers[0].id : '');
                 
