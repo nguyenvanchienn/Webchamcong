@@ -84,6 +84,7 @@ const Accounts: React.FC = () => {
         const data = doc.data();
         if (data.role !== 'SUPER_ADMIN') {
           if (userRole === 'BRANCH_ADMIN') {
+            if (data.role === 'KIOSK') return;
             const accBranchId = data.branchId || (data.employeeId ? empBranchMap[data.employeeId] : null);
             if (accBranchId === actualUserBranchId) {
               userList.push({ id: doc.id, ...data } as UserAccount);
@@ -530,7 +531,7 @@ const Accounts: React.FC = () => {
                 >
                   <option value="EMPLOYEE">Nhân viên</option>
                   {userRole === 'SUPER_ADMIN' && <option value="BRANCH_ADMIN">Quản lý cơ sở</option>}
-                  <option value="KIOSK">Thiết bị điểm danh (Kiosk)</option>
+                  {userRole === 'SUPER_ADMIN' && <option value="KIOSK">Thiết bị điểm danh (Kiosk)</option>}
                   <option value="POS">Máy Order (Menu)</option>
                 </select>
               </div>
