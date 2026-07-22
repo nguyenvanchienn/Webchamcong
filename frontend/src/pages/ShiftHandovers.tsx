@@ -61,8 +61,11 @@ const ShiftHandovers = () => {
   const [notes, setNotes] = useState('');
   
   // Doanh thu tạm tính (chỉ khi đang chốt ca mới tính)
-  const [tempRevenueCash, setTempRevenueCash] = useState(0);
-  const [tempRevenueTransfer, setTempRevenueTransfer] = useState(0);
+  const [tempRevenueCash, setTempRevenueCash] = useState<number>(0);
+  const [tempRevenueTransfer, setTempRevenueTransfer] = useState<number>(0);
+
+  const [posActiveEmployees, setPosActiveEmployees] = useState<{id: string, name: string, email: string, isCashier: boolean}[]>([]);
+  const [selectedPosEmployeeId, setSelectedPosEmployeeId] = useState<string>('');
 
   const fetchData = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -258,8 +261,8 @@ const ShiftHandovers = () => {
       console.error('Lỗi kiểm tra ca mở:', error);
     }
 
-    // Kiểm tra xem đã chấm công chưa (chỉ áp dụng cho thu ngân / nhân viên)
-    if (userRole === 'CASHIER' || userRole === 'EMPLOYEE' || userRole === 'POS') {
+    // Kiểm tra xem đã chấm công chưa
+    if (userRole === 'CASHIER' || userRole === 'EMPLOYEE') {
       const empId = localStorage.getItem('employeeId');
       if (!empId) {
         toast.error('Tài khoản chưa liên kết với nhân viên. Vui lòng liên hệ Quản lý.');
@@ -294,6 +297,63 @@ const ShiftHandovers = () => {
          console.error('Lỗi kiểm tra chấm công:', err);
          toast.error('Lỗi khi kiểm tra chấm công.');
          return;
+      }
+    } else if (userRole === 'POS') {
+      try {
+        const todayStr = new Date().toLocaleDateString('en-CA');
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toLocaleDateString('en-CA');
+        
+        const attQuery = query(
+          collection(db, 'attendance'),
+          where('date', '>=', yesterdayStr),
+          where('date', '<=', todayStr)
+        );
+        const snap = await getDocs(attQuery);
+        
+        let activeEmps: {id: string, name: string, email: string, isCashier: boolean}[] = [];
+        let defaultEmpId = '';
+        
+        const checkedInIds = snap.docs
+          .map(d => {
+             const data = d.data();
+             return (data.checkIn && !data.checkOut && (!currentBranchId || data.branchId === currentBranchId)) ? data.employeeId : null;
+          })
+          .filter(Boolean);
+
+        for (const id of checkedInIds) {
+           const empDoc = await getDoc(doc(db, 'employees', id as string));
+           if (empDoc.exists()) {
+              const data = empDoc.data();
+              const isCashier = data.position && data.position.toLowerCase().includes('thu ngân');
+              activeEmps.push({ 
+                 id: id as string, 
+                 name: `${data.employeeCode || id} - ${data.fullName || data.name || ''}`,
+                 email: data.email || id as string,
+                 isCashier 
+              });
+           }
+        }
+
+        if (activeEmps.length === 0) {
+           toast.error("Không có nhân viên nào đang check-in. Vui lòng chấm công trước khi mở ca!");
+           return;
+        }
+
+        const cashierEmp = activeEmps.find(e => e.isCashier);
+        if (cashierEmp) {
+           defaultEmpId = cashierEmp.id;
+        } else {
+           defaultEmpId = activeEmps[0].id;
+        }
+        
+        setPosActiveEmployees(activeEmps);
+        setSelectedPosEmployeeId(defaultEmpId);
+      } catch (err) {
+        console.error('Lỗi kiểm tra POS:', err);
+        toast.error('Lỗi lấy danh sách thu ngân.');
+        return;
       }
     }
 
@@ -369,7 +429,17 @@ const ShiftHandovers = () => {
           return;
         }
         let cashierDisplayName = currentUserEmail;
-        if (currentEmployeeId) {
+        let finalCashierEmail = currentUserEmail;
+
+        if (userRole === 'POS') {
+          const selectedEmp = posActiveEmployees.find(e => e.id === selectedPosEmployeeId);
+          if (!selectedEmp) {
+            toast.error('Vui lòng chọn nhân viên mở ca!');
+            return;
+          }
+          cashierDisplayName = selectedEmp.name;
+          finalCashierEmail = selectedEmp.email;
+        } else if (currentEmployeeId) {
           const empDoc = await getDoc(doc(db, 'employees', currentEmployeeId));
           if (empDoc.exists()) {
             const empData = empDoc.data();
@@ -384,7 +454,7 @@ const ShiftHandovers = () => {
 
         await addDoc(collection(db, 'shift_reports'), {
           branchId: currentBranchId,
-          cashierEmail: currentUserEmail,
+          cashierEmail: finalCashierEmail,
           cashierName: cashierDisplayName,
           startTime: new Date(),
           endTime: null,
@@ -528,7 +598,7 @@ const ShiftHandovers = () => {
             className="px-4 py-2 border border-gray-300 rounded-lg outline-none focus:border-blue-500"
           />
 
-          {userRole === 'CASHIER' && (
+          {(userRole === 'CASHIER' || userRole === 'POS') && (
             activeShift ? (
               <button 
                 onClick={handlePrepareCloseShift}
@@ -550,7 +620,7 @@ const ShiftHandovers = () => {
         </div>
       </div>
 
-      {userRole === 'CASHIER' && activeShift && (
+      {(userRole === 'CASHIER' || userRole === 'POS') && activeShift && (
         <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-6 shadow-md text-white">
           <div className="flex justify-between items-start">
             <div>
@@ -705,6 +775,22 @@ const ShiftHandovers = () => {
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
               
+              {modalMode === 'OPEN' && userRole === 'POS' && posActiveEmployees.length > 0 && (
+                <div className="mb-4 bg-blue-50 p-4 rounded-xl border border-blue-100">
+                  <label className="block text-sm font-bold text-blue-900 mb-2">Bạn là ai? <span className="text-red-500">*</span></label>
+                  <select
+                    className="w-full px-4 py-3 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-gray-800 font-medium"
+                    value={selectedPosEmployeeId}
+                    onChange={(e) => setSelectedPosEmployeeId(e.target.value)}
+                  >
+                    {posActiveEmployees.map(emp => (
+                       <option key={emp.id} value={emp.id}>{emp.name}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-blue-700 mt-2 italic">Chỉ hiển thị các nhân viên đang check-in trong ca (Ưu tiên thu ngân).</p>
+                </div>
+              )}
+
               {modalMode === 'OPEN' || modalMode === 'EDIT' ? (
                 <>
                   <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 mb-4">
