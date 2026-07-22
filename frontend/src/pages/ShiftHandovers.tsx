@@ -446,9 +446,6 @@ const ShiftHandovers = () => {
           return; // Stop here, the password dialog will handle the rest
         }
 
-        let cashierDisplayName = currentUserEmail;
-        let finalCashierEmail = currentUserEmail;
-
         if (currentEmployeeId) {
           const empDoc = await getDoc(doc(db, 'employees', currentEmployeeId));
           if (empDoc.exists()) {
