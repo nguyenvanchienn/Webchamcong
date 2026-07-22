@@ -209,10 +209,21 @@ const ShiftHandovers = () => {
         const data = doc.data();
         if (data.branchId === branchId && data.status === 'COMPLETED') { // Lọc theo branchId
           const totalAmount = data.totalAmount || data.total || 0; // Hỗ trợ cả 2 tên biến tổng tiền
-          if (data.paymentMethod === 'CASH') {
-            revCash += totalAmount;
+          
+          if (data.type === 'EXPENSE') {
+             // Trừ chi phí. Nếu không có hình thức thanh toán rõ ràng, mặc định trừ tiền mặt
+             if (data.paymentMethod === 'TRANSFER') {
+                revTrans -= totalAmount;
+             } else {
+                revCash -= totalAmount;
+             }
           } else {
-            revTrans += totalAmount;
+             // Cộng doanh thu bán hàng
+             if (data.paymentMethod === 'CASH') {
+               revCash += totalAmount;
+             } else {
+               revTrans += totalAmount;
+             }
           }
         }
       });
