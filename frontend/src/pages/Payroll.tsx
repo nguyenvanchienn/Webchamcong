@@ -109,6 +109,7 @@ const Payroll: React.FC = () => {
     bankAccountNum?: string;
     bankAccountName?: string;
     fullName: string;
+    employeeCode?: string;
     salaryRate: number;
     bonuses?: any[];
   } | null>(null);
@@ -734,6 +735,7 @@ const Payroll: React.FC = () => {
                             bankAccountNum: item.employeeInfo.bankAccountNum,
                             bankAccountName: item.employeeInfo.bankAccountName,
                             fullName: item.employeeInfo.fullName,
+                            employeeCode: item.employeeInfo.employeeCode,
                             salaryRate: item.salaryRate !== undefined ? item.salaryRate : item.employeeInfo.salaryPerHour,
                             bonuses: item.bonuses || []
                           })}
@@ -858,19 +860,21 @@ const Payroll: React.FC = () => {
 
       {/* PAYMENT MODAL */}
       {paymentModalData && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-fade-in-up">
-            <div className="bg-blue-600 p-4 text-white flex justify-between items-center">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-fade-in-up flex flex-col max-h-[90vh]">
+            <div className="bg-blue-600 p-4 text-white flex justify-between items-center shrink-0">
               <h3 className="font-bold text-lg">Thông tin thanh toán</h3>
               <button onClick={() => setPaymentModalData(null)} className="text-white/80 hover:text-white transition-colors">
                 ✕
               </button>
             </div>
             
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
               <div className="text-center mb-6">
                 <p className="text-sm text-gray-500 mb-1">Thanh toán lương tháng {month} cho</p>
-                <p className="text-xl font-bold text-gray-800">{paymentModalData.fullName}</p>
+                <p className="text-xl font-bold text-gray-800">
+                  {paymentModalData.fullName} {paymentModalData.employeeCode && <span className="text-sm font-medium text-gray-500"> - {paymentModalData.employeeCode}</span>}
+                </p>
                 <p className="text-3xl font-black text-green-600 mt-2">
                   {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(paymentModalData.amount)}
                 </p>
@@ -905,7 +909,7 @@ const Payroll: React.FC = () => {
                         return paymentModalData.bankName!.split(' ')[0].toLowerCase();
                       })()}-${paymentModalData.bankAccountNum}-compact2.jpg?amount=${paymentModalData.amount}&addInfo=${encodeURIComponent(`Thanh toan luong thang ${month}`)}&accountName=${encodeURIComponent(paymentModalData.bankAccountName || '')}`} 
                       alt="VietQR"
-                      className="w-48 h-48 rounded-lg shadow-sm border border-gray-200 object-contain bg-white"
+                      className="w-40 h-40 rounded-lg shadow-sm border border-gray-200 object-contain bg-white"
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = 'none';
                       }}
