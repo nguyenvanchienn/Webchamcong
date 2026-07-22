@@ -489,16 +489,18 @@ const Attendance: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {records.filter(r => localStorage.getItem('userRole') !== 'SUPER_ADMIN' || filterBranchId === 'ALL' || r.branchId === filterBranchId).length === 0 ? (
-                <tr>
-                  <td colSpan={10} className="p-8 text-center text-gray-500">Chưa có ai chấm công ngày này.</td>
-                </tr>
-              ) : (
-                records
-                  .filter(r => localStorage.getItem('userRole') !== 'SUPER_ADMIN' || filterBranchId === 'ALL' || r.branchId === filterBranchId)
-                  .map((record, index) => (
+              {(() => {
+                const filtered = records.filter(r => localStorage.getItem('userRole') !== 'SUPER_ADMIN' || filterBranchId === 'ALL' || r.branchId === filterBranchId);
+                if (filtered.length === 0) {
+                  return (
+                    <tr>
+                      <td colSpan={10} className="p-8 text-center text-gray-500">Chưa có ai chấm công ngày này.</td>
+                    </tr>
+                  );
+                }
+                return filtered.map((record, index) => (
                   <tr key={record.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="p-4 text-sm text-gray-600 font-medium">{index + 1}</td>
+                    <td className="p-4 text-sm text-gray-600 font-medium">{filtered.length - index}</td>
                     <td className="p-4 text-sm font-medium text-gray-800 whitespace-normal break-words min-w-[150px]">
                       [{record.employeeCode || 'No ID'}] {record.employeeName}
                     </td>
@@ -597,8 +599,8 @@ const Attendance: React.FC = () => {
                       )}
                     </td>
                   </tr>
-                ))
-              )}
+                ));
+              })()}
             </tbody>
           </table>
         )}

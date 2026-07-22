@@ -341,20 +341,22 @@ const Employees: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {employees.filter(emp => filterBranchId === 'all' || emp.branchId === filterBranchId).length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="p-8 text-center text-gray-500">Chưa có nhân viên nào. Hãy thêm mới!</td>
-                  </tr>
-                ) : (
-                  employees
-                    .filter(emp => filterBranchId === 'all' || emp.branchId === filterBranchId)
-                    .map((emp, index) => (
+                {(() => {
+                  const filtered = employees.filter(emp => filterBranchId === 'all' || emp.branchId === filterBranchId);
+                  if (filtered.length === 0) {
+                    return (
+                      <tr>
+                        <td colSpan={8} className="p-8 text-center text-gray-500">Chưa có nhân viên nào. Hãy thêm mới!</td>
+                      </tr>
+                    );
+                  }
+                  return filtered.map((emp, index) => (
                     <tr 
                       key={emp.id} 
                       id={`emp-row-${emp.id}`}
                       className={`border-b border-gray-100 transition-colors ${highlightId === emp.id ? 'bg-yellow-50 hover:bg-yellow-100' : 'hover:bg-gray-50'}`}
                     >
-                      <td className="p-4 text-sm text-gray-600 font-medium">{index + 1}</td>
+                      <td className="p-4 text-sm text-gray-600 font-medium">{filtered.length - index}</td>
                       <td className="p-4 text-sm font-medium text-gray-800">
                         <button 
                           onClick={() => setViewingEmployee(emp)} 
@@ -405,8 +407,8 @@ const Employees: React.FC = () => {
                         </button>
                       </td>
                     </tr>
-                  ))
-                )}
+                  ));
+                })()}
               </tbody>
             </table>
           </div>

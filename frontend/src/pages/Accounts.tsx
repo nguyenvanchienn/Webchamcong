@@ -364,20 +364,8 @@ const Accounts: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {accounts.filter(acc => {
-                if (filterBranchId === 'all') return true;
-                if (acc.branchId && acc.branchId === filterBranchId) return true;
-                if (acc.employeeId) {
-                  const emp = employees.find(e => e.id === acc.employeeId);
-                  if (emp && emp.branchId === filterBranchId) return true;
-                }
-                return false;
-              }).length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="p-8 text-center text-gray-500">Chưa có tài khoản nào.</td>
-                </tr>
-              ) : (
-                accounts.filter(acc => {
+              {(() => {
+                const filtered = accounts.filter(acc => {
                   if (filterBranchId === 'all') return true;
                   if (acc.branchId && acc.branchId === filterBranchId) return true;
                   if (acc.employeeId) {
@@ -385,9 +373,19 @@ const Accounts: React.FC = () => {
                     if (emp && emp.branchId === filterBranchId) return true;
                   }
                   return false;
-                }).map((acc, index) => (
+                });
+
+                if (filtered.length === 0) {
+                  return (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-gray-500">Chưa có tài khoản nào.</td>
+                    </tr>
+                  );
+                }
+
+                return filtered.map((acc, index) => (
                 <tr key={acc.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="p-4 text-sm text-gray-600 font-medium">{index + 1}</td>
+                  <td className="p-4 text-sm text-gray-600 font-medium">{filtered.length - index}</td>
                   <td className="p-4 text-sm font-medium text-gray-800">{acc.email}</td>
                   <td className="p-4">
                     <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
@@ -457,7 +455,8 @@ const Accounts: React.FC = () => {
                     )}
                   </td>
                 </tr>
-              )))}
+                ));
+              })()}
             </tbody>
           </table>
         )}
