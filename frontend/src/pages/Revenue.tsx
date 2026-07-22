@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, orderBy, getDocs, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, addDoc, updateDoc, doc, serverTimestamp, where, getDoc } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
 import { CircleDollarSign, Receipt, TrendingUp, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, FileText, Trash2, Edit2, Minus, X } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -65,6 +65,8 @@ const Revenue: React.FC = () => {
   const [isSubmittingExpense, setIsSubmittingExpense] = useState(false);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [historyModalOrder, setHistoryModalOrder] = useState<Order | null>(null);
+  const [activeCashiers, setActiveCashiers] = useState<{id: string, name: string}[]>([]);
+  const [selectedCashierId, setSelectedCashierId] = useState<string>('');
 
 
 
@@ -241,7 +243,19 @@ const Revenue: React.FC = () => {
 
     setIsSubmittingExpense(true);
     try {
-      const editorName = await getEditorName();
+      let editorName = await getEditorName();
+      
+      if (userRole === 'POS') {
+         if (!selectedCashierId) {
+            toast.error("Vui lòng chọn thu ngân chi tiền!");
+            setIsSubmittingExpense(false);
+            return;
+         }
+         const selectedCashier = activeCashiers.find(c => c.id === selectedCashierId);
+         if (selectedCashier) {
+            editorName = selectedCashier.name;
+         }
+      }
 
       if (editingExpenseId) {
         const expenseRef = doc(db, 'orders', editingExpenseId);
@@ -534,7 +548,33 @@ const Revenue: React.FC = () => {
           )}
 
           <button
-            onClick={() => {
+            onClick={async () => {
+              if (userRole === 'POS') {
+                const todayStr = new Date().toLocaleDateString('en-CA');
+                const branchIdStr = userBranchId || '';
+                const attQ = query(collection(db, 'attendance'), where('date', '==', todayStr), where('branchId', '==', branchIdStr));
+                const attSnap = await getDocs(attQ);
+                const checkedInIds = attSnap.docs
+                  .map(d => (d.data().checkIn && !d.data().checkOut) ? d.data().employeeId : null)
+                  .filter(Boolean);
+                
+                const cashiers = [];
+                for (const id of checkedInIds) {
+                   const empDoc = await getDoc(doc(db, 'employees', id as string));
+                   if (empDoc.exists()) {
+                      const code = empDoc.data().employeeCode || empDoc.id;
+                      const name = empDoc.data().fullName || empDoc.data().name || '';
+                      cashiers.push({ id: id as string, name: `${code} - ${name}` });
+                   }
+                }
+                setActiveCashiers(cashiers);
+                setSelectedCashierId(cashiers.length === 1 ? cashiers[0].id : '');
+                
+                if (cashiers.length === 0) {
+                  toast.error("Không có thu ngân nào đang check-in. Vui lòng chấm công trước!");
+                  return; // Chặn không cho thêm phiếu chi nếu chưa ai check-in
+                }
+              }
               setEditingExpenseId(null);
               setExpenseReason('');
               setExpenseAmount('');
@@ -923,6 +963,22 @@ const Revenue: React.FC = () => {
             
             <form onSubmit={handleAddExpense} className="p-6">
               <div className="space-y-4">
+                {userRole === 'POS' && !editingExpenseId && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Bạn là ai? (Bắt buộc) *</label>
+                    <select
+                      value={selectedCashierId}
+                      onChange={e => setSelectedCashierId(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 outline-none"
+                      required
+                    >
+                      <option value="" disabled>-- Chọn thu ngân đang trong ca --</option>
+                      {activeCashiers.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Lý do chi (VD: Nhập đá, Trả tiền điện...)</label>
                   <input
