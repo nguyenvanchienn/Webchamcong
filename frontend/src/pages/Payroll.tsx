@@ -506,7 +506,12 @@ const Payroll: React.FC = () => {
           totalHours: Math.round(item.totalHours * 100) / 100
         }));
         
-        setAdminPayroll([...adminList, ...unpaidList].sort((a, b) => a.employeeInfo.fullName.localeCompare(b.employeeInfo.fullName)));
+        setAdminPayroll([...adminList, ...unpaidList].sort((a, b) => {
+          if (a.isPaid === b.isPaid) {
+            return a.employeeInfo.fullName.localeCompare(b.employeeInfo.fullName);
+          }
+          return a.isPaid ? 1 : -1;
+        }));
       }
     } catch (error) {
       console.error("Lỗi tính lương:", error);
