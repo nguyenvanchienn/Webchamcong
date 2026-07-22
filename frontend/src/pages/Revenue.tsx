@@ -64,6 +64,7 @@ const Revenue: React.FC = () => {
   const [expenseNote, setExpenseNote] = useState('');
   const [isSubmittingExpense, setIsSubmittingExpense] = useState(false);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
+  const [historyModalOrder, setHistoryModalOrder] = useState<Order | null>(null);
 
 
 
@@ -646,9 +647,15 @@ const Revenue: React.FC = () => {
                           </span>
                         )}
                         {!order.deletedBy && order.editCount && order.editCount > 0 ? (
-                          <span className="block text-[10px] text-gray-400 font-medium mt-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setHistoryModalOrder(order);
+                            }}
+                            className="block text-[10px] text-blue-500 hover:text-blue-700 font-medium mt-1 cursor-pointer"
+                          >
                             (Đã sửa {order.editCount} lần - Xem chi tiết)
-                          </span>
+                          </button>
                         ) : null}
                       </td>
                       <td className={`p-4 font-bold text-right text-lg ${isExpense ? 'text-red-600' : 'text-gray-800'} ${order.deletedBy ? 'line-through text-gray-400' : ''}`}>
@@ -1041,6 +1048,60 @@ const Revenue: React.FC = () => {
               >
                 Đồng ý
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* History Modal */}
+      {historyModalOrder && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+              <h3 className="font-bold text-lg text-gray-800">Lịch sử chỉnh sửa</h3>
+              <button onClick={() => setHistoryModalOrder(null)} className="text-gray-500 hover:text-red-500 transition-colors">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto bg-gray-50 flex-1">
+              <div className="space-y-6">
+                {(() => {
+                  const history = [];
+                  const missingCount = (historyModalOrder.editCount || 0) - (historyModalOrder.editHistory?.length || 0);
+                  for (let i = 0; i < missingCount; i++) {
+                    history.push({ editedAt: null, editedBy: historyModalOrder.lastEditedBy });
+                  }
+                  if (historyModalOrder.editHistory) history.push(...historyModalOrder.editHistory);
+                  
+                  return history.map((h: any, idx: number) => (
+                    <div key={idx} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm relative">
+                      <div className="absolute -left-2 top-4 w-4 h-4 bg-blue-100 rounded-full border-2 border-white shadow-sm"></div>
+                      <div className="flex justify-between items-start mb-2">
+                        <p className="font-bold text-blue-700 text-sm">
+                          {formatEditorName(h.editedBy)}
+                        </p>
+                        <span className="text-xs text-gray-500 font-medium bg-gray-100 px-2 py-1 rounded">
+                          {h.editedAt ? new Date(h.editedAt).toLocaleString('vi-VN') : 'Trước đây'}
+                        </span>
+                      </div>
+                      <ul className="space-y-1.5 mt-3">
+                        <li className="text-sm text-gray-700 flex items-start">
+                          <span className="mr-2 text-blue-400 mt-0.5">•</span>
+                          <span>
+                            {h.oldAmount !== undefined && h.newAmount !== undefined ? (
+                              h.note?.startsWith('XÓA') 
+                                ? `${h.note}, giảm từ ${new Intl.NumberFormat('vi-VN').format(h.oldAmount)}đ`
+                                : `Sửa số tiền từ ${new Intl.NumberFormat('vi-VN').format(h.oldAmount)}đ -> ${new Intl.NumberFormat('vi-VN').format(h.newAmount)}đ`
+                            ) : (
+                              "Sửa đổi khác"
+                            )}
+                          </span>
+                        </li>
+                      </ul>
+                    </div>
+                  ));
+                })()}
+              </div>
             </div>
           </div>
         </div>
