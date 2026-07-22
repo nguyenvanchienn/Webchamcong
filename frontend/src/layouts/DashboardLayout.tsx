@@ -7,7 +7,7 @@ import { doc, getDoc, collection, query, where, onSnapshot } from 'firebase/fire
 import { 
   LayoutDashboard, Building2, Users, UserCog, 
   Clock, CalendarDays, ClipboardList, Wallet, 
-  BarChart3, FileSpreadsheet, Settings, LogOut, UserCircle, Bell, ChevronLeft, ChevronRight, Menu, X,
+  BarChart3, FileSpreadsheet, Settings, LogOut, UserCircle, Bell, ChevronLeft, ChevronRight, Menu, X, ClipboardCheck,
   ShoppingCart, Receipt, Utensils, CircleDollarSign, Store, QrCode
 } from 'lucide-react';
 
@@ -102,6 +102,7 @@ const DashboardLayout: React.FC = () => {
     { name: 'Bán hàng (POS)', path: '/pos', icon: <ShoppingCart size={20} />, roles: ['POS'] },
     { name: 'Màn hình Khách Order', path: '/customer-order', icon: <Store size={20} />, roles: ['POS'] },
     { name: 'Lịch sử Hóa đơn', path: '/dashboard/orders', icon: <Receipt size={20} />, roles: ['POS'] },
+    { name: 'Bàn giao ca', path: '/dashboard/shift-handovers', icon: <ClipboardCheck size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN', 'CASHIER'] },
     { name: 'Quản lý Thực đơn', path: '/dashboard/menu', icon: <Utensils size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN'] },
     { name: 'Quản lý cơ sở', path: '/dashboard/branches', icon: <Building2 size={20} />, roles: ['SUPER_ADMIN'] },
     { name: 'Quản lý Bàn / QR', path: '/dashboard/tables', icon: <QrCode size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN', 'POS'] },

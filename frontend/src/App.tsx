@@ -26,6 +26,7 @@ import MenuManager from './pages/MenuManager';
 import Revenue from './pages/Revenue';
 import TableManager from './pages/TableManager';
 import TableOrder from './pages/TableOrder';
+import ShiftHandovers from './pages/ShiftHandovers';
 
 const RoleBasedDashboard = () => {
   const role = localStorage.getItem('userRole') || 'EMPLOYEE';
@@ -58,6 +59,7 @@ function App() {
           <Route path="schedules" element={<Schedules />} />
           <Route path="timesheets" element={<Timesheets />} />
           <Route path="payroll" element={<Payroll />} />
+          <Route path="shift-handovers" element={<ShiftHandovers />} />
           <Route path="notifications" element={<Notifications />} />
           <Route path="profile" element={<Profile />} />
           <Route path="reports" element={<Reports />} />
