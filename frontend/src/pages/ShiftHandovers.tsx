@@ -482,6 +482,12 @@ const ShiftHandovers = () => {
       } else if (modalMode === 'CLOSE') {
         // Đóng ca
         if (!activeShift) return;
+
+        if (userRole === 'POS') {
+          setShowPosPasswordDialog(true);
+          return;
+        }
+
         const now = new Date();
         const rev = await calculateRevenue(activeShift.startTime, now, activeShift.branchId);
         
@@ -562,48 +568,80 @@ const ShiftHandovers = () => {
     }
   };
 
-  const handleVerifyPasswordAndOpenShift = async (e: React.FormEvent) => {
+  const handleVerifyPasswordAndSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!posPassword) {
       toast.error('Vui lòng nhập mật khẩu xác nhận!');
       return;
     }
     
-    const selectedEmp = posActiveEmployees.find(e => e.id === selectedPosEmployeeId);
-    if (!selectedEmp) return;
+    let targetEmail = '';
+    let targetName = '';
+
+    if (modalMode === 'OPEN') {
+       const selectedEmp = posActiveEmployees.find(e => e.id === selectedPosEmployeeId);
+       if (!selectedEmp) return;
+       targetEmail = selectedEmp.email;
+       targetName = selectedEmp.name;
+    } else if (modalMode === 'CLOSE') {
+       targetEmail = activeShift?.cashierEmail || '';
+       targetName = activeShift?.cashierName || '';
+    }
+    
+    if (!targetEmail) return;
     
     try {
       setLoading(true);
       const secondaryApp = initializeApp(firebaseConfig, 'SecondaryAppVerify-' + Date.now());
       const secondaryAuth = getAuth(secondaryApp);
-      await signInWithEmailAndPassword(secondaryAuth, selectedEmp.email, posPassword);
+      await signInWithEmailAndPassword(secondaryAuth, targetEmail, posPassword);
       secondaryAuth.signOut();
       
       // Verified successfully!
-      if (!currentBranchId) {
-         toast.error('Lỗi: Không xác định được cơ sở');
-         setLoading(false);
-         return;
+      if (modalMode === 'OPEN') {
+        if (!currentBranchId) {
+           toast.error('Lỗi: Không xác định được cơ sở');
+           setLoading(false);
+           return;
+        }
+        await addDoc(collection(db, 'shift_reports'), {
+          branchId: currentBranchId,
+          cashierEmail: targetEmail,
+          cashierName: targetName,
+          startTime: new Date(),
+          endTime: null,
+          startCash,
+          startTransfer,
+          endCash: null,
+          endTransfer: null,
+          revenueCash: null,
+          revenueTransfer: null,
+          status: 'OPEN',
+          notes
+        });
+        
+        toast.success('Mở ca thành công!');
+      } else if (modalMode === 'CLOSE') {
+        if (!activeShift) return;
+        const now = new Date();
+        const rev = await calculateRevenue(activeShift.startTime, now, activeShift.branchId);
+        
+        await updateDoc(doc(db, 'shift_reports', activeShift.id), {
+          endTime: now,
+          endCash,
+          endTransfer,
+          revenueCash: rev.revCash,
+          revenueTransfer: rev.revTrans,
+          status: 'CLOSED',
+          notes
+        });
+        toast.success('Chốt ca thành công!');
+        setActiveShift(null);
       }
-      await addDoc(collection(db, 'shift_reports'), {
-        branchId: currentBranchId,
-        cashierEmail: selectedEmp.email,
-        cashierName: selectedEmp.name,
-        startTime: new Date(),
-        endTime: null,
-        startCash,
-        startTransfer,
-        endCash: null,
-        endTransfer: null,
-        revenueCash: null,
-        revenueTransfer: null,
-        status: 'OPEN',
-        notes
-      });
-      
-      toast.success('Mở ca thành công!');
+
       setShowPosPasswordDialog(false);
       setPosPassword('');
+      setShowPosPasswordVisible(false);
       fetchData(true);
       closeModal();
     } catch (err: any) {
@@ -1010,9 +1048,9 @@ const ShiftHandovers = () => {
                 <X size={20} />
               </button>
             </div>
-            <form onSubmit={handleVerifyPasswordAndOpenShift} className="p-6">
+            <form onSubmit={handleVerifyPasswordAndSubmit} className="p-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Nhập mật khẩu của {posActiveEmployees.find(e => e.id === selectedPosEmployeeId)?.name}
+                Nhập mật khẩu của {modalMode === 'OPEN' ? posActiveEmployees.find(e => e.id === selectedPosEmployeeId)?.name : activeShift?.cashierName}
               </label>
               <div className="relative mb-6">
                 <input
