@@ -114,12 +114,14 @@ const Accounts: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const currentBranchId = localStorage.getItem('branchId');
+
     if (editingAccount) {
       try {
         await updateDoc(doc(db, 'users', editingAccount.id), {
           role: formData.role,
           employeeId: formData.employeeId || null,
-          branchId: userRole === 'BRANCH_ADMIN' ? userBranchId : (formData.branchId || null)
+          branchId: userRole === 'BRANCH_ADMIN' ? currentBranchId : (formData.branchId || null)
         });
         toast.success('Cập nhật quyền hạn thành công!');
         closeModal();
@@ -151,7 +153,7 @@ const Accounts: React.FC = () => {
         email: formData.email,
         role: formData.role,
         employeeId: formData.employeeId || null,
-        branchId: userRole === 'BRANCH_ADMIN' ? userBranchId : (formData.branchId || null),
+        branchId: userRole === 'BRANCH_ADMIN' ? currentBranchId : (formData.branchId || null),
         status: 'ACTIVE',
         createdAt: new Date().toISOString(),
         requirePasswordChange: needsPasswordChange
@@ -170,7 +172,7 @@ const Accounts: React.FC = () => {
   const handleDelete = async (id: string) => {
     const result = await Swal.fire({
       title: 'Xóa tài khoản?',
-      text: 'Bạn có chắc chắn muốn xóa tài khoản này không? (Hành động này không thể hoàn tác)',
+      text: 'Hành động này sẽ vô hiệu hóa tài khoản và xóa khỏi danh sách. Bạn có chắc chắn không?',
       icon: 'warning',
       showCancelButton: true,
       confirmButtonText: 'Xóa',
@@ -179,13 +181,14 @@ const Accounts: React.FC = () => {
 
     if (result.isConfirmed) {
       try {
-        const response = await fetch(`http://localhost:5000/api/users/${id}`, {
-          method: 'DELETE'
+        // We cannot delete the Auth user from client SDK easily without their password.
+        // So we delete the Firestore document to effectively disable their access and hide them.
+        import('firebase/firestore').then(({ deleteDoc, doc }) => {
+           deleteDoc(doc(db, 'users', id)).then(() => {
+             toast.success('Đã xóa tài khoản khỏi hệ thống!');
+             fetchData();
+           });
         });
-        if (!response.ok) throw new Error('Không thể xóa trên server');
-        
-        toast.success('Đã xóa tài khoản!');
-        fetchData();
       } catch (error) {
         console.error("Lỗi xóa tài khoản:", error);
         toast.error('Lỗi khi xóa tài khoản!');
@@ -256,6 +259,7 @@ const Accounts: React.FC = () => {
   };
 
   const openModal = (account?: UserAccount) => {
+    const currentBranchId = localStorage.getItem('branchId') || '';
     if (account) {
       setEditingAccount(account);
       setFormData({
@@ -274,7 +278,7 @@ const Accounts: React.FC = () => {
         confirmPassword: '',
         role: 'EMPLOYEE',
         employeeId: '',
-        branchId: userRole === 'BRANCH_ADMIN' ? (userBranchId || '') : (branches.length > 0 ? branches[0].id : '')
+        branchId: userRole === 'BRANCH_ADMIN' ? currentBranchId : (branches.length > 0 ? branches[0].id : '')
       });
     }
     setIsModalOpen(true);
