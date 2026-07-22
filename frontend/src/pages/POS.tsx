@@ -60,6 +60,8 @@ const POS: React.FC = () => {
   const [logoutPassword, setLogoutPassword] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
+  const [activeTableOrders, setActiveTableOrders] = useState<ActiveTableOrder[]>([]);
+  const [showTableOrdersModal, setShowTableOrdersModal] = useState(false);
   const [currentTableOrderId, setCurrentTableOrderId] = useState<string | null>(null);
   const [currentTableId, setCurrentTableId] = useState<string | null>(null);
   const [currentTableName, setCurrentTableName] = useState<string | null>(null);
