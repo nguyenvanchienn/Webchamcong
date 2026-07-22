@@ -3,7 +3,7 @@ import { collection, getDocs, addDoc, updateDoc, doc, query, where, orderBy, del
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 import { db, firebaseConfig } from '../config/firebase';
-import { Wallet, CheckCircle2, Plus, X, Trash2, ArrowRightLeft, FileText } from 'lucide-react';
+import { Wallet, CheckCircle2, Plus, X, Trash2, ArrowRightLeft, FileText, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface Branch {
@@ -70,6 +70,7 @@ const ShiftHandovers = () => {
   const [selectedPosEmployeeId, setSelectedPosEmployeeId] = useState<string>('');
   const [posPassword, setPosPassword] = useState('');
   const [showPosPasswordDialog, setShowPosPasswordDialog] = useState(false);
+  const [showPosPasswordVisible, setShowPosPasswordVisible] = useState(false);
 
   const fetchData = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -392,6 +393,7 @@ const ShiftHandovers = () => {
     setStartTransfer(autoStartTransfer);
     setNotes('');
     setPosPassword('');
+    setShowPosPasswordVisible(false);
     setIsModalOpen(true);
   };
 
@@ -1012,15 +1014,24 @@ const ShiftHandovers = () => {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Nhập mật khẩu của {posActiveEmployees.find(e => e.id === selectedPosEmployeeId)?.name}
               </label>
-              <input
-                type="password"
-                required
-                autoFocus
-                placeholder="Mật khẩu..."
-                value={posPassword}
-                onChange={(e) => setPosPassword(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none mb-6"
-              />
+              <div className="relative mb-6">
+                <input
+                  type={showPosPasswordVisible ? "text" : "password"}
+                  required
+                  autoFocus
+                  placeholder="Mật khẩu..."
+                  value={posPassword}
+                  onChange={(e) => setPosPassword(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPosPasswordVisible(!showPosPasswordVisible)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                >
+                  {showPosPasswordVisible ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
               <div className="flex gap-3">
                 <button type="button" onClick={() => setShowPosPasswordDialog(false)} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg font-medium">Hủy</button>
                 <button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700">Xác nhận</button>
