@@ -60,6 +60,7 @@ const MenuManager: React.FC = () => {
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [viewingItem, setViewingItem] = useState<MenuItem | null>(null);
   const [branches, setBranches] = useState<any[]>([]);
+  const [filterBranch, setFilterBranch] = useState<string>('all');
   
   const userRole = localStorage.getItem('userRole');
   const userBranchId = localStorage.getItem('branchId');
@@ -244,17 +245,42 @@ const MenuManager: React.FC = () => {
 
   if (loading) return <div className="p-8 text-center">Đang tải dữ liệu...</div>;
 
+  const displayedItems = items.filter(item => {
+    if (userRole === 'SUPER_ADMIN' && filterBranch !== 'all') {
+      if (filterBranch === 'global') {
+        return !item.branchId || item.branchId === 'all';
+      }
+      return item.branchId === filterBranch;
+    }
+    return true;
+  });
+
   return (
     <div className="p-6 h-full flex flex-col bg-gray-50">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Quản lý Thực đơn (Menu)</h1>
-        <button
-          onClick={() => openModal()}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm"
-        >
-          <Plus size={20} />
-          <span>Thêm món mới</span>
-        </button>
+        <div className="flex gap-4 items-center">
+          {userRole === 'SUPER_ADMIN' && (
+            <select
+              value={filterBranch}
+              onChange={(e) => setFilterBranch(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 outline-none bg-white font-medium shadow-sm"
+            >
+              <option value="all">Tất cả cơ sở</option>
+              <option value="global">Chỉ món dùng chung (Không thuộc cơ sở nào)</option>
+              {branches.map(b => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          )}
+          <button
+            onClick={() => openModal()}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm"
+          >
+            <Plus size={20} />
+            <span>Thêm món mới</span>
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col">
@@ -272,10 +298,10 @@ const MenuManager: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {items.length === 0 ? (
+              {displayedItems.length === 0 ? (
                 <tr><td colSpan={7} className="p-8 text-center text-gray-500 italic">Chưa có món nào trong thực đơn</td></tr>
               ) : (
-                items.map((item, index) => (
+                displayedItems.map((item, index) => (
                   <tr key={item.id} onClick={() => setViewingItem(item)} className="border-b border-gray-100 hover:bg-blue-50/50 transition-colors cursor-pointer group">
                     <td className="p-4 text-center font-medium text-gray-500">{index + 1}</td>
                     <td className="p-4 py-2">
