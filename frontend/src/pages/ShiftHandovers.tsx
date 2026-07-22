@@ -240,6 +240,24 @@ const ShiftHandovers = () => {
   };
 
   const handleOpenShift = async () => {
+    // 1. Kiểm tra xem đã có ca nào đang mở ở cơ sở này chưa
+    try {
+      if (currentBranchId) {
+        const checkOpenQ = query(
+          collection(db, 'shift_reports'),
+          where('branchId', '==', currentBranchId),
+          where('status', '==', 'OPEN')
+        );
+        const checkSnap = await getDocs(checkOpenQ);
+        if (!checkSnap.empty) {
+          toast.error('Đang có một ca chưa được chốt! Vui lòng chốt ca hiện tại trước khi mở ca mới.');
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('Lỗi kiểm tra ca mở:', error);
+    }
+
     // Kiểm tra xem đã chấm công chưa (chỉ áp dụng cho thu ngân / nhân viên)
     if (userRole === 'CASHIER' || userRole === 'EMPLOYEE' || userRole === 'POS') {
       const empId = localStorage.getItem('employeeId');
