@@ -99,12 +99,12 @@ const DashboardLayout: React.FC = () => {
 
   const allMenuItems = [
     { name: 'Trang chủ', path: '/dashboard', icon: <LayoutDashboard size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN', 'EMPLOYEE', 'CASHIER', 'BARTENDER', 'KITCHEN', 'GUARD'] },
-    { name: 'Bán hàng (POS)', path: '/pos', icon: <ShoppingCart size={20} />, roles: ['POS', 'CASHIER'] },
-    { name: 'Màn hình Khách Order', path: '/customer-order', icon: <Store size={20} />, roles: ['POS', 'CASHIER'] },
-    { name: 'Lịch sử Hóa đơn', path: '/dashboard/orders', icon: <Receipt size={20} />, roles: ['POS', 'CASHIER'] },
+    { name: 'Bán hàng (POS)', path: '/pos', icon: <ShoppingCart size={20} />, roles: ['POS'] },
+    { name: 'Màn hình Khách Order', path: '/customer-order', icon: <Store size={20} />, roles: ['POS'] },
+    { name: 'Lịch sử Hóa đơn', path: '/dashboard/orders', icon: <Receipt size={20} />, roles: ['POS'] },
     { name: 'Quản lý Thực đơn', path: '/dashboard/menu', icon: <Utensils size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN'] },
     { name: 'Quản lý cơ sở', path: '/dashboard/branches', icon: <Building2 size={20} />, roles: ['SUPER_ADMIN'] },
-    { name: 'Quản lý Bàn / QR', path: '/dashboard/tables', icon: <QrCode size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN', 'POS', 'CASHIER'] },
+    { name: 'Quản lý Bàn / QR', path: '/dashboard/tables', icon: <QrCode size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN', 'POS'] },
     { name: 'Quản lý nhân viên', path: '/dashboard/employees', icon: <Users size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN'] },
     { name: 'Quản lý tài khoản', path: '/dashboard/accounts', icon: <UserCog size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN'] },
     { name: 'Chấm công (Admin)', path: '/dashboard/attendance', icon: <Clock size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN'] },
