@@ -71,7 +71,7 @@ const POS: React.FC = () => {
   const navigate = useNavigate();
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollTimeoutRef = useRef<any>(null);
   const isSyncingScroll = useRef(false);
 
   const [now, setNow] = useState(Date.now());
