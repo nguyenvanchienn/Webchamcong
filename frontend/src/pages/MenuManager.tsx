@@ -59,6 +59,7 @@ const MenuManager: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [viewingItem, setViewingItem] = useState<MenuItem | null>(null);
+  const [branches, setBranches] = useState<any[]>([]);
   
   const userRole = localStorage.getItem('userRole');
   const userBranchId = localStorage.getItem('branchId');
@@ -76,13 +77,21 @@ const MenuManager: React.FC = () => {
     imageUrl: '',
     isAvailable: true,
     description: '',
-    subCategory: ''
+    subCategory: '',
+    branchId: 'all'
   });
 
   const predefinedCategories = ['Đồ uống', 'Đồ ăn', 'Tráng miệng', 'Khác'];
 
   const fetchItems = async () => {
     try {
+      if (userRole === 'SUPER_ADMIN') {
+        const branchSnap = await getDocs(collection(db, 'branches'));
+        const brs: any[] = [];
+        branchSnap.forEach(b => brs.push({ id: b.id, name: b.data().name }));
+        setBranches(brs);
+      }
+
       const snap = await getDocs(collection(db, 'menu_items'));
       const list: MenuItem[] = [];
       snap.docs.forEach(doc => {
@@ -119,7 +128,8 @@ const MenuManager: React.FC = () => {
         imageUrl: item.imageUrl || '',
         isAvailable: item.isAvailable,
         description: item.description || '',
-        subCategory: item.subCategory || ''
+        subCategory: item.subCategory || '',
+        branchId: item.branchId || 'all'
       });
       setCustomCategory(isCustomCat ? item.category : '');
       setPriceText(item.price ? new Intl.NumberFormat('vi-VN').format(item.price) : '0');
@@ -134,7 +144,8 @@ const MenuManager: React.FC = () => {
         imageUrl: '',
         isAvailable: true,
         description: '',
-        subCategory: ''
+        subCategory: '',
+        branchId: 'all'
       });
       setCustomCategory('');
       setPriceText('');
@@ -195,13 +206,16 @@ const MenuManager: React.FC = () => {
       };
 
       if (editingItem) {
+        if (userRole === 'SUPER_ADMIN') {
+           payload.branchId = formData.branchId === 'all' ? null : formData.branchId;
+        }
         await updateDoc(doc(db, 'menu_items', editingItem.id), payload);
         toast.success('Đã cập nhật món ăn');
       } else {
         if (userRole === 'BRANCH_ADMIN') {
            payload.branchId = userBranchId;
         } else {
-           payload.branchId = null;
+           payload.branchId = formData.branchId === 'all' ? null : formData.branchId;
         }
         await addDoc(collection(db, 'menu_items'), payload);
         toast.success('Đã thêm món ăn mới');
@@ -360,6 +374,22 @@ const MenuManager: React.FC = () => {
                   <label htmlFor="isAvailable" className="text-sm font-bold text-gray-700 cursor-pointer select-none flex-1">Đang bán (Hiển thị trên POS)</label>
                 </div>
               </div>
+
+              {userRole === 'SUPER_ADMIN' && (
+                <div className="col-span-2">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Áp dụng cho cơ sở</label>
+                  <select 
+                    value={formData.branchId} 
+                    onChange={e => setFormData({...formData, branchId: e.target.value})} 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white shadow-sm font-medium text-gray-700"
+                  >
+                    <option value="all">Tất cả cơ sở (Dùng chung)</option>
+                    {branches.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div className="col-span-2">
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Hình ảnh (Tải lên hoặc Chụp)</label>
