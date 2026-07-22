@@ -648,15 +648,16 @@ const ShiftHandovers = () => {
       setShowPosPasswordDialog(false);
       setPosPassword('');
       setShowPosPasswordVisible(false);
-      fetchData(true);
+      await fetchData(true);
       closeModal();
     } catch (err: any) {
-      setLoading(false);
       if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
          toast.error('Mật khẩu xác nhận không đúng!');
       } else {
          toast.error('Lỗi xác thực mật khẩu!');
       }
+    } finally {
+      setLoading(false);
     }
   };
 
