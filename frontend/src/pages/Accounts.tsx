@@ -295,16 +295,19 @@ const Accounts: React.FC = () => {
   };
 
   const availableEmployees = employees.filter(emp => {
-    // Check if the employee matches the selected role's required position
     if (formData.role === 'BRANCH_ADMIN') {
       if (emp.position !== 'Quản lý') return false;
     } else if (formData.role === 'EMPLOYEE') {
       if (emp.position === 'Quản lý') return false;
     }
 
-    // Cho phép hiển thị nhân viên đang được liên kết với account này
     if (editingAccount && editingAccount.employeeId === emp.id) return true;
     return !accounts.some(acc => acc.employeeId === emp.id && acc.role === formData.role);
+  });
+
+  const availableBranchesForDevice = branches.filter(b => {
+    if (editingAccount && editingAccount.branchId === b.id && editingAccount.role === formData.role) return true;
+    return !accounts.some(acc => acc.branchId === b.id && acc.role === formData.role);
   });
 
   return (
@@ -556,7 +559,7 @@ const Accounts: React.FC = () => {
                     className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none ${userRole === 'BRANCH_ADMIN' ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
                   >
                     <option value="" disabled>-- Chọn cơ sở --</option>
-                    {branches.map(b => (
+                    {availableBranchesForDevice.map(b => (
                       <option key={b.id} value={b.id}>{b.name}</option>
                     ))}
                   </select>
