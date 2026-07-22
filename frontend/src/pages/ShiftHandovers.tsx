@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, updateDoc, doc, query, where, orderBy, deleteDoc, Timestamp, getDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, doc, query, where, orderBy, deleteDoc, Timestamp, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { Wallet, CheckCircle2, Plus, X, Trash2, ArrowRightLeft, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -164,6 +164,31 @@ const ShiftHandovers = () => {
 
   useEffect(() => {
     fetchData();
+
+    // Auto-update khi có order mới trong ngày
+    const startOfDay = new Date(filterDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(filterDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const ordersQ = query(
+      collection(db, 'orders'),
+      where('createdAt', '>=', Timestamp.fromDate(startOfDay)),
+      where('createdAt', '<=', Timestamp.fromDate(endOfDay))
+    );
+
+    let isInitial = true;
+    const unsubscribeOrders = onSnapshot(ordersQ, () => {
+      if (isInitial) {
+        isInitial = false;
+        return;
+      }
+      fetchData(true);
+    });
+
+    return () => {
+      unsubscribeOrders();
+    };
   }, [filterBranchId, filterDate]);
 
   const calculateRevenue = async (start: Date, end: Date, branchId: string) => {
