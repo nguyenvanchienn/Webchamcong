@@ -115,13 +115,21 @@ const Kiosk: React.FC = () => {
         );
         const snap = await getDocs(q);
         if (!snap.empty) {
-          const docData = snap.docs[0];
-          const data = docData.data();
+          // Lấy record mới nhất (nếu có nhiều record)
+          const records = snap.docs.map(d => ({ id: d.id, data: d.data() }));
+          records.sort((a, b) => {
+            const timeA = a.data.checkIn?.toMillis ? a.data.checkIn.toMillis() : (a.data.checkIn ? new Date(a.data.checkIn).getTime() : 0);
+            const timeB = b.data.checkIn?.toMillis ? b.data.checkIn.toMillis() : (b.data.checkIn ? new Date(b.data.checkIn).getTime() : 0);
+            return timeB - timeA;
+          });
+          const docData = records[0];
+          const data = docData.data;
+          
           setTodayAttendance({
             id: docData.id,
             employeeId: data.employeeId,
-            checkIn: data.checkIn ? data.checkIn.toDate() : null,
-            checkOut: data.checkOut ? data.checkOut.toDate() : null,
+            checkIn: data.checkIn?.toDate ? data.checkIn.toDate() : (data.checkIn ? new Date(data.checkIn) : null),
+            checkOut: data.checkOut?.toDate ? data.checkOut.toDate() : (data.checkOut ? new Date(data.checkOut) : null),
             logs: data.logs?.map((l: any) => ({ action: l.action, time: l.time?.toDate ? l.time.toDate() : new Date(l.time) })) || []
           });
         } else {
