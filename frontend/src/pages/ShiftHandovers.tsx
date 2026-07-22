@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, addDoc, updateDoc, doc, query, where, orderBy, deleteDoc, Timestamp, getDoc, onSnapshot } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
+import { db, firebaseConfig } from '../config/firebase';
 import { Wallet, CheckCircle2, Plus, X, Trash2, ArrowRightLeft, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -66,6 +68,7 @@ const ShiftHandovers = () => {
 
   const [posActiveEmployees, setPosActiveEmployees] = useState<{id: string, name: string, email: string, isCashier: boolean}[]>([]);
   const [selectedPosEmployeeId, setSelectedPosEmployeeId] = useState<string>('');
+  const [posPassword, setPosPassword] = useState('');
 
   const fetchData = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -387,6 +390,7 @@ const ShiftHandovers = () => {
     setStartCash(autoStartCash);
     setStartTransfer(autoStartTransfer);
     setNotes('');
+    setPosPassword('');
     setIsModalOpen(true);
   };
 
@@ -437,6 +441,27 @@ const ShiftHandovers = () => {
             toast.error('Vui lòng chọn nhân viên mở ca!');
             return;
           }
+          if (!posPassword) {
+            toast.error('Vui lòng nhập mật khẩu xác nhận!');
+            return;
+          }
+          
+          try {
+            setLoading(true);
+            const secondaryApp = initializeApp(firebaseConfig, 'SecondaryAppVerify-' + Date.now());
+            const secondaryAuth = getAuth(secondaryApp);
+            await signInWithEmailAndPassword(secondaryAuth, selectedEmp.email, posPassword);
+            secondaryAuth.signOut();
+          } catch (err: any) {
+            setLoading(false);
+            if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+               toast.error('Mật khẩu xác nhận không đúng!');
+            } else {
+               toast.error('Lỗi xác thực mật khẩu!');
+            }
+            return;
+          }
+
           cashierDisplayName = selectedEmp.name;
           finalCashierEmail = selectedEmp.email;
         } else if (currentEmployeeId) {
@@ -779,7 +804,7 @@ const ShiftHandovers = () => {
                 <div className="mb-4 bg-blue-50 p-4 rounded-xl border border-blue-100">
                   <label className="block text-sm font-bold text-blue-900 mb-2">Bạn là ai? <span className="text-red-500">*</span></label>
                   <select
-                    className="w-full px-4 py-3 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-gray-800 font-medium"
+                    className="w-full px-4 py-3 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-gray-800 font-medium mb-4"
                     value={selectedPosEmployeeId}
                     onChange={(e) => setSelectedPosEmployeeId(e.target.value)}
                   >
@@ -787,6 +812,14 @@ const ShiftHandovers = () => {
                        <option key={emp.id} value={emp.id}>{emp.name}</option>
                     ))}
                   </select>
+                  <label className="block text-sm font-bold text-blue-900 mb-2">Mật khẩu xác nhận <span className="text-red-500">*</span></label>
+                  <input
+                    type="password"
+                    placeholder="Nhập mật khẩu tài khoản của bạn"
+                    value={posPassword}
+                    onChange={(e) => setPosPassword(e.target.value)}
+                    className="w-full px-4 py-3 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-gray-800"
+                  />
                   <p className="text-xs text-blue-700 mt-2 italic">Chỉ hiển thị các nhân viên đang check-in trong ca (Ưu tiên thu ngân).</p>
                 </div>
               )}
