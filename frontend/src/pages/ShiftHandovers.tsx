@@ -161,12 +161,12 @@ const ShiftHandovers = () => {
     fetchData();
   }, [filterBranchId, filterDate]);
 
-  const calculateRevenue = async (start: Date, end: Date) => {
+  const calculateRevenue = async (start: Date, end: Date, branchId: string) => {
     try {
       // Tìm các hóa đơn trong khoảng thời gian ca
       const ordersQuery = query(
         collection(db, 'orders'),
-        where('branchId', '==', currentBranchId),
+        where('branchId', '==', branchId),
         where('createdAt', '>=', Timestamp.fromDate(start)),
         where('createdAt', '<=', Timestamp.fromDate(end))
       );
@@ -205,7 +205,7 @@ const ShiftHandovers = () => {
     if (!activeShift) return;
     
     // Tạm tính doanh thu ngay lúc này
-    const rev = await calculateRevenue(activeShift.startTime, new Date());
+    const rev = await calculateRevenue(activeShift.startTime, new Date(), activeShift.branchId);
     setTempRevenueCash(rev.revCash);
     setTempRevenueTransfer(rev.revTrans);
     
@@ -232,13 +232,13 @@ const ShiftHandovers = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentBranchId) {
-      toast.error('Lỗi: Không xác định được cơ sở');
-      return;
-    }
 
     try {
       if (modalMode === 'OPEN') {
+        if (!currentBranchId) {
+          toast.error('Lỗi: Không xác định được cơ sở');
+          return;
+        }
         let cashierDisplayName = currentUserEmail;
         if (currentEmployeeId) {
           const empDoc = await getDoc(doc(db, 'employees', currentEmployeeId));
@@ -271,7 +271,7 @@ const ShiftHandovers = () => {
         // Đóng ca
         if (!activeShift) return;
         const now = new Date();
-        const rev = await calculateRevenue(activeShift.startTime, now);
+        const rev = await calculateRevenue(activeShift.startTime, now, activeShift.branchId);
         
         await updateDoc(doc(db, 'shift_reports', activeShift.id), {
           endTime: now,
