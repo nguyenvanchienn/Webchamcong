@@ -336,7 +336,7 @@ const Payroll: React.FC = () => {
         const adminBonusMap: Record<string, number> = {};
         const adminBonusDetails: Record<string, any[]> = {};
         adminBonusSnap.forEach(d => {
-           const b = { id: d.id, ...d.data() };
+           const b = { id: d.id, ...d.data() } as any;
            if (!b.isPaid) {
              if (!adminBonusMap[b.employeeId]) adminBonusMap[b.employeeId] = 0;
              if (!adminBonusDetails[b.employeeId]) adminBonusDetails[b.employeeId] = [];
