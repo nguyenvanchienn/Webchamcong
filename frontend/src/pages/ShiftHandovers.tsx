@@ -116,6 +116,8 @@ const ShiftHandovers = () => {
 
       const snap = await getDocs(reportsQuery);
       const list: ShiftReport[] = [];
+      const openShiftPromises: Promise<void>[] = [];
+
       snap.forEach(doc => {
         const data = doc.data() as any;
         
@@ -123,19 +125,34 @@ const ShiftHandovers = () => {
         if (userRole === 'SUPER_ADMIN' && filterBranchId !== 'all' && data.branchId !== filterBranchId) return;
         if (userRole === 'BRANCH_ADMIN' && data.branchId !== currentBranchId) return;
         if (userRole === 'CASHIER' && data.cashierEmail !== currentUserEmail) return;
+        if (userRole === 'POS' && data.branchId !== currentBranchId) return;
+
         const editHistory = data.editHistory ? data.editHistory.map((eh: any) => ({
           ...eh,
           timestamp: eh.timestamp.toDate()
         })) : [];
 
-        list.push({
+        const report = {
           id: doc.id,
           ...data,
           startTime: data.startTime.toDate(),
           endTime: data.endTime ? data.endTime.toDate() : null,
           editHistory
-        } as ShiftReport);
+        } as ShiftReport;
+        
+        list.push(report);
+
+        if (report.status === 'OPEN') {
+           // Tính doanh thu tạm tính cho ca đang mở (chỉ để hiển thị)
+           openShiftPromises.push((async () => {
+             const rev = await calculateRevenue(report.startTime, new Date(), report.branchId);
+             report.revenueCash = rev.revCash;
+             report.revenueTransfer = rev.revTrans;
+           })());
+        }
       });
+      
+      await Promise.all(openShiftPromises);
       setReports(list);
 
     } catch (error) {
@@ -562,8 +579,8 @@ const ShiftHandovers = () => {
                         <div className="text-gray-500 text-xs">{formatMoney(r.startTransfer)}</div>
                       </td>
                       <td className="p-4 text-sm">
-                        <div className="text-green-600">{r.status === 'CLOSED' ? formatMoney(r.revenueCash || 0) : '---'}</div>
-                        <div className="text-gray-500 text-xs">{r.status === 'CLOSED' ? formatMoney(r.revenueTransfer || 0) : '---'}</div>
+                        <div className="text-green-600">{formatMoney(r.revenueCash || 0)}</div>
+                        <div className="text-gray-500 text-xs">{formatMoney(r.revenueTransfer || 0)}</div>
                       </td>
                       <td className="p-4 text-sm font-medium">
                         <div className="text-gray-800">{r.status === 'CLOSED' ? formatMoney(r.endCash || 0) : '---'}</div>
