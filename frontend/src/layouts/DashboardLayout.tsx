@@ -113,7 +113,7 @@ const DashboardLayout: React.FC = () => {
     { name: 'Bảng lương', path: '/dashboard/payroll', icon: <Wallet size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN', 'EMPLOYEE'] },
     { name: 'Thông báo', path: '/dashboard/notifications', icon: <Bell size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN', 'EMPLOYEE'] },
     { name: 'Hồ sơ cá nhân', path: '/dashboard/profile', icon: <UserCircle size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN', 'EMPLOYEE'] },
-    { name: 'Báo cáo', path: '/dashboard/reports', icon: <BarChart3 size={20} />, roles: ['SUPER_ADMIN'] },
+    { name: 'Báo cáo', path: '/dashboard/reports', icon: <BarChart3 size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN'] },
     { name: 'Doanh thu', path: '/dashboard/revenue', icon: <CircleDollarSign size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN'] },
     { name: 'Xuất Excel', path: '/dashboard/export', icon: <FileSpreadsheet size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN'] },
     { name: 'Thiết lập', path: '/dashboard/settings', icon: <Settings size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN'] },

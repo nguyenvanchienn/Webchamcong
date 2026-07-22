@@ -12,6 +12,9 @@ const Reports: React.FC = () => {
   const [totalBonus, setTotalBonus] = useState(0);
   const [estimatedUnpaid, setEstimatedUnpaid] = useState(0);
 
+  const userRole = localStorage.getItem('userRole') || '';
+  const userBranchId = localStorage.getItem('branchId') || '';
+
   const [payrollList, setPayrollList] = useState<any[]>([]);
   const [bonusList, setBonusList] = useState<any[]>([]);
   const [unpaidList, setUnpaidList] = useState<any[]>([]);
@@ -58,10 +61,11 @@ const Reports: React.FC = () => {
         const pList: any[] = [];
         payrollSnap.forEach(d => {
           const data = d.data();
+          const branchId = empBranchMap[data.employeeId] || 'unknown';
+          if (userRole === 'BRANCH_ADMIN' && branchId !== userBranchId) return;
+
           const amount = data.amount || 0;
           totalPayroll += amount;
-
-          const branchId = empBranchMap[data.employeeId] || 'unknown';
           if (!branchTotals[branchId]) branchTotals[branchId] = { payroll: 0, bonus: 0, estimatedUnpaid: 0 };
           branchTotals[branchId].payroll += amount;
           
@@ -79,10 +83,11 @@ const Reports: React.FC = () => {
         const bList: any[] = [];
         bonusSnap.forEach(d => {
           const data = d.data();
+          const branchId = empBranchMap[data.employeeId] || 'unknown';
+          if (userRole === 'BRANCH_ADMIN' && branchId !== userBranchId) return;
+
           const amount = data.amount || 0;
           totalBonusAmount += amount;
-
-          const branchId = empBranchMap[data.employeeId] || 'unknown';
           if (!branchTotals[branchId]) branchTotals[branchId] = { payroll: 0, bonus: 0, estimatedUnpaid: 0 };
           branchTotals[branchId].bonus += amount;
           
@@ -105,6 +110,9 @@ const Reports: React.FC = () => {
         const uList: any[] = [];
         attSnap.forEach(d => {
            const data = d.data();
+           const branchId = empBranchMap[data.employeeId] || 'unknown';
+           if (userRole === 'BRANCH_ADMIN' && branchId !== userBranchId) return;
+
            if (data.checkIn && data.checkOut && !data.isPaid) {
               const inTime = data.checkIn.toDate ? data.checkIn.toDate() : new Date(data.checkIn);
               const outTime = data.checkOut.toDate ? data.checkOut.toDate() : new Date(data.checkOut);
@@ -125,7 +133,7 @@ const Reports: React.FC = () => {
               const salary = Number(data.salaryPerHour || empSalaryMap[data.employeeId] || 0);
               const cost = Math.round(hours * salary);
               estimatedUnpaidAmount += cost;
-              const branchId = empBranchMap[data.employeeId] || 'unknown';
+              
               if (!branchTotals[branchId]) branchTotals[branchId] = { payroll: 0, bonus: 0, estimatedUnpaid: 0 };
               branchTotals[branchId].estimatedUnpaid += cost;
               uList.push({
