@@ -59,9 +59,12 @@ const CustomerOrder: React.FC = () => {
         setShowPaymentModal(data.showPaymentModal || false);
         setPaymentMethod(data.paymentMethod || 'CASH');
         setAmountTendered(data.amountTendered || '0');
+        if (data.activeCategory) {
+           setActiveCategory(data.activeCategory);
+        }
       } else {
         // Init if not exists
-        setDoc(sessionRef, { cart: [], showPaymentModal: false, paymentMethod: 'CASH', amountTendered: '0' });
+        setDoc(sessionRef, { cart: [], showPaymentModal: false, paymentMethod: 'CASH', amountTendered: '0', activeCategory: 'Tất cả' });
       }
     });
 
@@ -156,7 +159,10 @@ const CustomerOrder: React.FC = () => {
           {categories.map(c => (
             <button
               key={c}
-              onClick={() => setActiveCategory(c)}
+              onClick={() => {
+                setActiveCategory(c);
+                updatePosState({ activeCategory: c });
+              }}
               className={`px-6 py-3 rounded-2xl font-bold text-sm transition-all shadow-sm border-2 ${activeCategory === c
                 ? 'bg-blue-600 text-white border-blue-600 shadow-blue-500/30'
                 : 'bg-white text-gray-600 hover:bg-gray-50 border-gray-100 hover:border-gray-200'

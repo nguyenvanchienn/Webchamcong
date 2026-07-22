@@ -147,6 +147,9 @@ const POS: React.FC = () => {
         setCurrentTableOrderId(data.currentTableOrderId || null);
         setCurrentTableId(data.currentTableId || null);
         setCurrentTableName(data.currentTableName || null);
+        if (data.activeCategory) {
+           setActiveCategory(data.activeCategory);
+        }
       }
     });
 
@@ -596,7 +599,10 @@ const POS: React.FC = () => {
           {categories.map(c => (
             <button
               key={c}
-              onClick={() => setActiveCategory(c)}
+              onClick={() => {
+                setActiveCategory(c);
+                updatePosState({ activeCategory: c });
+              }}
               className={`px-5 py-2.5 rounded-full font-bold text-sm transition-all shadow-sm ${activeCategory === c
                 ? 'bg-blue-600 text-white shadow-blue-500/30'
                 : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'

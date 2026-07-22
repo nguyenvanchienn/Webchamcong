@@ -352,6 +352,11 @@ const ShiftHandovers = () => {
            return;
         }
 
+        const cashiersOnly = activeEmps.filter(e => e.isCashier);
+        if (cashiersOnly.length > 0) {
+           activeEmps = cashiersOnly;
+        }
+
         const cashierEmp = activeEmps.find(e => e.isCashier);
         if (cashierEmp) {
            defaultEmpId = cashierEmp.id;
