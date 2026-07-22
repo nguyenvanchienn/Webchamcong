@@ -242,12 +242,20 @@ const Attendance: React.FC = () => {
       });
 
       attList.sort((a, b) => {
-        const timeA = a.checkIn ? a.checkIn.getTime() : 0;
-        const timeB = b.checkIn ? b.checkIn.getTime() : 0;
-        if (timeA === timeB) {
+        const timeA = (a.checkIn instanceof Date && !isNaN(a.checkIn.getTime())) ? a.checkIn.getTime() : 0;
+        const timeB = (b.checkIn instanceof Date && !isNaN(b.checkIn.getTime())) ? b.checkIn.getTime() : 0;
+        
+        // Nếu cả 2 đều chưa check-in (time = 0), xếp theo tên
+        if (timeA === 0 && timeB === 0) {
           return (a.employeeName || '').localeCompare(b.employeeName || '');
         }
-        return timeB - timeA;
+        
+        // Ai chưa check-in thì đẩy xuống dưới cùng
+        if (timeA > 0 && timeB === 0) return -1; // a có giờ, b không có -> a xếp trước
+        if (timeA === 0 && timeB > 0) return 1;  // a không có, b có -> b xếp trước
+        
+        // Cả 2 đều có giờ: check-in SỚM HƠN (nhỏ hơn) thì xếp TRƯỚC (trên đầu)
+        return timeA - timeB; 
       });
 
       setRecords(attList);
