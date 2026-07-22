@@ -414,7 +414,7 @@ const ShiftHandovers = () => {
                 <th className="p-4 font-semibold text-gray-600 text-sm">Tiền đầu ca (Mặt / CK)</th>
                 <th className="p-4 font-semibold text-gray-600 text-sm">Doanh thu trong ca (Mặt / CK)</th>
                 <th className="p-4 font-semibold text-gray-600 text-sm">Thực tế cuối ca (Mặt / CK)</th>
-                <th className="p-4 font-semibold text-gray-600 text-sm">Chênh lệch tiền mặt</th>
+                <th className="p-4 font-semibold text-gray-600 text-sm">Chênh lệch (Mặt / CK)</th>
                 <th className="p-4 font-semibold text-gray-600 text-sm text-center">Trạng thái</th>
                 {(userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') && (
                   <th className="p-4"></th>
@@ -433,6 +433,7 @@ const ShiftHandovers = () => {
               ) : (
                 reports.map(r => {
                   const varianceCash = (r.endCash ?? 0) - (r.startCash + (r.revenueCash ?? 0));
+                  const varianceTransfer = (r.endTransfer ?? 0) - (r.startTransfer + (r.revenueTransfer ?? 0));
                   return (
                     <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                       <td className="p-4">
@@ -460,9 +461,14 @@ const ShiftHandovers = () => {
                       </td>
                       <td className="p-4">
                         {r.status === 'CLOSED' ? (
-                          <span className={`px-2 py-1 rounded text-xs font-bold ${varianceCash > 0 ? 'bg-blue-100 text-blue-700' : varianceCash < 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                            {varianceCash > 0 ? '+' : ''}{formatMoney(varianceCash)}
-                          </span>
+                          <div className="flex flex-col gap-1">
+                            <span className={`px-2 py-1 inline-block text-center rounded text-[11px] font-bold ${varianceCash > 0 ? 'bg-blue-100 text-blue-700' : varianceCash < 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                              TM: {varianceCash > 0 ? '+' : ''}{formatMoney(varianceCash)}
+                            </span>
+                            <span className={`px-2 py-1 inline-block text-center rounded text-[11px] font-bold ${varianceTransfer > 0 ? 'bg-blue-100 text-blue-700' : varianceTransfer < 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                              CK: {varianceTransfer > 0 ? '+' : ''}{formatMoney(varianceTransfer)}
+                            </span>
+                          </div>
                         ) : (
                           <span className="text-gray-400">---</span>
                         )}
@@ -571,39 +577,55 @@ const ShiftHandovers = () => {
                     </div>
                   </div>
 
-                  <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-200 text-center mb-6">
-                    <p className="text-sm text-yellow-800 mb-1">Tiền mặt lý thuyết trên hệ thống</p>
-                    <p className="text-2xl font-bold text-yellow-700">{formatMoney((activeShift?.startCash || 0) + tempRevenueCash)}</p>
+                  <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-200 grid grid-cols-2 gap-4 mb-6">
+                    <div className="text-center">
+                      <p className="text-xs text-yellow-800 mb-1">Tiền mặt lý thuyết</p>
+                      <p className="text-lg font-bold text-yellow-700">{formatMoney((activeShift?.startCash || 0) + tempRevenueCash)}</p>
+                    </div>
+                    <div className="text-center border-l border-yellow-200">
+                      <p className="text-xs text-yellow-800 mb-1">Tiền tài khoản lý thuyết</p>
+                      <p className="text-lg font-bold text-yellow-700">{formatMoney((activeShift?.startTransfer || 0) + tempRevenueTransfer)}</p>
+                    </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tiền mặt THỰC TẾ đang có <span className="text-red-500">*</span></label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tiền mặt THỰC TẾ cuối ca {modalMode === 'CLOSE' && <span className="text-red-500">*</span>}</label>
                     <input 
                       type="text" required
                       value={endCash.toLocaleString('vi-VN')}
                       onChange={(e) => setEndCash(Number(e.target.value.replace(/[^0-9]/g, '')))}
-                      className="w-full px-4 py-3 border-2 border-green-500 rounded-xl outline-none focus:ring-4 focus:ring-green-100 text-xl font-bold text-gray-800 text-center"
+                      className="w-full px-4 py-2 border-2 border-green-500 rounded-xl outline-none focus:ring-4 focus:ring-green-100 text-lg font-bold text-gray-800 text-center"
                     />
                     
-                    {/* Hiển thị chênh lệch */}
+                    {/* Hiển thị chênh lệch Tiền mặt */}
                     {(() => {
                       const theoretical = (activeShift?.startCash || 0) + tempRevenueCash;
                       const variance = endCash - theoretical;
-                      if (variance === 0) return <p className="text-sm text-green-600 mt-2 font-medium text-center">Khớp hoàn toàn!</p>;
-                      return <p className={`text-sm mt-2 font-bold text-center ${variance > 0 ? 'text-blue-600' : 'text-red-600'}`}>
-                        {variance > 0 ? 'THỪA' : 'THIẾU'} {formatMoney(Math.abs(variance))} so với hệ thống
+                      if (variance === 0) return <p className="text-xs text-green-600 mt-1 font-medium text-center">Khớp hoàn toàn!</p>;
+                      return <p className={`text-xs mt-1 font-bold text-center ${variance > 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                        {variance > 0 ? 'THỪA' : 'THIẾU'} {formatMoney(Math.abs(variance))}
                       </p>;
                     })()}
                   </div>
-
+                  
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tiền tài khoản thực tế cuối ca</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tiền tài khoản THỰC TẾ cuối ca</label>
                     <input 
                       type="text" 
                       value={endTransfer.toLocaleString('vi-VN')}
                       onChange={(e) => setEndTransfer(Number(e.target.value.replace(/[^0-9]/g, '')))}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none focus:border-green-500 text-lg font-bold text-gray-800 text-center"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-xl outline-none focus:border-green-500 text-lg font-bold text-gray-800 text-center"
                     />
+                    
+                    {/* Hiển thị chênh lệch Chuyển khoản */}
+                    {(() => {
+                      const theoretical = (activeShift?.startTransfer || 0) + tempRevenueTransfer;
+                      const variance = endTransfer - theoretical;
+                      if (variance === 0) return <p className="text-xs text-green-600 mt-1 font-medium text-center">Khớp hoàn toàn!</p>;
+                      return <p className={`text-xs mt-1 font-bold text-center ${variance > 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                        {variance > 0 ? 'THỪA' : 'THIẾU'} {formatMoney(Math.abs(variance))}
+                      </p>;
+                    })()}
                   </div>
                 </>
               )}
