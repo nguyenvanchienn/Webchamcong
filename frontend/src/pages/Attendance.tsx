@@ -288,6 +288,29 @@ const Attendance: React.FC = () => {
     try {
       if (existing) {
         // Đã check-in => Thực hiện check-out
+        
+        // Kiểm tra xem nhân viên này có đang giữ ca (chưa chốt ca) không
+        if (emp.branchId) {
+          const shiftQ = query(
+            collection(db, 'shift_reports'),
+            where('branchId', '==', emp.branchId),
+            where('status', '==', 'OPEN')
+          );
+          const shiftSnap = await getDocs(shiftQ);
+          if (!shiftSnap.empty) {
+            const openShifts = shiftSnap.docs.map(d => d.data());
+            const code = emp.employeeCode || emp.id;
+            const isHoldingShift = openShifts.some(shift => {
+               const cName = shift.cashierName || shift.cashierEmail || '';
+               return cName.includes(code) || (emp.fullName && cName.includes(emp.fullName));
+            });
+            if (isHoldingShift) {
+               toast.error('Nhân viên này đang giữ ca! Vui lòng vào Bàn giao ca để chốt ca cho nhân viên này trước khi check-out.');
+               return;
+            }
+          }
+        }
+
         const checkOutTime = new Date();
         const logs = existing.logs || [];
         await updateDoc(doc(db, 'attendance', existing.id), {
@@ -371,6 +394,27 @@ const Attendance: React.FC = () => {
       }
       
       if (Object.keys(updates).length > 0) {
+        if (updates.checkOut && record.branchId) {
+          const shiftQ = query(
+            collection(db, 'shift_reports'),
+            where('branchId', '==', record.branchId),
+            where('status', '==', 'OPEN')
+          );
+          const shiftSnap = await getDocs(shiftQ);
+          if (!shiftSnap.empty) {
+            const openShifts = shiftSnap.docs.map(d => d.data());
+            const code = record.employeeCode || record.employeeId;
+            const isHoldingShift = openShifts.some(shift => {
+               const cName = shift.cashierName || shift.cashierEmail || '';
+               return cName.includes(code) || (record.employeeName && cName.includes(record.employeeName));
+            });
+            if (isHoldingShift) {
+               toast.error('Nhân viên này đang giữ ca! Vui lòng vào Bàn giao ca chốt ca trước khi check-out.');
+               return;
+            }
+          }
+        }
+
         const finalCheckIn = updates.checkIn || record.checkIn;
         const finalCheckOut = updates.checkOut || record.checkOut;
         
