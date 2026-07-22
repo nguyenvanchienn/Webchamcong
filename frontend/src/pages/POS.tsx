@@ -46,6 +46,7 @@ const POS: React.FC = () => {
   const [billModalData, setBillModalData] = useState<any | null>(null);
   const [storeName, setStoreName] = useState<string>('Bơ Food');
   const [storeAddress, setStoreAddress] = useState<string | null>(null);
+  const [storePhone, setStorePhone] = useState<string | null>(null);
   const [cashierName, setCashierName] = useState<string | null>(null);
 
   // Payment Modal State
@@ -309,6 +310,7 @@ const POS: React.FC = () => {
             if (branchDoc.exists()) {
               setStoreName(branchDoc.data().name);
               setStoreAddress(branchDoc.data().address || null);
+              setStorePhone(branchDoc.data().phone || null);
             }
             const activeName = await getActiveCashierName(branchId);
             setCashierName(activeName);
@@ -988,8 +990,9 @@ const POS: React.FC = () => {
                 </div>
 
                 {storeAddress && (
-                  <div className="text-left mt-4 text-xs text-gray-600 border-t border-dashed border-gray-300 pt-4">
+                  <div className="text-left mt-4 text-xs text-gray-600 border-t border-dashed border-gray-300 pt-4 space-y-1">
                     <p>Địa chỉ: {storeAddress}</p>
+                    {storePhone && <p>Hotline: {storePhone}</p>}
                   </div>
                 )}
 
