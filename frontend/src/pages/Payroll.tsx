@@ -869,20 +869,20 @@ const Payroll: React.FC = () => {
               </button>
             </div>
             
-            <div className="p-6 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
-              <div className="text-center mb-6">
-                <p className="text-sm text-gray-500 mb-1">Thanh toán lương tháng {month} cho</p>
-                <p className="text-xl font-bold text-gray-800">
+            <div className="p-4 space-y-3 overflow-y-auto flex-1 custom-scrollbar">
+              <div className="text-center mb-3">
+                <p className="text-xs text-gray-500 mb-1">Thanh toán lương tháng {month} cho</p>
+                <p className="text-lg font-bold text-gray-800">
                   {paymentModalData.fullName} {paymentModalData.employeeCode && <span className="text-sm font-medium text-gray-500"> - {paymentModalData.employeeCode}</span>}
                 </p>
-                <p className="text-3xl font-black text-green-600 mt-2">
+                <p className="text-2xl font-black text-green-600 mt-1">
                   {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(paymentModalData.amount)}
                 </p>
               </div>
 
-              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 space-y-3">
+              <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 space-y-2">
                 {paymentModalData.bankName && paymentModalData.bankAccountNum && (
-                  <div className="flex flex-col items-center justify-center space-y-2 mb-4 border-b border-gray-200 pb-4">
+                  <div className="flex flex-col items-center justify-center space-y-1 mb-2 border-b border-gray-200 pb-2">
                     <img 
                       src={`https://img.vietqr.io/image/${(() => {
                         const lower = paymentModalData.bankName!.toLowerCase().replace(/\s/g, '');
@@ -909,12 +909,12 @@ const Payroll: React.FC = () => {
                         return paymentModalData.bankName!.split(' ')[0].toLowerCase();
                       })()}-${paymentModalData.bankAccountNum}-compact2.jpg?amount=${paymentModalData.amount}&addInfo=${encodeURIComponent(`Thanh toan luong thang ${month}`)}&accountName=${encodeURIComponent(paymentModalData.bankAccountName || '')}`} 
                       alt="VietQR"
-                      className="w-40 h-40 rounded-lg shadow-sm border border-gray-200 object-contain bg-white"
+                      className="w-32 h-32 rounded-lg shadow-sm border border-gray-200 object-contain bg-white"
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = 'none';
                       }}
                     />
-                    <p className="text-[11px] text-gray-500 italic text-center">Quét mã QR để thanh toán nhanh</p>
+                    <p className="text-[10px] text-gray-500 italic text-center">Quét mã QR để thanh toán nhanh</p>
                   </div>
                 )}
                 
@@ -933,16 +933,16 @@ const Payroll: React.FC = () => {
                 </div>
               </div>
               
-              <div className="pt-4 flex gap-3">
+              <div className="pt-2 flex gap-3">
                 <button 
                   onClick={() => setPaymentModalData(null)}
-                  className="flex-1 py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition-colors"
+                  className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition-colors"
                 >
                   Hủy
                 </button>
                 <button 
                   onClick={() => handleMarkAsPaid()}
-                  className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-colors flex items-center justify-center gap-2"
+                  className="flex-1 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-colors flex items-center justify-center gap-2"
                 >
                   <Wallet size={18} /> Đã thanh toán
                 </button>
