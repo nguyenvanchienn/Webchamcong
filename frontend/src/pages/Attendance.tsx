@@ -254,8 +254,8 @@ const Attendance: React.FC = () => {
         if (timeA > 0 && timeB === 0) return -1; // a có giờ, b không có -> a xếp trước
         if (timeA === 0 && timeB > 0) return 1;  // a không có, b có -> b xếp trước
         
-        // Cả 2 đều có giờ: check-in SỚM HƠN (nhỏ hơn) thì xếp TRƯỚC (trên đầu)
-        return timeA - timeB; 
+        // Cả 2 đều có giờ: check-in MỚI NHẤT (lớn hơn) thì xếp TRƯỚC (trên đầu)
+        return timeB - timeA; 
       });
 
       setRecords(attList);
