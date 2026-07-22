@@ -69,6 +69,7 @@ const ShiftHandovers = () => {
   const [posActiveEmployees, setPosActiveEmployees] = useState<{id: string, name: string, email: string, isCashier: boolean}[]>([]);
   const [selectedPosEmployeeId, setSelectedPosEmployeeId] = useState<string>('');
   const [posPassword, setPosPassword] = useState('');
+  const [showPosPasswordDialog, setShowPosPasswordDialog] = useState(false);
 
   const fetchData = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -441,30 +442,14 @@ const ShiftHandovers = () => {
             toast.error('Vui lòng chọn nhân viên mở ca!');
             return;
           }
-          if (!posPassword) {
-            toast.error('Vui lòng nhập mật khẩu xác nhận!');
-            return;
-          }
-          
-          try {
-            setLoading(true);
-            const secondaryApp = initializeApp(firebaseConfig, 'SecondaryAppVerify-' + Date.now());
-            const secondaryAuth = getAuth(secondaryApp);
-            await signInWithEmailAndPassword(secondaryAuth, selectedEmp.email, posPassword);
-            secondaryAuth.signOut();
-          } catch (err: any) {
-            setLoading(false);
-            if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-               toast.error('Mật khẩu xác nhận không đúng!');
-            } else {
-               toast.error('Lỗi xác thực mật khẩu!');
-            }
-            return;
-          }
+          setShowPosPasswordDialog(true);
+          return; // Stop here, the password dialog will handle the rest
+        }
 
-          cashierDisplayName = selectedEmp.name;
-          finalCashierEmail = selectedEmp.email;
-        } else if (currentEmployeeId) {
+        let cashierDisplayName = currentUserEmail;
+        let finalCashierEmail = currentUserEmail;
+
+        if (currentEmployeeId) {
           const empDoc = await getDoc(doc(db, 'employees', currentEmployeeId));
           if (empDoc.exists()) {
             const empData = empDoc.data();
@@ -575,6 +560,60 @@ const ShiftHandovers = () => {
     } catch (err) {
       console.error("Lỗi khi lưu ca:", err);
       toast.error('Lỗi khi lưu ca làm việc');
+    }
+  };
+
+  const handleVerifyPasswordAndOpenShift = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!posPassword) {
+      toast.error('Vui lòng nhập mật khẩu xác nhận!');
+      return;
+    }
+    
+    const selectedEmp = posActiveEmployees.find(e => e.id === selectedPosEmployeeId);
+    if (!selectedEmp) return;
+    
+    try {
+      setLoading(true);
+      const secondaryApp = initializeApp(firebaseConfig, 'SecondaryAppVerify-' + Date.now());
+      const secondaryAuth = getAuth(secondaryApp);
+      await signInWithEmailAndPassword(secondaryAuth, selectedEmp.email, posPassword);
+      secondaryAuth.signOut();
+      
+      // Verified successfully!
+      if (!currentBranchId) {
+         toast.error('Lỗi: Không xác định được cơ sở');
+         setLoading(false);
+         return;
+      }
+      await addDoc(collection(db, 'shift_reports'), {
+        branchId: currentBranchId,
+        cashierEmail: selectedEmp.email,
+        cashierName: selectedEmp.name,
+        startTime: new Date(),
+        endTime: null,
+        startCash,
+        startTransfer,
+        endCash: null,
+        endTransfer: null,
+        revenueCash: null,
+        revenueTransfer: null,
+        status: 'OPEN',
+        notes
+      });
+      
+      toast.success('Mở ca thành công!');
+      setShowPosPasswordDialog(false);
+      setPosPassword('');
+      fetchData(true);
+      closeModal();
+    } catch (err: any) {
+      setLoading(false);
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+         toast.error('Mật khẩu xác nhận không đúng!');
+      } else {
+         toast.error('Lỗi xác thực mật khẩu!');
+      }
     }
   };
 
@@ -804,7 +843,7 @@ const ShiftHandovers = () => {
                 <div className="mb-4 bg-blue-50 p-4 rounded-xl border border-blue-100">
                   <label className="block text-sm font-bold text-blue-900 mb-2">Bạn là ai? <span className="text-red-500">*</span></label>
                   <select
-                    className="w-full px-4 py-3 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-gray-800 font-medium mb-4"
+                    className="w-full px-4 py-3 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-gray-800 font-medium"
                     value={selectedPosEmployeeId}
                     onChange={(e) => setSelectedPosEmployeeId(e.target.value)}
                   >
@@ -812,14 +851,6 @@ const ShiftHandovers = () => {
                        <option key={emp.id} value={emp.id}>{emp.name}</option>
                     ))}
                   </select>
-                  <label className="block text-sm font-bold text-blue-900 mb-2">Mật khẩu xác nhận <span className="text-red-500">*</span></label>
-                  <input
-                    type="password"
-                    placeholder="Nhập mật khẩu tài khoản của bạn"
-                    value={posPassword}
-                    onChange={(e) => setPosPassword(e.target.value)}
-                    className="w-full px-4 py-3 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-gray-800"
-                  />
                   <p className="text-xs text-blue-700 mt-2 italic">Chỉ hiển thị các nhân viên đang check-in trong ca (Ưu tiên thu ngân).</p>
                 </div>
               )}
@@ -969,6 +1000,39 @@ const ShiftHandovers = () => {
           </div>
         </div>
       )}
+
+      {/* Password Verification Dialog for POS */}
+      {showPosPasswordDialog && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden flex flex-col">
+            <div className="p-4 border-b bg-blue-600 text-white flex justify-between items-center">
+              <h3 className="font-bold">Xác nhận tài khoản</h3>
+              <button onClick={() => setShowPosPasswordDialog(false)} className="text-white/80 hover:text-white">
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={handleVerifyPasswordAndOpenShift} className="p-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Nhập mật khẩu của {posActiveEmployees.find(e => e.id === selectedPosEmployeeId)?.name}
+              </label>
+              <input
+                type="password"
+                required
+                autoFocus
+                placeholder="Mật khẩu..."
+                value={posPassword}
+                onChange={(e) => setPosPassword(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none mb-6"
+              />
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setShowPosPasswordDialog(false)} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg font-medium">Hủy</button>
+                <button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700">Xác nhận</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Modal Lịch sử chỉnh sửa */}
       {historyShift && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
