@@ -88,7 +88,7 @@ const MenuManager: React.FC = () => {
       snap.docs.forEach(doc => {
         const data = doc.data();
         if (userRole === 'BRANCH_ADMIN') {
-          if (!data.branchId || data.branchId === userBranchId) {
+          if (data.branchId === userBranchId) {
             list.push({ id: doc.id, ...data } as MenuItem);
           }
         } else {
