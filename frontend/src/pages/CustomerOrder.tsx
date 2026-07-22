@@ -72,7 +72,10 @@ const CustomerOrder: React.FC = () => {
       try {
         const q = query(collection(db, 'menu_items'), where('isAvailable', '==', true));
         const snap = await getDocs(q);
-        const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as MenuItem));
+        const branchId = localStorage.getItem('branchId');
+        const items = snap.docs
+          .map(d => ({ id: d.id, ...d.data() } as MenuItem))
+          .filter(item => !item.branchId || item.branchId === 'all' || item.branchId === branchId);
         setMenuItems(items);
 
         const cats = Array.from(new Set(items.map(i => i.category)));

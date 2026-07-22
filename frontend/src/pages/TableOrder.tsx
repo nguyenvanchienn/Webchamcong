@@ -74,7 +74,9 @@ const TableOrder: React.FC = () => {
 
         // Fetch Menu
         const menuSnap = await getDocs(collection(db, 'menu_items'));
-        const items = menuSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as MenuItem)).filter(i => i.isAvailable);
+        const items = menuSnap.docs
+          .map(doc => ({ id: doc.id, ...doc.data() } as MenuItem))
+          .filter(i => i.isAvailable && (!i.branchId || i.branchId === 'all' || i.branchId === branchId));
         setMenuItems(items);
 
         const cats = Array.from(new Set(items.map(i => i.category)));
