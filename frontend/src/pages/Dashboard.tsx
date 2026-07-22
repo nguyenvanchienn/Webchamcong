@@ -98,7 +98,7 @@ const Dashboard: React.FC = () => {
 
         // Sort activities by time descending
         activities.sort((a, b) => b.time.getTime() - a.time.getTime());
-        setRecentActivities(activities.slice(0, 5)); // Lấy 5 hoạt động gần nhất
+        setRecentActivities(activities);
 
         // Lấy lịch trình hôm nay
         const schedQuery = query(collection(db, 'schedules'), where('date', '==', today));
@@ -189,7 +189,7 @@ const Dashboard: React.FC = () => {
           {recentActivities.length === 0 ? (
             <p className="text-gray-500 italic text-sm">Chưa có hoạt động nào...</p>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
               {recentActivities.map(act => (
                 <div key={act.id} className="flex items-start space-x-3">
                   <div className={`p-2 rounded-full ${act.type === 'CHECK_IN' ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>
@@ -211,7 +211,7 @@ const Dashboard: React.FC = () => {
           {todaySchedules.length === 0 ? (
             <p className="text-gray-500 italic text-sm">Chưa có lịch trình...</p>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
               {todaySchedules.map(sched => (
                 <div key={sched.id} className="flex justify-between items-center p-3 border border-gray-100 rounded-lg bg-gray-50">
                   <div>
