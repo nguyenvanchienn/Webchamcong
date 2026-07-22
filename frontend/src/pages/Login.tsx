@@ -56,9 +56,17 @@ const Login: React.FC = () => {
         role = userData.role;
         requirePasswordChange = userData.requirePasswordChange || false;
         
+        let branchId = userData.branchId || '';
+        if (!branchId && userData.employeeId) {
+          const empDoc = await getDoc(doc(db, 'employees', userData.employeeId));
+          if (empDoc.exists()) {
+            branchId = empDoc.data().branchId || '';
+          }
+        }
+        
         localStorage.setItem('userRole', role);
         localStorage.setItem('employeeId', userData.employeeId || '');
-        localStorage.setItem('branchId', userData.branchId || '');
+        localStorage.setItem('branchId', branchId);
         localStorage.setItem('requirePasswordChange', requirePasswordChange ? 'true' : 'false');
       } else {
         // Mặc định nếu không tìm thấy (ví dụ tài khoản admin cứng)

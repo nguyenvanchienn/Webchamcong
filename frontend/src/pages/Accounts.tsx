@@ -71,12 +71,21 @@ const Accounts: React.FC = () => {
       // Get users
       const userSnap = await getDocs(collection(db, 'users'));
       const userList: UserAccount[] = [];
+      
+      let actualUserBranchId = userBranchId;
+      if (!actualUserBranchId && localStorage.getItem('employeeId')) {
+        actualUserBranchId = empBranchMap[localStorage.getItem('employeeId') || ''] || '';
+        if (actualUserBranchId) {
+          localStorage.setItem('branchId', actualUserBranchId);
+        }
+      }
+
       userSnap.forEach((doc) => {
         const data = doc.data();
         if (data.role !== 'SUPER_ADMIN') {
           if (userRole === 'BRANCH_ADMIN') {
             const accBranchId = data.branchId || (data.employeeId ? empBranchMap[data.employeeId] : null);
-            if (accBranchId === userBranchId) {
+            if (accBranchId === actualUserBranchId) {
               userList.push({ id: doc.id, ...data } as UserAccount);
             }
           } else {
