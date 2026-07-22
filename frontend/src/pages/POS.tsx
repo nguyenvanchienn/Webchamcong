@@ -223,31 +223,37 @@ const POS: React.FC = () => {
 
   const getActiveCashierName = async (branchIdStr: string) => {
     try {
-      const role = localStorage.getItem('userRole');
-      const empId = localStorage.getItem('employeeId');
-
-      if (role === 'SUPER_ADMIN') return 'Admin';
-      
-      if (role === 'BRANCH_ADMIN') {
-        if (empId) {
-          const empDoc = await getDoc(doc(db, 'employees', empId));
-          if (empDoc.exists()) return `${empDoc.data().employeeId} - ${empDoc.data().fullName || empDoc.data().name || ''}`;
+      // 1. Kiểm tra xem có ca nào đang MỞ (OPEN) ở cơ sở này không
+      // Thu ngân nào mở bàn giao ca thì trên bill lưu tên và id thu ngân đó
+      const shiftQ = query(
+        collection(db, 'shift_reports'),
+        where('branchId', '==', branchIdStr),
+        where('status', '==', 'OPEN')
+      );
+      const shiftSnap = await getDocs(shiftQ);
+      if (!shiftSnap.empty) {
+        // Có ca đang mở, lấy tên thu ngân mở ca (đã có sẵn ID 8 số trong cashierName)
+        const openShifts = shiftSnap.docs.map(d => d.data());
+        // Lấy ca mở gần nhất nếu có nhiều ca (thường chỉ có 1)
+        openShifts.sort((a, b) => {
+           const timeA = a.startTime?.toMillis ? a.startTime.toMillis() : 0;
+           const timeB = b.startTime?.toMillis ? b.startTime.toMillis() : 0;
+           return timeB - timeA;
+        });
+        if (openShifts[0].cashierName) {
+           return openShifts[0].cashierName;
         }
-        return `Quản lý`;
       }
 
-      // Nếu đăng nhập bằng tài khoản nhân viên / thu ngân cá nhân
-      if (empId && (role === 'CASHIER' || role === 'EMPLOYEE')) {
-         const empDoc = await getDoc(doc(db, 'employees', empId));
-         if (empDoc.exists()) return `${empDoc.data().employeeId} - ${empDoc.data().fullName || empDoc.data().name || ''}`;
-      }
-
-      // Nếu là tài khoản POS dùng chung (role === 'POS'), tìm nhân viên Thu ngân đang check-in
+      // 2. Trường hợp KHÔNG có thu ngân nào bàn giao ca (không có ca OPEN)
+      // Ghi tên tất cả thu ngân đang check-in trong ca đó
       const todayStr = new Date().toLocaleDateString('en-CA');
       const attQ = query(collection(db, 'attendance'), where('date', '==', todayStr), where('branchId', '==', branchIdStr));
       const attSnap = await getDocs(attQ);
-      // Lấy danh sách ID của những người đang check-in (chưa check-out)
-      const checkedInEmployeeIds = attSnap.docs.map(d => (d.data().checkIn && !d.data().checkOut) ? d.data().employeeId : null).filter(Boolean);
+      
+      const checkedInEmployeeIds = attSnap.docs
+        .map(d => (d.data().checkIn && !d.data().checkOut) ? d.data().employeeId : null)
+        .filter(Boolean);
 
       if (checkedInEmployeeIds.length > 0) {
         const activeCashiers: string[] = [];
@@ -255,19 +261,26 @@ const POS: React.FC = () => {
            const empDoc = await getDoc(doc(db, 'employees', id as string));
            if (empDoc.exists()) {
               const pos = (empDoc.data().position || '').toLowerCase();
-              // Ưu tiên người có chức vụ thu ngân hoặc quản lý
+              // Lọc những ai là thu ngân / quản lý
               if (pos.includes('thu ngân') || pos.includes('cashier') || pos.includes('quản lý') || pos.includes('manager')) {
-                activeCashiers.push(`${empDoc.data().employeeId} - ${empDoc.data().fullName || empDoc.data().name || ''}`);
+                const code = empDoc.data().employeeCode || empDoc.id;
+                const name = empDoc.data().fullName || empDoc.data().name || '';
+                activeCashiers.push(`${code} - ${name}`);
               }
            }
         }
         if (activeCashiers.length > 0) return activeCashiers.join(' & ');
         
-        // Nếu không có thu ngân nào, cứ lấy đại người đang check-in đầu tiên
+        // Nếu không có ai có chức danh thu ngân/quản lý, lấy tạm người đầu tiên đang check-in
         const firstEmpDoc = await getDoc(doc(db, 'employees', checkedInEmployeeIds[0] as string));
-        if (firstEmpDoc.exists()) return `${firstEmpDoc.data().employeeId} - ${firstEmpDoc.data().fullName || firstEmpDoc.data().name || ''}`;
+        if (firstEmpDoc.exists()) {
+          const code = firstEmpDoc.data().employeeCode || firstEmpDoc.id;
+          const name = firstEmpDoc.data().fullName || firstEmpDoc.data().name || '';
+          return `${code} - ${name}`;
+        }
       }
       
+      // 3. Nếu không có thu ngân check in, ghi null
       return null;
     } catch (e) {
       console.error("Lỗi lấy thông tin thu ngân", e);

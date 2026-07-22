@@ -275,7 +275,9 @@ const ShiftHandovers = () => {
           const empDoc = await getDoc(doc(db, 'employees', currentEmployeeId));
           if (empDoc.exists()) {
             const empData = empDoc.data();
-            cashierDisplayName = `${empData.employeeCode} - ${empData.fullName}`;
+            const code = empData.employeeCode || empDoc.id;
+            const name = empData.fullName || empData.name || '';
+            cashierDisplayName = `${code} - ${name}`;
           }
         } else {
            const userSnap = await getDocs(query(collection(db, 'users'), where('email', '==', currentUserEmail)));
@@ -346,7 +348,9 @@ const ShiftHandovers = () => {
               const empDoc = await getDoc(doc(db, 'employees', currentEmployeeId));
               if (empDoc.exists()) {
                 const empData = empDoc.data();
-                editorDisplayName = `${empData.employeeCode} - ${empData.fullName}`;
+                const code = empData.employeeCode || empDoc.id;
+                const name = empData.fullName || empData.name || '';
+                editorDisplayName = `${code} - ${name}`;
               }
             } else {
                const userSnap = await getDocs(query(collection(db, 'users'), where('email', '==', currentUserEmail)));
