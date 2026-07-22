@@ -369,7 +369,8 @@ const Payroll: React.FC = () => {
                  shiftsCount: historyData.shiftsCount || 0,
                  isPaid: true,
                  historyId: d.id,
-                 salaryRate: historyData.salaryPerHour || 0
+                 salaryRate: historyData.salaryPerHour || 0,
+                 bonuses: historyData.bonuses || []
                });
             }
           }
@@ -520,6 +521,7 @@ const Payroll: React.FC = () => {
         totalHours: paymentModalData.totalHours,
         shiftsCount: paymentModalData.shiftsCount,
         salaryPerHour: paymentModalData.salaryRate,
+        bonuses: paymentModalData.bonuses || [],
         paidAt: new Date()
       });
       
@@ -717,7 +719,8 @@ const Payroll: React.FC = () => {
                             bankAccountNum: item.employeeInfo.bankAccountNum,
                             bankAccountName: item.employeeInfo.bankAccountName,
                             fullName: item.employeeInfo.fullName,
-                            salaryRate: item.salaryRate !== undefined ? item.salaryRate : item.employeeInfo.salaryPerHour
+                            salaryRate: item.salaryRate !== undefined ? item.salaryRate : item.employeeInfo.salaryPerHour,
+                            bonuses: item.bonuses || []
                           })}
                           className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
                         >
