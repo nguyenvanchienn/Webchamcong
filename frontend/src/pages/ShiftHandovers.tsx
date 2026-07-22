@@ -26,7 +26,7 @@ interface ShiftReport {
   notes: string;
   editHistory?: {
     timestamp: Date;
-    editorEmail: string;
+    editorName: string;
     changes: string[];
   }[];
 }
@@ -51,6 +51,7 @@ const ShiftHandovers = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'OPEN' | 'CLOSE' | 'EDIT'>('OPEN');
   const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
+  const [historyShift, setHistoryShift] = useState<ShiftReport | null>(null);
   
   // Dữ liệu nhập
   const [startCash, setStartCash] = useState(0);
@@ -316,9 +317,23 @@ const ShiftHandovers = () => {
 
         const editHistory = activeShift.editHistory || [];
         if (changes.length > 0) {
+          let editorDisplayName = 'Quản trị viên (Admin)';
+          if (userRole !== 'SUPER_ADMIN') {
+            if (currentEmployeeId) {
+              const empDoc = await getDoc(doc(db, 'employees', currentEmployeeId));
+              if (empDoc.exists()) {
+                const empData = empDoc.data();
+                editorDisplayName = `${empData.employeeCode} - ${empData.fullName}`;
+              }
+            } else {
+               const userSnap = await getDocs(query(collection(db, 'users'), where('email', '==', currentUserEmail)));
+               editorDisplayName = userSnap.empty ? currentUserEmail : (userSnap.docs[0].data().fullName || currentUserEmail);
+            }
+          }
+
           editHistory.push({
             timestamp: new Date(),
-            editorEmail: currentUserEmail,
+            editorName: editorDisplayName,
             changes
           });
         }
@@ -518,21 +533,13 @@ const ShiftHandovers = () => {
                           {r.status === 'OPEN' ? 'ĐANG MỞ' : 'ĐÃ CHỐT'}
                         </span>
                         {r.editHistory && r.editHistory.length > 0 && (
-                          <div className="mt-2 text-[10px] text-gray-500 bg-gray-100 p-1 rounded group relative max-w-[120px]">
-                            <span className="cursor-help border-b border-dashed border-gray-400">Đã sửa ({r.editHistory.length} lần)</span>
-                            <div className="hidden group-hover:block absolute z-50 left-0 top-full mt-1 w-64 bg-white border shadow-lg rounded p-2 text-xs text-left">
-                              <p className="font-bold mb-1 border-b pb-1">Lịch sử chỉnh sửa</p>
-                              {r.editHistory.map((eh, idx) => (
-                                <div key={idx} className="mb-2 last:mb-0">
-                                  <p className="text-blue-600 font-semibold">{eh.editorEmail} <span className="text-gray-400 font-normal">({eh.timestamp.toLocaleString('vi-VN')})</span></p>
-                                  <ul className="list-disc pl-4 text-gray-700">
-                                    {eh.changes.map((c, i) => (
-                                      <li key={i}>{c}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              ))}
-                            </div>
+                          <div className="mt-2 text-[10px] text-gray-500 bg-gray-100 p-1 rounded max-w-[120px]">
+                            <button 
+                              onClick={() => setHistoryShift(r)}
+                              className="cursor-pointer border-b border-dashed border-gray-400 hover:text-blue-600 transition-colors w-full text-left"
+                            >
+                              Đã sửa ({r.editHistory.length} lần)
+                            </button>
                           </div>
                         )}
                       </td>
@@ -713,6 +720,49 @@ const ShiftHandovers = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Modal Lịch sử chỉnh sửa */}
+      {historyShift && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+              <h3 className="font-bold text-lg text-gray-800">Lịch sử chỉnh sửa</h3>
+              <button onClick={() => setHistoryShift(null)} className="text-gray-500 hover:text-red-500 transition-colors">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto bg-gray-50 flex-1">
+              {historyShift.editHistory && historyShift.editHistory.length > 0 ? (
+                <div className="space-y-6">
+                  {historyShift.editHistory.map((eh, idx) => (
+                    <div key={idx} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm relative">
+                      <div className="absolute -left-2 top-4 w-4 h-4 bg-blue-100 rounded-full border-2 border-white shadow-sm"></div>
+                      <div className="flex justify-between items-start mb-2">
+                        <p className="font-bold text-blue-700 text-sm">
+                          {/* Fallback to editorEmail if editorName is undefined in old records */}
+                          {(eh as any).editorName || (eh as any).editorEmail}
+                        </p>
+                        <span className="text-xs text-gray-500 font-medium bg-gray-100 px-2 py-1 rounded">
+                          {eh.timestamp.toLocaleString('vi-VN')}
+                        </span>
+                      </div>
+                      <ul className="space-y-1.5 mt-3">
+                        {eh.changes.map((c, i) => (
+                          <li key={i} className="text-sm text-gray-700 flex items-start">
+                            <span className="mr-2 text-blue-400 mt-0.5">•</span>
+                            <span>{c}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-gray-500">Chưa có lịch sử chỉnh sửa.</p>
+              )}
+            </div>
           </div>
         </div>
       )}
