@@ -151,10 +151,10 @@ const ShiftHandovers = () => {
 
   const calculateRevenue = async (start: Date, end: Date, branchId: string) => {
     try {
-      // Tìm các hóa đơn trong khoảng thời gian ca
+      // Lấy các hóa đơn trong khoảng thời gian để tính doanh thu
+      // Query bằng createdAt để tránh lỗi index kết hợp, lọc branchId bằng JS
       const ordersQuery = query(
         collection(db, 'orders'),
-        where('branchId', '==', branchId),
         where('createdAt', '>=', Timestamp.fromDate(start)),
         where('createdAt', '<=', Timestamp.fromDate(end))
       );
@@ -165,11 +165,12 @@ const ShiftHandovers = () => {
 
       ordersSnap.forEach(doc => {
         const data = doc.data();
-        if (data.status === 'COMPLETED') { // Chỉ tính hóa đơn đã hoàn thành
+        if (data.branchId === branchId && data.status === 'COMPLETED') { // Lọc theo branchId
+          const totalAmount = data.totalAmount || data.total || 0; // Hỗ trợ cả 2 tên biến tổng tiền
           if (data.paymentMethod === 'CASH') {
-            revCash += data.total || 0;
+            revCash += totalAmount;
           } else {
-            revTrans += data.total || 0;
+            revTrans += totalAmount;
           }
         }
       });
@@ -225,9 +226,35 @@ const ShiftHandovers = () => {
       }
     }
 
+    // Lấy số dư cuối ca của ca trước đó
+    let autoStartCash = 0;
+    let autoStartTransfer = 0;
+    try {
+      if (currentBranchId) {
+        const prevShiftQ = query(
+          collection(db, 'shift_reports'),
+          where('branchId', '==', currentBranchId),
+          where('status', '==', 'CLOSED')
+        );
+        const prevSnap = await getDocs(prevShiftQ);
+        if (!prevSnap.empty) {
+           const closedShifts = prevSnap.docs.map(d => d.data());
+           closedShifts.sort((a, b) => {
+              const timeA = a.endTime?.toMillis ? a.endTime.toMillis() : 0;
+              const timeB = b.endTime?.toMillis ? b.endTime.toMillis() : 0;
+              return timeB - timeA;
+           });
+           autoStartCash = closedShifts[0].endCash || 0;
+           autoStartTransfer = closedShifts[0].endTransfer || 0;
+        }
+      }
+    } catch (e) {
+      console.error("Lỗi lấy số dư ca trước", e);
+    }
+
     setModalMode('OPEN');
-    setStartCash(0);
-    setStartTransfer(0);
+    setStartCash(autoStartCash);
+    setStartTransfer(autoStartTransfer);
     setNotes('');
     setIsModalOpen(true);
   };
