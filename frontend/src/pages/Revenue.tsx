@@ -130,6 +130,22 @@ const Revenue: React.FC = () => {
     fetchData();
   }, [showExpenseModal, billModalData === null]); // Refetch when modal closes to update list
 
+  const getEditorName = async () => {
+    if (userRole === 'SUPER_ADMIN') return 'Admin';
+    const currentEmployeeId = localStorage.getItem('employeeId');
+    if (currentEmployeeId) {
+      const { getDoc } = await import('firebase/firestore');
+      const empDoc = await getDoc(doc(db, 'employees', currentEmployeeId));
+      if (empDoc.exists()) {
+        const empData = empDoc.data();
+        return `${empData.employeeCode} - ${empData.fullName}`;
+      }
+    }
+    const email = auth.currentUser?.email || '';
+    if (cashierNameMap[email]) return cashierNameMap[email];
+    return 'Quản lý';
+  };
+
   const filteredOrders = orders.filter(o => {
     if (userRole !== 'SUPER_ADMIN' && o.branchId !== userBranchId) {
       return false;
@@ -225,7 +241,7 @@ const Revenue: React.FC = () => {
 
     setIsSubmittingExpense(true);
     try {
-      const editorName = userRole === 'SUPER_ADMIN' ? 'Admin' : `${localStorage.getItem('employeeId') || ''} - ${cashierNameMap[auth.currentUser?.email || ''] || 'Quản lý'}`.replace(/^ - | - $/g, '');
+      const editorName = await getEditorName();
 
       if (editingExpenseId) {
         const expenseRef = doc(db, 'orders', editingExpenseId);
@@ -318,7 +334,7 @@ const Revenue: React.FC = () => {
       message: 'Bạn có chắc chắn muốn XÓA hóa đơn này không? Vui lòng nhập lý do xóa để ghi nhận vào lịch sử.',
       onConfirm: async (reason?: string) => {
         try {
-          const editorName = userRole === 'SUPER_ADMIN' ? 'Admin' : `${localStorage.getItem('employeeId') || ''} - ${cashierNameMap[auth.currentUser?.email || ''] || 'Quản lý'}`.replace(/^ - | - $/g, '');
+          const editorName = await getEditorName();
           const newCount = (billModalData.editCount || 0) + 1;
           const newHistory = [...(billModalData.editHistory || []), { 
             editedAt: new Date().toISOString(), 
@@ -354,7 +370,7 @@ const Revenue: React.FC = () => {
       message: 'Bạn có chắc chắn muốn XÓA phiếu chi này không? Vui lòng nhập lý do xóa để ghi nhận vào lịch sử.',
       onConfirm: async (reason?: string) => {
         try {
-          const editorName = userRole === 'SUPER_ADMIN' ? 'Admin' : `${localStorage.getItem('employeeId') || ''} - ${cashierNameMap[auth.currentUser?.email || ''] || 'Quản lý'}`.replace(/^ - | - $/g, '');
+          const editorName = await getEditorName();
           const existingOrder = orders.find(o => o.id === editingExpenseId);
           const newCount = (existingOrder?.editCount || 0) + 1;
           const newHistory = [...(existingOrder?.editHistory || []), { 
@@ -389,9 +405,13 @@ const Revenue: React.FC = () => {
   const handleSaveBillEdit = async () => {
     if (!billModalData) return;
     try {
-      const newTotal = billEditItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      if (billEditItems.length === 0) {
+        toast.error('Hóa đơn phải có ít nhất 1 món');
+        return;
+      }
+      const editorName = await getEditorName();
+      const newTotal = billEditItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
       const newEditCount = (billModalData.editCount || 0) + 1;
-      const editorName = userRole === 'SUPER_ADMIN' ? 'Admin' : `${localStorage.getItem('employeeId') || ''} - ${cashierNameMap[auth.currentUser?.email || ''] || 'Quản lý'}`.replace(/^ - | - $/g, '');
       const newHistory = [...(billModalData.editHistory || []), { 
         editedAt: new Date().toISOString(), 
         editedBy: editorName,
