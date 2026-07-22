@@ -183,6 +183,32 @@ const Kiosk: React.FC = () => {
         });
         toast.success(`Check-in thành công cho ${selectedEmp.fullName}`);
       } else if (todayAttendance && !todayAttendance.checkOut) {
+        // Kiểm tra xem nhân viên này có đang giữ ca (chưa chốt ca) không
+        if (branchId) {
+          const shiftQ = query(
+            collection(db, 'shift_reports'),
+            where('branchId', '==', branchId),
+            where('status', '==', 'OPEN')
+          );
+          const shiftSnap = await getDocs(shiftQ);
+          if (!shiftSnap.empty) {
+            const openShifts = shiftSnap.docs.map(d => d.data());
+            const code = selectedEmp.employeeCode || selectedEmp.id;
+            const isHoldingShift = openShifts.some(shift => {
+               const cName = shift.cashierName || shift.cashierEmail || '';
+               return cName.includes(code) || (selectedEmp.fullName && cName.includes(selectedEmp.fullName));
+            });
+            if (isHoldingShift) {
+               toast.error('Bạn CHƯA BÀN GIAO CA (Chốt ca)! Vui lòng chốt ca trên máy tính tiền trước khi check-out.', {
+                 duration: 6000,
+                 style: { border: '1px solid #ef4444', padding: '16px', color: '#b91c1c' }
+               });
+               setLoading(false);
+               return;
+            }
+          }
+        }
+
         // Đã check in => Check Out
         const checkOutTime = new Date();
         const newLog = { action: 'CHECK_OUT', time: checkOutTime };
