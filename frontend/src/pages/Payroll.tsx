@@ -110,6 +110,7 @@ const Payroll: React.FC = () => {
     bankAccountName?: string;
     fullName: string;
     salaryRate: number;
+    bonuses?: any[];
   } | null>(null);
 
   const [activeTab, setActiveTab] = useState<'admin' | 'personal'>('admin');
