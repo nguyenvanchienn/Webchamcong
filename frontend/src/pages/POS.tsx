@@ -60,11 +60,10 @@ const POS: React.FC = () => {
   const [logoutPassword, setLogoutPassword] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const [activeTableOrders, setActiveTableOrders] = useState<ActiveTableOrder[]>([]);
-  const [showTableOrdersModal, setShowTableOrdersModal] = useState(false);
   const [currentTableOrderId, setCurrentTableOrderId] = useState<string | null>(null);
   const [currentTableId, setCurrentTableId] = useState<string | null>(null);
   const [currentTableName, setCurrentTableName] = useState<string | null>(null);
+  const [pendingOrderCode, setPendingOrderCode] = useState<string | null>(null);
   const [itemToDelete, setItemToDelete] = useState<{ orderId: string; tableId: string; tableName: string; itemIndex: number; itemName: string; orderItems: any[] } | null>(null);
 
   const navigate = useNavigate();
@@ -117,7 +116,7 @@ const POS: React.FC = () => {
     const branchId = localStorage.getItem('branchId');
     if (!branchId) return;
     try {
-      await updateDoc(doc(db, 'active_pos_sessions', branchId), updates);
+      await setDoc(doc(db, 'active_pos_sessions', branchId), updates, { merge: true });
     } catch (e) {
       console.error("Error updating POS state", e);
     }
@@ -147,6 +146,7 @@ const POS: React.FC = () => {
         setCurrentTableOrderId(data.currentTableOrderId || null);
         setCurrentTableId(data.currentTableId || null);
         setCurrentTableName(data.currentTableName || null);
+        setPendingOrderCode(data.pendingOrderCode || null);
         if (data.activeCategory) {
            setActiveCategory(data.activeCategory);
         }
@@ -455,18 +455,8 @@ const POS: React.FC = () => {
         if (activeName) finalCashierName = activeName;
       }
 
-      // Get sequential order code using transaction
-      const counterRef = doc(db, 'metadata', 'orderCounter');
-      const nextOrderCodeStr = await runTransaction(db, async (transaction) => {
-        const counterDoc = await transaction.get(counterRef);
-        let currentCode = 9999999; // Starts at 10000000
-        if (counterDoc.exists() && counterDoc.data().lastOrderCode) {
-          currentCode = counterDoc.data().lastOrderCode;
-        }
-        const newCode = currentCode + 1;
-        transaction.set(counterRef, { lastOrderCode: newCode }, { merge: true });
-        return newCode.toString();
-      });
+      // Use the pre-generated order code
+      const nextOrderCodeStr = pendingOrderCode || Date.now().toString();
 
       // Group items for the bill
       const groupedItems: any[] = [];
@@ -518,7 +508,8 @@ const POS: React.FC = () => {
       setCurrentTableOrderId(null);
       setCurrentTableId(null);
       setCurrentTableName(null);
-      updatePosState({ cart: [], showPaymentModal: false, amountTendered: '0', currentTableOrderId: null, currentTableId: null, currentTableName: null });
+      setPendingOrderCode(null);
+      updatePosState({ cart: [], showPaymentModal: false, amountTendered: '0', currentTableOrderId: null, currentTableId: null, currentTableName: null, pendingOrderCode: null });
       toast.success('Thanh toán thành công!');
     } catch (error) {
       toast.error('Lỗi khi thanh toán');
@@ -759,11 +750,31 @@ const POS: React.FC = () => {
               </button>
             )}
             <button
-              onClick={() => {
+              onClick={async () => {
+                setIsProcessing(true);
+                let code = "";
+                try {
+                  const counterRef = doc(db, 'metadata', 'orderCounter');
+                  code = await runTransaction(db, async (transaction) => {
+                    const counterDoc = await transaction.get(counterRef);
+                    let currentCode = 9999999;
+                    if (counterDoc.exists() && counterDoc.data().lastOrderCode) {
+                      currentCode = counterDoc.data().lastOrderCode;
+                    }
+                    const newCode = currentCode + 1;
+                    transaction.set(counterRef, { lastOrderCode: newCode }, { merge: true });
+                    return newCode.toString();
+                  });
+                } catch (e) {
+                  console.error("Lỗi tạo mã đơn:", e);
+                  code = "DH" + Date.now().toString().slice(-6);
+                }
+                setIsProcessing(false);
+                setPendingOrderCode(code);
                 setPaymentMethod('CASH');
                 setAmountTendered('0');
                 setShowPaymentModal(true);
-                updatePosState({ paymentMethod: 'CASH', amountTendered: '0', showPaymentModal: true });
+                updatePosState({ paymentMethod: 'CASH', amountTendered: '0', showPaymentModal: true, pendingOrderCode: code });
               }}
               disabled={cart.length === 0 || isProcessing}
               className={`flex flex-col items-center justify-center gap-1 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed shadow-lg shadow-blue-500/30 transition-all active:scale-[0.98] ${currentTableOrderId ? 'flex-[2]' : 'w-full flex-row text-lg'}`}
@@ -879,7 +890,7 @@ const POS: React.FC = () => {
                 <div className="flex flex-col items-center justify-center animate-fade-in space-y-2">
                   <div className="w-48 h-48 bg-gray-100 p-2 rounded-2xl border-2 border-dashed border-gray-300 flex items-center justify-center relative overflow-hidden bg-white">
                     <img
-                      src={`https://img.vietqr.io/image/MB-0372578549-compact.png?amount=${totalAmount}&addInfo=Thanh toan don hang`}
+                      src={`https://img.vietqr.io/image/MB-0372578549-compact.png?amount=${totalAmount}&addInfo=Thanh toan don hang ${pendingOrderCode || ''}`}
                       alt="QR Code Thanh Toán"
                       className="w-full h-full object-contain mix-blend-multiply"
                     />

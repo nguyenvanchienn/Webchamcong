@@ -31,6 +31,7 @@ const CustomerOrder: React.FC = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'TRANSFER'>('CASH');
   const [amountTendered, setAmountTendered] = useState<string>('0');
+  const [pendingOrderCode, setPendingOrderCode] = useState<string | null>(null);
   
   const [showSidebar, setShowSidebar] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -59,6 +60,7 @@ const CustomerOrder: React.FC = () => {
         setShowPaymentModal(data.showPaymentModal || false);
         setPaymentMethod(data.paymentMethod || 'CASH');
         setAmountTendered(data.amountTendered || '0');
+        setPendingOrderCode(data.pendingOrderCode || null);
         if (data.activeCategory) {
            setActiveCategory(data.activeCategory);
         }
@@ -97,7 +99,7 @@ const CustomerOrder: React.FC = () => {
     const branchId = localStorage.getItem('branchId');
     if (!branchId) return;
     try {
-      await updateDoc(doc(db, 'active_pos_sessions', branchId), updates);
+      await setDoc(doc(db, 'active_pos_sessions', branchId), updates, { merge: true });
     } catch (e) {
       console.error("Error updating POS state", e);
     }
@@ -290,7 +292,7 @@ const CustomerOrder: React.FC = () => {
                 <h2 className="text-2xl font-black text-blue-600 mb-6">Quét mã QR để thanh toán</h2>
                 <div className="w-64 h-64 bg-gray-100 p-3 rounded-2xl border-4 border-blue-100 flex items-center justify-center relative overflow-hidden bg-white mb-6">
                   <img 
-                    src={`https://img.vietqr.io/image/MB-0372578549-compact.png?amount=${totalAmount}&addInfo=Thanh toan don hang`} 
+                    src={`https://img.vietqr.io/image/MB-0372578549-compact.png?amount=${totalAmount}&addInfo=Thanh toan don hang ${pendingOrderCode || ''}`} 
                     alt="QR Code Thanh Toán" 
                     className="w-full h-full object-contain mix-blend-multiply" 
                   />
