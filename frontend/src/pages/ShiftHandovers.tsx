@@ -86,13 +86,19 @@ const ShiftHandovers = () => {
       setBranches(branchList);
       setBranchMap(map);
 
-      // 2. Fetch Active Shift (dành cho Thu Ngân)
-      if (userRole === 'CASHIER') {
-        const activeQuery = query(
-          collection(db, 'shift_reports'),
-          where('cashierEmail', '==', currentUserEmail),
-          where('status', '==', 'OPEN')
-        );
+      // 2. Fetch Active Shift (dành cho Thu Ngân / POS)
+      if (userRole === 'CASHIER' || userRole === 'POS') {
+        const activeQuery = userRole === 'POS'
+          ? query(
+              collection(db, 'shift_reports'),
+              where('branchId', '==', currentBranchId),
+              where('status', '==', 'OPEN')
+            )
+          : query(
+              collection(db, 'shift_reports'),
+              where('cashierEmail', '==', currentUserEmail),
+              where('status', '==', 'OPEN')
+            );
         const activeSnap = await getDocs(activeQuery);
         if (!activeSnap.empty) {
           const docData = activeSnap.docs[0];
