@@ -570,7 +570,7 @@ const POS: React.FC = () => {
         } else {
           groupedItems.push({
             menuItemId: item.id,
-            name: item.selectedSize ? `${item.name} (${item.selectedSize})` : item.name,
+            name: item.name,
             price: item.price,
             quantity: item.quantity,
             selectedSize: item.selectedSize || null
@@ -1140,7 +1140,8 @@ const POS: React.FC = () => {
                 <table className="w-full mb-4 text-xs">
                   <thead>
                     <tr className="border-b border-gray-200 text-left">
-                      <th className="py-2 w-1/2">Tên món</th>
+                      <th className="py-2 w-2/5">Tên món</th>
+                      <th className="py-2 text-center">Size</th>
                       <th className="py-2 text-center">SL</th>
                       <th className="py-2 text-right">Đơn giá</th>
                     </tr>
@@ -1151,6 +1152,7 @@ const POS: React.FC = () => {
                         <td className="py-2 pr-2 font-medium">
                           {item.name}
                         </td>
+                        <td className="py-2 text-center text-gray-500 font-bold">{item.selectedSize || '-'}</td>
                         <td className="py-2 text-center">{item.quantity}</td>
                         <td className="py-2 text-right">{new Intl.NumberFormat('vi-VN').format(item.price)}</td>
                       </tr>

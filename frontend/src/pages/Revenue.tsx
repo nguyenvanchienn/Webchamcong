@@ -1427,7 +1427,8 @@ const Revenue: React.FC = () => {
                 <table className="w-full mb-4 text-xs">
                   <thead>
                     <tr className="border-b border-gray-200 text-left">
-                      <th className="py-2 w-1/2">Tên món</th>
+                      <th className="py-2 w-2/5">Tên món</th>
+                      <th className="py-2 text-center">Size</th>
                       <th className="py-2 text-center">SL</th>
                       <th className="py-2 text-right">Đơn giá</th>
                       {isEditBillMode && (
@@ -1445,6 +1446,9 @@ const Revenue: React.FC = () => {
                         className="border-b border-dashed border-gray-100"
                       >
                         <td className="py-2 pr-2 font-medium">{item.name}</td>
+                        <td className="py-2 text-center text-gray-500 font-bold">
+                          {item.selectedSize || "-"}
+                        </td>
                         <td className="py-2 text-center">
                           {isEditBillMode ? (
                             <div className="flex items-center justify-center gap-1">
