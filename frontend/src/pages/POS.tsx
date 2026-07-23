@@ -83,7 +83,7 @@ const POS: React.FC = () => {
   const [currentTableId, setCurrentTableId] = useState<string | null>(null);
   const [currentTableName, setCurrentTableName] = useState<string | null>(null);
   const [pendingOrderCode, setPendingOrderCode] = useState<string | null>(null);
-  const [itemToDelete, setItemToDelete] = useState<{ orderId: string; tableId: string; tableName: string; itemIndex: number; itemName: string; orderItems: any[] } | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<{ type: 'ITEM' | 'REQUEST'; orderId: string; tableId: string; tableName: string; itemIndex?: number; itemName?: string; orderItems?: any[]; reqId?: string; reqMessage?: string; requests?: any[] } | null>(null);
   const [deleteReason, setDeleteReason] = useState<string>('');
 
   const navigate = useNavigate();
@@ -1320,7 +1320,20 @@ const POS: React.FC = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {activeTableOrders.map(order => (
+                  {[...activeTableOrders].sort((a, b) => {
+                    const oldestReqA = a.customerRequests?.filter((r: any) => !r.isCompleted).reduce((min: number, r: any) => r.timestamp < min ? r.timestamp : min, Infinity);
+                    const oldestReqB = b.customerRequests?.filter((r: any) => !r.isCompleted).reduce((min: number, r: any) => r.timestamp < min ? r.timestamp : min, Infinity);
+                    const hasReqA = oldestReqA !== Infinity && oldestReqA !== undefined;
+                    const hasReqB = oldestReqB !== Infinity && oldestReqB !== undefined;
+                    
+                    if (hasReqA && hasReqB) return oldestReqA - oldestReqB;
+                    if (hasReqA) return -1;
+                    if (hasReqB) return 1;
+                    
+                    if (a.hasNewItems && !b.hasNewItems) return -1;
+                    if (!a.hasNewItems && b.hasNewItems) return 1;
+                    return (b.updatedAt?.toMillis?.() || 0) - (a.updatedAt?.toMillis?.() || 0);
+                  }).map(order => (
                     <div
                       key={order.id}
                       className={`bg-white border-2 rounded-2xl p-4 cursor-pointer transition-all ${currentTableOrderId === order.id ? 'border-blue-500 shadow-md ring-4 ring-blue-50' : 'border-transparent shadow-sm hover:shadow-md hover:border-gray-200'
@@ -1394,24 +1407,49 @@ const POS: React.FC = () => {
                           <div className="font-bold flex items-center gap-1"><Coffee size={14} /> Yêu cầu từ khách:</div>
                           {order.customerRequests.map((req: any, idx: number) => (
                             <div key={req.id || idx} className="flex justify-between items-start gap-2 border-b border-orange-100 last:border-0 pb-2 last:pb-0">
-                              <span className={req.isCompleted ? 'line-through text-gray-400' : 'font-medium'}>
-                                {req.message}
-                              </span>
-                              {!req.isCompleted && (
+                              <div className="flex flex-col">
+                                <span className={req.isCompleted ? 'line-through text-gray-400' : 'font-medium'}>
+                                  {req.message}
+                                </span>
+                                <span className="text-[10px] font-bold text-orange-400">
+                                  {new Date(req.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                {!req.isCompleted && (
+                                  <button
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      const newReqs = [...(order.customerRequests || [])];
+                                      newReqs[idx].isCompleted = true;
+                                      await updateDoc(doc(db, 'active_table_orders', order.id), {
+                                        customerRequests: newReqs
+                                      });
+                                    }}
+                                    className="text-xs bg-orange-200 text-orange-800 px-2 py-1 rounded hover:bg-orange-300 whitespace-nowrap font-bold"
+                                  >
+                                    Đã xong
+                                  </button>
+                                )}
                                 <button
-                                  onClick={async (e) => {
+                                  onClick={(e) => {
                                     e.stopPropagation();
-                                    const newReqs = [...(order.customerRequests || [])];
-                                    newReqs[idx].isCompleted = true;
-                                    await updateDoc(doc(db, 'active_table_orders', order.id), {
-                                      customerRequests: newReqs
+                                    setItemToDelete({
+                                      type: 'REQUEST',
+                                      orderId: order.id,
+                                      tableId: order.tableId,
+                                      tableName: order.tableName,
+                                      reqId: req.id,
+                                      reqMessage: req.message,
+                                      requests: order.customerRequests
                                     });
                                   }}
-                                  className="text-xs bg-orange-200 text-orange-800 px-2 py-1 rounded hover:bg-orange-300 whitespace-nowrap font-bold"
+                                  className="text-red-400 hover:text-red-600 transition-opacity p-1 -mr-1"
+                                  title="Xóa yêu cầu này"
                                 >
-                                  Đã xong
+                                  <X size={16} strokeWidth={3} />
                                 </button>
-                              )}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -1450,6 +1488,7 @@ const POS: React.FC = () => {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setItemToDelete({
+                                  type: 'ITEM',
                                   orderId: order.id,
                                   tableId: order.tableId,
                                   tableName: order.tableName,
@@ -1491,9 +1530,11 @@ const POS: React.FC = () => {
             <div className="flex justify-center mb-4 text-red-500 bg-red-50 w-16 h-16 rounded-full items-center mx-auto">
               <Trash2 size={32} />
             </div>
-            <h3 className="text-xl font-bold text-center text-gray-800 mb-2">Xác nhận xoá món</h3>
+            <h3 className="text-xl font-bold text-center text-gray-800 mb-2">
+              Xác nhận xoá {itemToDelete.type === 'ITEM' ? 'món' : 'yêu cầu'}
+            </h3>
             <p className="text-gray-600 text-center mb-6 text-sm">
-              Bạn có chắc chắn muốn xoá <span className="font-bold text-gray-800">{itemToDelete.itemName}</span> khỏi đơn của <span className="font-bold text-blue-600">{itemToDelete.tableName}</span> không?
+              Bạn có chắc chắn muốn xoá <span className="font-bold text-gray-800">{itemToDelete.type === 'ITEM' ? itemToDelete.itemName : itemToDelete.reqMessage}</span> khỏi đơn của <span className="font-bold text-blue-600">{itemToDelete.tableName}</span> không?
             </p>
 
               <div className="mb-6">
@@ -1515,27 +1556,41 @@ const POS: React.FC = () => {
                 </button>
               <button
                 onClick={async () => {
-                  const { orderId, tableId, tableName, itemIndex, itemName, orderItems } = itemToDelete;
-                  const newItems = [...orderItems];
-                  newItems.splice(itemIndex, 1);
-
                   try {
-                    if (newItems.length === 0) {
-                      await deleteDoc(doc(db, 'active_table_orders', orderId));
-                      await updateDoc(doc(db, 'tables', tableId), { status: 'AVAILABLE' });
-                      toast.success(`Đã xoá bàn ${tableName}`);
-                    } else {
-                      const newTotal = newItems.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+                    if (itemToDelete.type === 'ITEM') {
+                      const { orderId, tableId, tableName, itemIndex, itemName, orderItems } = itemToDelete;
+                      const newItems = [...(orderItems || [])];
+                      newItems.splice(itemIndex as number, 1);
+
+                      if (newItems.length === 0) {
+                        await deleteDoc(doc(db, 'active_table_orders', orderId));
+                        await updateDoc(doc(db, 'tables', tableId), { status: 'AVAILABLE' });
+                        toast.success(`Đã xoá bàn ${tableName}`);
+                      } else {
+                        const newTotal = newItems.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+                        await updateDoc(doc(db, 'active_table_orders', orderId), {
+                          items: newItems,
+                          totalAmount: newTotal,
+                          notifications: arrayUnion({
+                            id: Date.now().toString(),
+                            message: `Món ${itemName} đã bị huỷ${deleteReason.trim() ? `. Lý do: ${deleteReason.trim()}` : ''}`,
+                            timestamp: Date.now()
+                          })
+                        });
+                        toast.success('Đã xoá món');
+                      }
+                    } else if (itemToDelete.type === 'REQUEST') {
+                      const { orderId, reqId, reqMessage, requests } = itemToDelete;
+                      const newReqs = (requests || []).filter(r => r.id !== reqId);
                       await updateDoc(doc(db, 'active_table_orders', orderId), {
-                        items: newItems,
-                        totalAmount: newTotal,
+                        customerRequests: newReqs,
                         notifications: arrayUnion({
                           id: Date.now().toString(),
-                          message: `Món ${itemName} đã bị huỷ${deleteReason.trim() ? `. Lý do: ${deleteReason.trim()}` : ''}`,
+                          message: `Yêu cầu "${reqMessage}" đã bị huỷ${deleteReason.trim() ? `. Lý do: ${deleteReason.trim()}` : ''}`,
                           timestamp: Date.now()
                         })
                       });
-                      toast.success('Đã xoá món');
+                      toast.success('Đã xoá yêu cầu');
                     }
                   } catch (e) {
                     toast.error('Có lỗi xảy ra');
