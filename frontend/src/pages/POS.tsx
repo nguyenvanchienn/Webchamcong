@@ -564,15 +564,16 @@ const POS: React.FC = () => {
       // Group items for the bill
       const groupedItems: any[] = [];
       cart.forEach(item => {
-        const existing = groupedItems.find(i => i.menuItemId === item.id);
+        const existing = groupedItems.find(i => i.menuItemId === item.id && i.selectedSize === item.selectedSize);
         if (existing) {
           existing.quantity += item.quantity;
         } else {
           groupedItems.push({
             menuItemId: item.id,
-            name: item.name,
+            name: item.selectedSize ? `${item.name} (${item.selectedSize})` : item.name,
             price: item.price,
-            quantity: item.quantity
+            quantity: item.quantity,
+            selectedSize: item.selectedSize || null
           });
         }
       });
