@@ -121,6 +121,170 @@ const CustomDateTimePicker = ({ value, onChange }: { value: string, onChange: (v
   );
 };
 
+const EditRecordModal = ({ record, onClose, salaryPerHour }: { record: PersonalTimeRecord, onClose: () => void, salaryPerHour: number }) => {
+  const [startTime, setStartTime] = useState<string>(record.startTime);
+  const [endTime, setEndTime] = useState<string>(record.endTime);
+  const [breakHoursInput, setBreakHoursInput] = useState<string>('0');
+  const [breakMinutesInput, setBreakMinutesInput] = useState<string>('0');
+  const [noteInput, setNoteInput] = useState<string>(record.note || '');
+  const [saving, setSaving] = useState(false);
+  
+  const breakMinuteRef = useRef<HTMLInputElement>(null);
+  const breakHourRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (record.breakTimeStr) {
+      const [h, m] = record.breakTimeStr.split(':');
+      setBreakHoursInput(parseInt(h).toString());
+      setBreakMinutesInput(parseInt(m).toString());
+    } else {
+      setBreakHoursInput('0');
+      setBreakMinutesInput('0');
+    }
+  }, [record]);
+
+  const calculateTotal = (sTime: string, eTime: string, bHoursStr: string, bMinsStr: string) => {
+    if (!sTime || !eTime) return { hours: 0, amount: 0 };
+    const start = new Date(sTime);
+    const end = new Date(eTime);
+    let totalMinutes = (end.getTime() - start.getTime()) / (1000 * 60);
+    if (totalMinutes < 0) totalMinutes = 0;
+    
+    const bHours = parseInt(bHoursStr, 10) || 0;
+    const bMins = parseInt(bMinsStr, 10) || 0;
+    const bTotalMinutes = (bHours * 60) + bMins;
+    
+    let workedMinutes = totalMinutes - bTotalMinutes;
+    if (workedMinutes < 0) workedMinutes = 0;
+    const workedHours = workedMinutes / 60;
+    const amount = workedHours * salaryPerHour;
+    return { hours: workedHours, amount: Math.ceil(amount) };
+  };
+
+  const handleUpdate = async () => {
+    const { hours, amount } = calculateTotal(startTime, endTime, breakHoursInput, breakMinutesInput);
+    if (hours <= 0) {
+      toast.error('Thời gian làm việc không hợp lệ (phải > 0)');
+      return;
+    }
+    
+    setSaving(true);
+    try {
+      const payload = {
+        startTime,
+        endTime,
+        breakHours: (parseInt(breakHoursInput) || 0) + (parseInt(breakMinutesInput) || 0) / 60,
+        breakTimeStr: `${(parseInt(breakHoursInput) || 0).toString().padStart(2, '0')}:${(parseInt(breakMinutesInput) || 0).toString().padStart(2, '0')}`,
+        hours,
+        amount,
+        note: noteInput.trim(),
+      };
+
+      await updateDoc(doc(db, 'personal_time_records', record.id), payload);
+      toast.success('Đã cập nhật ca làm');
+      onClose();
+    } catch (e) {
+      console.error(e);
+      toast.error('Có lỗi xảy ra');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const currentCalc = calculateTotal(startTime, endTime, breakHoursInput, breakMinutesInput);
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-bold text-gray-800">Sửa ca làm</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-1">Thời gian bắt đầu</label>
+            <CustomDateTimePicker value={startTime} onChange={setStartTime} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-1">Thời gian kết thúc</label>
+            <CustomDateTimePicker value={endTime} onChange={setEndTime} />
+          </div>
+        </div>
+
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-600 mb-1 flex items-center gap-1">
+            <Coffee size={16} /> Thời gian nghỉ giải lao
+          </label>
+          <div className="inline-flex items-center border-2 border-gray-100 rounded-xl px-4 py-3 focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-500/10 transition-all bg-white">
+            <NumberInputForTime
+              value={breakHoursInput.padStart(2, '0')}
+              min={0} max={23}
+              onChange={(val) => setBreakHoursInput(val)}
+              onComplete={() => breakMinuteRef.current?.focus()}
+              inputRef={breakHourRef}
+            />
+            <span className="text-gray-600 font-bold mx-0.5">:</span>
+            <NumberInputForTime
+              value={breakMinutesInput.padStart(2, '0')}
+              min={0} max={59}
+              onChange={(val) => setBreakMinutesInput(val)}
+              inputRef={breakMinuteRef}
+            />
+            <div className="relative ml-1.5 flex items-center justify-center">
+              <Clock size={16} className="text-gray-500 cursor-pointer hover:text-blue-600 transition-colors" />
+              <input
+                type="time"
+                value={`${breakHoursInput.padStart(2, '0')}:${breakMinutesInput.padStart(2, '0')}`}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    const [h, m] = e.target.value.split(':');
+                    setBreakHoursInput(h);
+                    setBreakMinutesInput(m);
+                  }
+                }}
+                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="mb-6">
+          <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
+            <span className="text-gray-400">📝</span> Ghi chú
+          </label>
+          <input
+            type="text"
+            value={noteInput}
+            onChange={(e) => setNoteInput(e.target.value)}
+            className="w-full border-2 border-gray-100 rounded-xl px-4 py-3 focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-500/10 transition-all bg-white outline-none font-medium text-gray-800"
+          />
+        </div>
+        
+        <div className="flex items-center justify-between bg-blue-50 p-4 rounded-xl border border-blue-100 mb-6">
+           <div>
+              <p className="text-sm text-blue-800 mb-1">Ước tính:</p>
+              <p className="font-bold text-blue-900 text-lg">
+                {currentCalc.hours.toFixed(2)} giờ = {new Intl.NumberFormat('vi-VN').format(currentCalc.amount)} đ
+              </p>
+           </div>
+        </div>
+        
+        <div className="flex gap-3 justify-end">
+          <button onClick={onClose} className="px-4 py-2.5 text-gray-600 font-semibold hover:bg-gray-100 rounded-lg transition-colors">
+            Hủy
+          </button>
+          <button onClick={handleUpdate} disabled={saving || currentCalc.hours <= 0} className="px-5 py-2.5 font-semibold rounded-lg text-white transition-colors bg-blue-600 hover:bg-blue-700 disabled:opacity-50">
+            Lưu thay đổi
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const PersonalSalaryCalc: React.FC = () => {
   const [startTime, setStartTime] = useState<string>(getLocalDatetimeLocal(new Date()).split('T')[0] + 'T00:00');
   const [endTime, setEndTime] = useState<string>(getLocalDatetimeLocal(new Date()).split('T')[0] + 'T00:00');
@@ -133,7 +297,7 @@ const PersonalSalaryCalc: React.FC = () => {
   const [adding, setAdding] = useState(false);
   
   const [noteInput, setNoteInput] = useState<string>('');
-  const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
+  const [editingRecord, setEditingRecord] = useState<PersonalTimeRecord | null>(null);
   const breakMinuteRef = useRef<HTMLInputElement>(null);
   const breakHourRef = useRef<HTMLInputElement>(null);
 
@@ -256,16 +420,8 @@ const PersonalSalaryCalc: React.FC = () => {
         createdAt: serverTimestamp()
       };
 
-      if (editingRecordId) {
-        await updateDoc(doc(db, 'personal_time_records', editingRecordId), {
-           ...payload,
-           createdAt: records.find(r => r.id === editingRecordId)?.createdAt || serverTimestamp() // Giữ nguyên createdAt cũ
-        });
-        toast.success('Đã cập nhật ca làm');
-      } else {
-        await addDoc(collection(db, 'personal_time_records'), payload);
-        toast.success('Đã thêm ca làm');
-      }
+      await addDoc(collection(db, 'personal_time_records'), payload);
+      toast.success('Đã thêm ca làm');
 
       // Reset về mặc định
       setStartTime(getLocalDatetimeLocal(new Date()));
@@ -273,7 +429,6 @@ const PersonalSalaryCalc: React.FC = () => {
       setBreakHoursInput('0');
       setBreakMinutesInput('0');
       setNoteInput('');
-      setEditingRecordId(null);
     } catch (e) {
       console.error(e);
       toast.error('Có lỗi xảy ra');
@@ -283,19 +438,7 @@ const PersonalSalaryCalc: React.FC = () => {
   };
 
   const handleEditRecord = (record: PersonalTimeRecord) => {
-    setEditingRecordId(record.id);
-    setStartTime(record.startTime);
-    setEndTime(record.endTime);
-    if (record.breakTimeStr) {
-      const [h, m] = record.breakTimeStr.split(':');
-      setBreakHoursInput(parseInt(h).toString());
-      setBreakMinutesInput(parseInt(m).toString());
-    } else {
-      setBreakHoursInput('0');
-      setBreakMinutesInput('0');
-    }
-    setNoteInput(record.note || '');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setEditingRecord(record);
   };
 
   const handleDeleteRecord = async (id: string) => {
@@ -488,29 +631,10 @@ const PersonalSalaryCalc: React.FC = () => {
                <button
                  onClick={handleAddRecord}
                  disabled={adding || currentCalc.hours <= 0}
-                 className={`flex items-center gap-2 text-white px-5 py-2.5 rounded-xl font-bold transition-colors disabled:opacity-50 shadow-md ${editingRecordId ? 'bg-green-600 hover:bg-green-700 shadow-green-500/20' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/20'}`}
+                 className={`flex items-center gap-2 text-white px-5 py-2.5 rounded-xl font-bold transition-colors disabled:opacity-50 shadow-md bg-blue-600 hover:bg-blue-700 shadow-blue-500/20`}
                >
-                 {editingRecordId ? (
-                   <>Cập nhật</>
-                 ) : (
-                   <><Plus size={18} />Thêm vào danh sách</>
-                 )}
+                 <Plus size={18} />Thêm vào danh sách
                </button>
-               {editingRecordId && (
-                 <button
-                   onClick={() => {
-                     setEditingRecordId(null);
-                     setStartTime(getLocalDatetimeLocal(new Date()));
-                     setEndTime(getLocalDatetimeLocal(new Date(Date.now() + 8 * 60 * 60 * 1000)));
-                     setBreakHoursInput('0');
-                     setBreakMinutesInput('0');
-                     setNoteInput('');
-                   }}
-                   className="ml-3 text-sm text-gray-500 hover:text-gray-700 font-medium underline"
-                 >
-                   Hủy sửa
-                 </button>
-               )}
             </div>
           </div>
 
@@ -649,6 +773,14 @@ const PersonalSalaryCalc: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {editingRecord && (
+        <EditRecordModal 
+          record={editingRecord}
+          onClose={() => setEditingRecord(null)}
+          salaryPerHour={salaryPerHour}
+        />
       )}
     </div>
   );
