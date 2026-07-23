@@ -58,6 +58,8 @@ const TableOrder: React.FC = () => {
   const [isOrderExpanded, setIsOrderExpanded] = useState(false);
   const [requestText, setRequestText] = useState('');
   const [isSendingRequest, setIsSendingRequest] = useState(false);
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [showRequestModal, setShowRequestModal] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -296,7 +298,7 @@ const TableOrder: React.FC = () => {
     <div className="min-h-screen bg-gray-50 flex flex-col max-w-md mx-auto shadow-2xl relative pb-24">
       {/* Header */}
       <div className="bg-white px-4 pt-6 pb-4 sticky top-0 z-20 shadow-sm rounded-b-2xl">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex justify-between items-start mb-4">
           <div>
             <h1 className="text-2xl font-black text-gray-800 tracking-tight">Gọi món</h1>
             <p className="text-sm font-medium text-blue-600 flex items-center gap-1 mt-0.5">
@@ -304,19 +306,22 @@ const TableOrder: React.FC = () => {
               Bạn đang ngồi tại: <span className="font-bold text-lg ml-1">{tableName}</span>
             </p>
           </div>
-        </div>
+          
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowNotificationsModal(true)} className="relative p-2 bg-white rounded-full shadow-sm border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+              <Bell size={20} />
+              {activeOrder?.notifications && activeOrder.notifications.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] flex items-center justify-center rounded-full font-bold shadow-sm border border-white">
+                  {activeOrder.notifications.length}
+                </span>
+              )}
+            </button>
 
-        {/* Thông báo hệ thống (ví dụ: huỷ món) */}
-        {activeOrder?.notifications && activeOrder.notifications.length > 0 && (
-          <div className="mb-4 space-y-2">
-            {activeOrder.notifications.map((notif, idx) => (
-              <div key={notif.id || idx} className="bg-red-50 border-l-4 border-red-500 p-3 rounded-r-xl animate-slide-up flex gap-3 items-start">
-                <Bell size={18} className="text-red-500 shrink-0 mt-0.5" />
-                <p className="text-sm text-red-800 font-medium leading-snug">{notif.message}</p>
-              </div>
-            ))}
+            <button onClick={() => setShowRequestModal(true)} className="p-2 bg-orange-50 rounded-full shadow-sm border border-orange-100 text-orange-600 hover:bg-orange-100 transition-colors">
+              <MessageSquare size={20} />
+            </button>
           </div>
-        )}
+        </div>
         
         {/* Search */}
         <div className="relative">
@@ -379,41 +384,6 @@ const TableOrder: React.FC = () => {
           <div className="mt-3 pt-2 border-t border-orange-200 flex justify-between items-center font-black text-orange-900">
             <span>Tạm tính:</span>
             <span>{new Intl.NumberFormat('vi-VN').format(activeOrder.totalAmount)}đ</span>
-          </div>
-          
-          {/* Gửi yêu cầu từ khách */}
-          <div className="mt-4 pt-3 border-t border-orange-200">
-            <h4 className="text-xs font-bold text-orange-800 mb-2 flex items-center gap-1.5 uppercase tracking-wide">
-              <MessageSquare size={14} /> Gửi yêu cầu (Thêm đá, xin ống hút...)
-            </h4>
-            <div className="flex gap-2">
-              <input 
-                type="text" 
-                value={requestText}
-                onChange={(e) => setRequestText(e.target.value)}
-                placeholder="Ví dụ: cho em xin cái ống hút..."
-                className="flex-1 bg-white border border-orange-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-orange-500"
-              />
-              <button 
-                onClick={handleSendRequest}
-                disabled={!requestText.trim() || isSendingRequest}
-                className="bg-orange-500 text-white px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50 flex items-center gap-2 hover:bg-orange-600 transition-colors"
-              >
-                <Send size={16} /> Gửi
-              </button>
-            </div>
-            
-            {/* Lịch sử yêu cầu */}
-            {activeOrder.customerRequests && activeOrder.customerRequests.length > 0 && (
-              <div className="mt-3 space-y-2">
-                {activeOrder.customerRequests.map((req, idx) => (
-                  <div key={req.id || idx} className="bg-white/60 p-2 rounded-lg flex items-center gap-2 text-xs border border-orange-100">
-                    <div className={`w-2 h-2 rounded-full ${req.isCompleted ? 'bg-green-500' : 'bg-orange-500 animate-pulse'}`}></div>
-                    <span className={req.isCompleted ? 'text-gray-500 line-through' : 'text-orange-900'}>{req.message}</span>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -568,6 +538,96 @@ const TableOrder: React.FC = () => {
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notifications Modal */}
+      {showNotificationsModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[70] flex flex-col justify-end">
+          <div className="bg-gray-50 rounded-t-[32px] p-6 max-h-[80vh] overflow-y-auto animate-slide-up pb-10">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-black text-gray-800 flex items-center gap-2">
+                <Bell size={24} className="text-red-500" /> Thông báo
+              </h3>
+              <button
+                onClick={() => setShowNotificationsModal(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 bg-gray-100 rounded-full transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            {activeOrder?.notifications && activeOrder.notifications.length > 0 ? (
+              <div className="space-y-3">
+                {activeOrder.notifications.map((notif, idx) => (
+                  <div key={notif.id || idx} className="bg-white border-l-4 border-red-500 p-4 rounded-r-xl shadow-sm flex flex-col gap-1">
+                    <p className="text-sm text-gray-800 font-medium leading-snug">{notif.message}</p>
+                    <span className="text-[10px] font-bold text-gray-400">{new Date(notif.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-center py-10">Bạn chưa có thông báo nào.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Requests Modal */}
+      {showRequestModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[70] flex flex-col justify-end">
+          <div className="bg-orange-50 rounded-t-[32px] p-6 max-h-[85vh] overflow-y-auto animate-slide-up pb-10">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-black text-orange-900 flex items-center gap-2">
+                <MessageSquare size={24} className="text-orange-600" /> Gửi yêu cầu
+              </h3>
+              <button
+                onClick={() => setShowRequestModal(false)}
+                className="p-2 text-orange-400 hover:text-orange-600 bg-orange-100 rounded-full transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="flex gap-2 mb-6">
+              <input 
+                type="text" 
+                value={requestText}
+                onChange={(e) => setRequestText(e.target.value)}
+                placeholder="Ví dụ: cho em xin cái ống hút..."
+                className="flex-1 bg-white border border-orange-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-200"
+              />
+              <button 
+                onClick={handleSendRequest}
+                disabled={!requestText.trim() || isSendingRequest}
+                className="bg-orange-600 text-white px-5 py-3 rounded-xl text-sm font-bold disabled:opacity-50 flex items-center gap-2 hover:bg-orange-700 transition-colors shadow-md shadow-orange-200"
+              >
+                <Send size={18} /> Gửi
+              </button>
+            </div>
+            
+            {activeOrder?.customerRequests && activeOrder.customerRequests.length > 0 && (
+              <div>
+                <h4 className="text-xs font-bold text-orange-800 mb-3 uppercase tracking-wide opacity-70">
+                  Lịch sử yêu cầu
+                </h4>
+                <div className="space-y-3">
+                  {activeOrder.customerRequests.map((req, idx) => (
+                    <div key={req.id || idx} className="bg-white p-3 rounded-xl flex items-center gap-3 text-sm border border-orange-100 shadow-sm">
+                      <div className={`w-2 h-2 shrink-0 rounded-full ${req.isCompleted ? 'bg-green-500' : 'bg-orange-500 animate-pulse'}`}></div>
+                      <div className="flex-1 flex flex-col">
+                        <span className={req.isCompleted ? 'text-gray-400 line-through' : 'text-gray-800 font-medium'}>{req.message}</span>
+                        <span className="text-[10px] font-bold text-gray-400 mt-0.5">{new Date(req.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded-md ${req.isCompleted ? 'bg-gray-100 text-gray-500' : 'bg-orange-100 text-orange-700'}`}>
+                        {req.isCompleted ? 'Đã xong' : 'Đang chờ'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
