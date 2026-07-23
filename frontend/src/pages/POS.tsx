@@ -625,11 +625,32 @@ const POS: React.FC = () => {
   const handlePrint = () => {
     const printContent = document.getElementById('bill-receipt');
     if (printContent) {
-      const originalContents = document.body.innerHTML;
-      document.body.innerHTML = printContent.innerHTML;
-      window.print();
-      document.body.innerHTML = originalContents;
-      window.location.reload(); // Reload to restore React state after printing
+      const printWindow = window.open("", "", "width=600,height=800");
+      if (printWindow) {
+        printWindow.document.write(`
+          <html>
+            <head>
+              <title>In Hóa Đơn</title>
+              <script src="https://cdn.tailwindcss.com"></script>
+              <style>
+                @media print {
+                  body { padding: 0 !important; margin: 0 !important; }
+                  @page { margin: 0; }
+                }
+              </style>
+            </head>
+            <body class="p-8 font-mono text-sm text-gray-800">
+              ${printContent.innerHTML}
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+          printWindow.print();
+          printWindow.close();
+        }, 500);
+      }
     }
   };
 
