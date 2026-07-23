@@ -36,6 +36,8 @@ interface ActiveTableOrder {
   hasNewItems?: boolean;
   createdAt?: any;
   updatedAt?: any;
+  notifications?: any[];
+  customerRequests?: any[];
 }
 
 
@@ -1389,7 +1391,7 @@ const POS: React.FC = () => {
                                 <button
                                   onClick={async (e) => {
                                     e.stopPropagation();
-                                    const newReqs = [...order.customerRequests];
+                                    const newReqs = [...(order.customerRequests || [])];
                                     newReqs[idx].isCompleted = true;
                                     await updateDoc(doc(db, 'active_table_orders', order.id), {
                                       customerRequests: newReqs
@@ -1508,12 +1510,6 @@ const POS: React.FC = () => {
                   newItems.splice(itemIndex, 1);
 
                   try {
-                    const cancellationData = {
-                      itemName,
-                      reason: deleteReason.trim(),
-                      timestamp: Date.now()
-                    };
-
                     if (newItems.length === 0) {
                       await deleteDoc(doc(db, 'active_table_orders', orderId));
                       await updateDoc(doc(db, 'tables', tableId), { status: 'AVAILABLE' });

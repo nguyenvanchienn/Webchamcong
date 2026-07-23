@@ -104,8 +104,6 @@ const TableOrder: React.FC = () => {
     fetchData();
   }, [branchId, tableId]);
 
-  const lastCancellationTimeRef = React.useRef<number>(0);
-
   useEffect(() => {
     if (!branchId || !tableId) return;
     const q = query(
