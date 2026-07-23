@@ -394,7 +394,7 @@ const PersonalSalaryCalc: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
+        <div className="order-2 lg:order-1 lg:col-span-2 space-y-6">
           {/* Box nhập liệu */}
           <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-4">
@@ -582,7 +582,7 @@ const PersonalSalaryCalc: React.FC = () => {
         </div>
 
         {/* Tổng kết */}
-        <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 rounded-3xl shadow-xl text-white flex flex-col justify-center space-y-8 relative overflow-hidden h-fit sticky top-6">
+        <div className="order-1 lg:order-2 bg-gradient-to-br from-blue-600 to-indigo-700 p-8 rounded-3xl shadow-xl text-white flex flex-col justify-center space-y-8 relative overflow-hidden h-fit sticky top-6">
           <div className="absolute top-0 right-0 p-8 opacity-10">
             <DollarSign size={120} />
           </div>
