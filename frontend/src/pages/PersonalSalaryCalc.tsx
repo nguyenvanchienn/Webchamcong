@@ -406,7 +406,7 @@ const PersonalSalaryCalc: React.FC = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1">Thời gian bắt đầu</label>
                 <CustomDateTimePicker 
