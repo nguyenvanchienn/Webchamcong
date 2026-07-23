@@ -97,6 +97,8 @@ const POS: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
+  const isSyncEnabledRef = useRef(true);
+
   useEffect(() => {
     const fetchSettings = async () => {
       try {
@@ -193,14 +195,18 @@ const POS: React.FC = () => {
         setCurrentTableId(data.currentTableId || null);
         setCurrentTableName(data.currentTableName || null);
         setPendingOrderCode(data.pendingOrderCode || null);
-        if (data.activeCategory) {
-          setActiveCategory(data.activeCategory);
-        }
-        if (data.scrollPosition !== undefined && scrollRef.current) {
-          if (Math.abs(scrollRef.current.scrollTop - data.scrollPosition) > 5) {
-            isSyncingScroll.current = true;
-            scrollRef.current.scrollTop = data.scrollPosition;
-            setTimeout(() => { isSyncingScroll.current = false; }, 50);
+        
+        // Chỉ đồng bộ Danh mục & Cuộn nếu đang BẬT đồng bộ
+        if (isSyncEnabledRef.current) {
+          if (data.activeCategory) {
+            setActiveCategory(data.activeCategory);
+          }
+          if (data.scrollPosition !== undefined && scrollRef.current) {
+            if (Math.abs(scrollRef.current.scrollTop - data.scrollPosition) > 5) {
+              isSyncingScroll.current = true;
+              scrollRef.current.scrollTop = data.scrollPosition;
+              setTimeout(() => { isSyncingScroll.current = false; }, 50);
+            }
           }
         }
       }
@@ -208,6 +214,20 @@ const POS: React.FC = () => {
 
     return () => unsub();
   }, []);
+
+  // Khi toggle bật/tắt đồng bộ, cập nhật lên DB và sync lại trạng thái hiện tại
+  useEffect(() => {
+    isSyncEnabledRef.current = isSyncToCustomerEnabled;
+    if (isSyncToCustomerEnabled) {
+      updatePosState({ 
+        isSyncEnabled: true,
+        activeCategory,
+        scrollPosition: scrollRef.current?.scrollTop || 0
+      });
+    } else {
+      updatePosState({ isSyncEnabled: false });
+    }
+  }, [isSyncToCustomerEnabled]);
 
   useEffect(() => {
     const branchId = localStorage.getItem('branchId');

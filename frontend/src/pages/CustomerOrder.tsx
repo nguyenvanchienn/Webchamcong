@@ -60,6 +60,7 @@ const CustomerOrder: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollTimeoutRef = useRef<any>(null);
   const isSyncingScroll = useRef(false);
+  const isSyncEnabledRef = useRef(true);
 
   useEffect(() => {
     const branchId = localStorage.getItem('branchId');
@@ -85,20 +86,25 @@ const CustomerOrder: React.FC = () => {
         setPaymentMethod(data.paymentMethod || 'CASH');
         setAmountTendered(data.amountTendered || '0');
         setPendingOrderCode(data.pendingOrderCode || null);
-        if (data.activeCategory) {
-           setActiveCategory(data.activeCategory);
-        }
-        if (data.scrollPosition !== undefined && scrollRef.current) {
-           // allow small margin of error (e.g. < 5px) to prevent bouncing
-           if (Math.abs(scrollRef.current.scrollTop - data.scrollPosition) > 5) {
-             isSyncingScroll.current = true;
-             scrollRef.current.scrollTop = data.scrollPosition;
-             setTimeout(() => { isSyncingScroll.current = false; }, 50);
-           }
+        
+        isSyncEnabledRef.current = data.isSyncEnabled !== false; // mặc định true nếu chưa set
+        
+        if (isSyncEnabledRef.current) {
+          if (data.activeCategory) {
+             setActiveCategory(data.activeCategory);
+          }
+          if (data.scrollPosition !== undefined && scrollRef.current) {
+             // allow small margin of error (e.g. < 5px) to prevent bouncing
+             if (Math.abs(scrollRef.current.scrollTop - data.scrollPosition) > 5) {
+               isSyncingScroll.current = true;
+               scrollRef.current.scrollTop = data.scrollPosition;
+               setTimeout(() => { isSyncingScroll.current = false; }, 50);
+             }
+          }
         }
       } else {
         // Init if not exists
-        setDoc(sessionRef, { cart: [], showPaymentModal: false, paymentMethod: 'CASH', amountTendered: '0', activeCategory: 'Tất cả' });
+        setDoc(sessionRef, { cart: [], showPaymentModal: false, paymentMethod: 'CASH', amountTendered: '0', activeCategory: 'Tất cả', isSyncEnabled: true });
       }
     });
 
@@ -167,7 +173,7 @@ const CustomerOrder: React.FC = () => {
   };
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    if (isSyncingScroll.current) return;
+    if (isSyncingScroll.current || !isSyncEnabledRef.current) return;
     const scrollTop = e.currentTarget.scrollTop;
     if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
     scrollTimeoutRef.current = setTimeout(() => {
@@ -265,7 +271,9 @@ const CustomerOrder: React.FC = () => {
               key={c}
               onClick={() => {
                 setActiveCategory(c);
-                updatePosState({ activeCategory: c });
+                if (isSyncEnabledRef.current) {
+                  updatePosState({ activeCategory: c });
+                }
               }}
               className={`px-6 py-3 rounded-2xl font-bold text-sm transition-all shadow-sm border-2 ${activeCategory === c
                 ? 'bg-blue-600 text-white border-blue-600 shadow-blue-500/30'
