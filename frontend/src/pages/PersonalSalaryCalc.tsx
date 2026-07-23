@@ -706,20 +706,23 @@ const PersonalSalaryCalc: React.FC = () => {
                 </div>
               ) : (
                 <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                  {records.map(record => (
+                  {records.map((record, index) => (
                     <div key={record.id} className="flex flex-col sm:flex-row sm:items-center justify-between bg-gray-50 p-4 rounded-xl border border-gray-100 hover:border-blue-200 transition-colors gap-3">
-                       <div className="space-y-1">
-                          <div className="font-bold text-gray-800 text-sm">
-                            {formatDateTime(record.startTime)} <span className="text-gray-400 font-normal mx-1">đến</span> {formatDateTime(record.endTime)}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            Giải lao: {record.breakTimeStr ? record.breakTimeStr : `${record.breakHours} giờ`} • <span className="text-blue-600 font-bold">{record.hours.toFixed(2)} giờ</span>
-                          </div>
-                          {record.note && (
-                             <div className="text-xs text-gray-600 italic border-l-2 border-blue-200 pl-2 mt-1">
-                               {record.note}
-                             </div>
-                           )}
+                       <div className="flex items-start gap-3">
+                         <div className="font-black text-gray-300 text-lg pt-0.5 min-w-[28px]">#{records.length - index}</div>
+                         <div className="space-y-1">
+                            <div className="font-bold text-gray-800 text-sm">
+                              {formatDateTime(record.startTime)} <span className="text-gray-400 font-normal mx-1">đến</span> {formatDateTime(record.endTime)}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              Giải lao: {record.breakTimeStr ? record.breakTimeStr : `${record.breakHours} giờ`} • <span className="text-blue-600 font-bold">{record.hours.toFixed(2)} giờ</span>
+                            </div>
+                            {record.note && (
+                               <div className="text-xs text-gray-600 italic border-l-2 border-blue-200 pl-2 mt-1">
+                                 {record.note}
+                               </div>
+                             )}
+                         </div>
                        </div>
                        <div className="flex items-center gap-2 self-end sm:self-auto">
                           <div className="font-black text-gray-800 text-right mr-2">
