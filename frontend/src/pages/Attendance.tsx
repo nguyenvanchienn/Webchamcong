@@ -393,13 +393,6 @@ const Attendance: React.FC = () => {
         !r.checkOut,
     );
 
-    if (!existing && filterDate !== today) {
-      toast.error(
-        "Không thể Check-in cho ngày trong quá khứ. Để thêm giờ làm quá khứ, vui lòng dùng nút Sửa (hình cây bút)!",
-      );
-      return;
-    }
-
     try {
       if (existing) {
         // Đã check-in => Thực hiện check-out

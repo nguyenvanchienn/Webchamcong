@@ -161,7 +161,7 @@ const Kiosk: React.FC = () => {
       setLoading(true);
       try {
         const pastDate = new Date();
-        pastDate.setDate(pastDate.getDate() - 3); // 3 ngày gần nhất
+        pastDate.setDate(pastDate.getDate() - 14); // Quét 14 ngày gần nhất để chắc chắn bao gồm cả trường hợp 1 tuần
         const pastDateStr = pastDate.toLocaleDateString("en-CA");
         const todayStr = new Date().toLocaleDateString("en-CA");
 
