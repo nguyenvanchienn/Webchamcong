@@ -68,6 +68,76 @@ const NumberInputForTime = ({ value, min, max, onChange, onComplete, inputRef }:
   );
 };
 
+const Custom24hTimePicker = ({ value, onChange, onClose }: { value: string, onChange: (val: string) => void, onClose: () => void }) => {
+  const [h, m] = value.split(':');
+  
+  const hours = Array.from({length: 24}, (_, i) => i.toString().padStart(2, '0'));
+  const minutes = Array.from({length: 60}, (_, i) => i.toString().padStart(2, '0'));
+
+  const hourRef = useRef<HTMLDivElement>(null);
+  const minRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    hourRef.current?.scrollIntoView({ block: 'center' });
+    minRef.current?.scrollIntoView({ block: 'center' });
+  }, []);
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose}></div>
+      <div className="absolute right-0 top-full mt-2 bg-white rounded-xl shadow-xl border border-gray-100 z-50 flex overflow-hidden w-40 h-64 cursor-default">
+        <div className="flex-1 overflow-y-auto custom-scrollbar border-r border-gray-100 relative bg-white">
+          {hours.map(hour => (
+            <div 
+              key={hour} 
+              ref={hour === h ? hourRef : null}
+              onClick={() => onChange(`${hour}:${m}`)}
+              className={`px-3 py-2 text-center cursor-pointer transition-colors ${hour === h ? 'bg-blue-600 text-white font-bold sticky top-0 bottom-0 z-10' : 'text-gray-700 hover:bg-blue-50'}`}
+            >
+              {hour}
+            </div>
+          ))}
+        </div>
+        <div className="flex-1 overflow-y-auto custom-scrollbar relative bg-white">
+          {minutes.map(min => (
+            <div 
+              key={min} 
+              ref={min === m ? minRef : null}
+              onClick={() => onChange(`${h}:${min}`)}
+              className={`px-3 py-2 text-center cursor-pointer transition-colors ${min === m ? 'bg-blue-600 text-white font-bold sticky top-0 bottom-0 z-10' : 'text-gray-700 hover:bg-blue-50'}`}
+            >
+              {min}
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+};
+
+const ClockIconWithPicker = ({ hour, minute, onChange }: { hour: string, minute: string, onChange: (h: string, m: string) => void }) => {
+  const [showPicker, setShowPicker] = useState(false);
+  return (
+    <div className="relative ml-1.5 flex items-center justify-center">
+      <Clock 
+        size={16} 
+        className="text-gray-500 cursor-pointer hover:text-blue-600 transition-colors" 
+        onClick={() => setShowPicker(!showPicker)}
+      />
+      {showPicker && (
+        <Custom24hTimePicker
+          value={`${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`}
+          onChange={(newTime) => {
+            const [h, m] = newTime.split(':');
+            onChange(h, m);
+          }}
+          onClose={() => setShowPicker(false)}
+        />
+      )}
+    </div>
+  );
+};
+
 const CustomDateTimePicker = ({ value, onChange }: { value: string, onChange: (val: string) => void }) => {
   const datePart = value.split('T')[0] || '';
   const timePart = value.split('T')[1] || '00:00';
@@ -100,22 +170,11 @@ const CustomDateTimePicker = ({ value, onChange }: { value: string, onChange: (v
           onChange={(val) => onChange(`${datePart}T${hour}:${val}`)}
           inputRef={minuteRef}
         />
-        <div className="relative ml-1.5 flex items-center justify-center">
-          <Clock 
-            size={16} 
-            className="text-gray-500 cursor-pointer hover:text-blue-600 transition-colors" 
-          />
-          <input
-            type="time"
-            value={`${hour}:${minute}`}
-            onChange={(e) => {
-              if (e.target.value) {
-                onChange(`${datePart}T${e.target.value}`);
-              }
-            }}
-            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-          />
-        </div>
+        <ClockIconWithPicker 
+          hour={hour} 
+          minute={minute} 
+          onChange={(h, m) => onChange(`${datePart}T${h}:${m}`)} 
+        />
       </div>
     </div>
   );
@@ -233,21 +292,14 @@ const EditRecordModal = ({ record, onClose, salaryPerHour }: { record: PersonalT
               onChange={(val) => setBreakMinutesInput(val)}
               inputRef={breakMinuteRef}
             />
-            <div className="relative ml-1.5 flex items-center justify-center">
-              <Clock size={16} className="text-gray-500 cursor-pointer hover:text-blue-600 transition-colors" />
-              <input
-                type="time"
-                value={`${breakHoursInput.padStart(2, '0')}:${breakMinutesInput.padStart(2, '0')}`}
-                onChange={(e) => {
-                  if (e.target.value) {
-                    const [h, m] = e.target.value.split(':');
-                    setBreakHoursInput(h);
-                    setBreakMinutesInput(m);
-                  }
-                }}
-                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-              />
-            </div>
+            <ClockIconWithPicker 
+              hour={breakHoursInput} 
+              minute={breakMinutesInput} 
+              onChange={(h, m) => {
+                setBreakHoursInput(h);
+                setBreakMinutesInput(m);
+              }} 
+            />
           </div>
         </div>
 
@@ -587,24 +639,14 @@ const PersonalSalaryCalc: React.FC = () => {
                   onChange={(val) => setBreakMinutesInput(val)}
                   inputRef={breakMinuteRef}
                 />
-                <div className="relative ml-1.5 flex items-center justify-center">
-                  <Clock 
-                    size={16} 
-                    className="text-gray-500 cursor-pointer hover:text-blue-600 transition-colors" 
-                  />
-                  <input
-                    type="time"
-                    value={`${breakHoursInput.padStart(2, '0')}:${breakMinutesInput.padStart(2, '0')}`}
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        const [h, m] = e.target.value.split(':');
-                        setBreakHoursInput(h);
-                        setBreakMinutesInput(m);
-                      }
-                    }}
-                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                  />
-                </div>
+                <ClockIconWithPicker 
+                  hour={breakHoursInput} 
+                  minute={breakMinutesInput} 
+                  onChange={(h, m) => {
+                    setBreakHoursInput(h);
+                    setBreakMinutesInput(m);
+                  }} 
+                />
               </div>
             </div>
 
