@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { collection, doc, getDoc, getDocs, addDoc, updateDoc, query, where, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
 import { signInAnonymously } from 'firebase/auth';
-import { ShoppingCart, Plus, Minus, Search, Image as ImageIcon, Clock, ChefHat, X, Edit2 } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Search, Image as ImageIcon, Clock, ChefHat, X, Edit2, ChevronDown, ChevronUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface MenuItem {
@@ -53,6 +53,7 @@ const TableOrder: React.FC = () => {
   const [tableName, setTableName] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isOrderExpanded, setIsOrderExpanded] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -326,19 +327,31 @@ const TableOrder: React.FC = () => {
       {/* Already Ordered Items (if any) */}
       {activeOrder && activeOrder.items.length > 0 && (
         <div className="px-4 py-4 bg-orange-50 border-b border-orange-100">
-          <h3 className="text-sm font-bold text-orange-800 flex items-center gap-2 mb-3">
-            <Clock size={16} /> Các món bàn bạn đã gọi
-          </h3>
-          <div className="space-y-2">
-            {activeOrder.items.map((item, idx) => (
-              <div key={idx} className="flex justify-between items-center text-sm">
-                <span className={`font-medium ${item.isServed ? 'text-gray-400 line-through' : 'text-orange-900'}`}>
-                  {item.quantity}x {item.name} {item.selectedSize ? `(${item.selectedSize})` : ''}
-                </span>
-                <span className={`${item.isServed ? 'text-gray-400 line-through' : 'text-orange-700 font-bold'}`}>{new Intl.NumberFormat('vi-VN').format(item.price * item.quantity)}đ</span>
-              </div>
-            ))}
-          </div>
+          <button 
+            onClick={() => setIsOrderExpanded(!isOrderExpanded)}
+            className="w-full flex items-center justify-between"
+          >
+            <h3 className="text-sm font-bold text-orange-800 flex items-center gap-2">
+              <Clock size={16} /> Các món bàn bạn đã gọi
+            </h3>
+            <div className="text-orange-800">
+              {isOrderExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+            </div>
+          </button>
+          
+          {isOrderExpanded && (
+            <div className="space-y-2 mt-3 animate-slide-up">
+              {activeOrder.items.map((item, idx) => (
+                <div key={idx} className="flex justify-between items-center text-sm">
+                  <span className={`font-medium ${item.isServed ? 'text-gray-400 line-through' : 'text-orange-900'}`}>
+                    {item.quantity}x {item.name} {item.selectedSize ? `(${item.selectedSize})` : ''}
+                  </span>
+                  <span className={`${item.isServed ? 'text-gray-400 line-through' : 'text-orange-700 font-bold'}`}>{new Intl.NumberFormat('vi-VN').format(item.price * item.quantity)}đ</span>
+                </div>
+              ))}
+            </div>
+          )}
+          
           <div className="mt-3 pt-2 border-t border-orange-200 flex justify-between items-center font-black text-orange-900">
             <span>Tạm tính:</span>
             <span>{new Intl.NumberFormat('vi-VN').format(activeOrder.totalAmount)}đ</span>
