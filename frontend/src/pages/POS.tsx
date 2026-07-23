@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, getDocs, getDoc, addDoc, serverTimestamp, query, where, doc, runTransaction, onSnapshot, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, getDoc, addDoc, serverTimestamp, query, where, doc, runTransaction, onSnapshot, updateDoc, setDoc, deleteDoc, arrayUnion } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
 import { EmailAuthProvider, reauthenticateWithCredential, signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
@@ -1350,7 +1350,10 @@ const POS: React.FC = () => {
                           <div className="flex items-center gap-2">
                             <h4 className="font-black text-lg text-gray-800 flex items-center gap-2">
                               {order.tableName}
-                              {order.hasNewItems && <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>}
+                              {order.hasNewItems && <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" title="Có món mới"></span>}
+                              {order.customerRequests?.some((r: any) => !r.isCompleted) && (
+                                <span className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-bounce" title="Có yêu cầu mới"></span>
+                              )}
                             </h4>
                             <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md flex items-center gap-1">
                               <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
@@ -1372,6 +1375,35 @@ const POS: React.FC = () => {
                           </span>
                         </div>
                       </div>
+
+                      {/* Hiển thị Customer Requests */}
+                      {order.customerRequests && order.customerRequests.length > 0 && (
+                        <div className="bg-orange-50 rounded-lg p-3 text-sm text-orange-900 mt-2 flex flex-col gap-2" onClick={e => e.stopPropagation()}>
+                          <div className="font-bold flex items-center gap-1"><Coffee size={14} /> Yêu cầu từ khách:</div>
+                          {order.customerRequests.map((req: any, idx: number) => (
+                            <div key={req.id || idx} className="flex justify-between items-start gap-2 border-b border-orange-100 last:border-0 pb-2 last:pb-0">
+                              <span className={req.isCompleted ? 'line-through text-gray-400' : 'font-medium'}>
+                                {req.message}
+                              </span>
+                              {!req.isCompleted && (
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    const newReqs = [...order.customerRequests];
+                                    newReqs[idx].isCompleted = true;
+                                    await updateDoc(doc(db, 'active_table_orders', order.id), {
+                                      customerRequests: newReqs
+                                    });
+                                  }}
+                                  className="text-xs bg-orange-200 text-orange-800 px-2 py-1 rounded hover:bg-orange-300 whitespace-nowrap font-bold"
+                                >
+                                  Đã xong
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
 
                       <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700 flex flex-col gap-2 mt-2" onClick={e => e.stopPropagation()}>
                         {order.items.map((item, idx) => (
@@ -1491,7 +1523,11 @@ const POS: React.FC = () => {
                       await updateDoc(doc(db, 'active_table_orders', orderId), {
                         items: newItems,
                         totalAmount: newTotal,
-                        latestCancellation: cancellationData
+                        notifications: arrayUnion({
+                          id: Date.now().toString(),
+                          message: `Món ${itemName} đã bị huỷ${deleteReason.trim() ? `. Lý do: ${deleteReason.trim()}` : ''}`,
+                          timestamp: Date.now()
+                        })
                       });
                       toast.success('Đã xoá món');
                     }

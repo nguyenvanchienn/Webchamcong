@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { collection, doc, getDoc, getDocs, addDoc, updateDoc, query, where, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
 import { signInAnonymously } from 'firebase/auth';
-import { ShoppingCart, Plus, Minus, Search, Image as ImageIcon, Clock, ChefHat, X, Edit2, ChevronDown, ChevronUp } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Search, Image as ImageIcon, Clock, ChefHat, X, Edit2, ChevronDown, ChevronUp, Bell, Send, MessageSquare } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface MenuItem {
@@ -34,6 +34,8 @@ interface TableOrderDoc {
   items: CartItem[];
   totalAmount: number;
   status: 'UNPAID';
+  notifications?: { id: string; message: string; timestamp: number }[];
+  customerRequests?: { id: string; message: string; timestamp: number; isCompleted: boolean }[];
 }
 
 const TableOrder: React.FC = () => {
@@ -54,6 +56,8 @@ const TableOrder: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isOrderExpanded, setIsOrderExpanded] = useState(false);
+  const [requestText, setRequestText] = useState('');
+  const [isSendingRequest, setIsSendingRequest] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -113,25 +117,35 @@ const TableOrder: React.FC = () => {
       if (!snap.empty) {
         const orderData = snap.docs[0].data();
         setActiveOrder({ id: snap.docs[0].id, ...orderData } as TableOrderDoc);
-
-        if (orderData.latestCancellation && orderData.latestCancellation.timestamp > lastCancellationTimeRef.current) {
-          if (lastCancellationTimeRef.current !== 0) {
-            toast.error(`Món ${orderData.latestCancellation.itemName} đã bị huỷ${orderData.latestCancellation.reason ? `\nLý do: ${orderData.latestCancellation.reason}` : ''}`, {
-              duration: 6000,
-              icon: '❌',
-              style: { background: '#fee2e2', color: '#991b1b', fontWeight: 'bold' }
-            });
-          }
-          lastCancellationTimeRef.current = orderData.latestCancellation.timestamp;
-        } else if (orderData.latestCancellation) {
-          lastCancellationTimeRef.current = orderData.latestCancellation.timestamp;
-        }
       } else {
         setActiveOrder(null);
       }
     });
     return () => unsub();
   }, [branchId, tableId]);
+
+  const handleSendRequest = async () => {
+    if (!requestText.trim() || !activeOrder) return;
+    setIsSendingRequest(true);
+    try {
+      const newRequest = {
+        id: Date.now().toString(),
+        message: requestText.trim(),
+        timestamp: Date.now(),
+        isCompleted: false
+      };
+      const existingRequests = activeOrder.customerRequests || [];
+      await updateDoc(doc(db, 'active_table_orders', activeOrder.id), {
+        customerRequests: [...existingRequests, newRequest]
+      });
+      setRequestText('');
+      toast.success('Đã gửi yêu cầu đến thu ngân!');
+    } catch (error) {
+      toast.error('Có lỗi xảy ra khi gửi yêu cầu');
+    } finally {
+      setIsSendingRequest(false);
+    }
+  };
 
   const filteredItems = menuItems.filter(item => {
     const matchesCategory = selectedCategory === 'Tất cả' || item.category === selectedCategory;
@@ -293,6 +307,18 @@ const TableOrder: React.FC = () => {
             </p>
           </div>
         </div>
+
+        {/* Thông báo hệ thống (ví dụ: huỷ món) */}
+        {activeOrder?.notifications && activeOrder.notifications.length > 0 && (
+          <div className="mb-4 space-y-2">
+            {activeOrder.notifications.map((notif, idx) => (
+              <div key={notif.id || idx} className="bg-red-50 border-l-4 border-red-500 p-3 rounded-r-xl animate-slide-up flex gap-3 items-start">
+                <Bell size={18} className="text-red-500 shrink-0 mt-0.5" />
+                <p className="text-sm text-red-800 font-medium leading-snug">{notif.message}</p>
+              </div>
+            ))}
+          </div>
+        )}
         
         {/* Search */}
         <div className="relative">
@@ -355,6 +381,41 @@ const TableOrder: React.FC = () => {
           <div className="mt-3 pt-2 border-t border-orange-200 flex justify-between items-center font-black text-orange-900">
             <span>Tạm tính:</span>
             <span>{new Intl.NumberFormat('vi-VN').format(activeOrder.totalAmount)}đ</span>
+          </div>
+          
+          {/* Gửi yêu cầu từ khách */}
+          <div className="mt-4 pt-3 border-t border-orange-200">
+            <h4 className="text-xs font-bold text-orange-800 mb-2 flex items-center gap-1.5 uppercase tracking-wide">
+              <MessageSquare size={14} /> Gửi yêu cầu (Thêm đá, xin ống hút...)
+            </h4>
+            <div className="flex gap-2">
+              <input 
+                type="text" 
+                value={requestText}
+                onChange={(e) => setRequestText(e.target.value)}
+                placeholder="Ví dụ: cho em xin cái ống hút..."
+                className="flex-1 bg-white border border-orange-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-orange-500"
+              />
+              <button 
+                onClick={handleSendRequest}
+                disabled={!requestText.trim() || isSendingRequest}
+                className="bg-orange-500 text-white px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50 flex items-center gap-2 hover:bg-orange-600 transition-colors"
+              >
+                <Send size={16} /> Gửi
+              </button>
+            </div>
+            
+            {/* Lịch sử yêu cầu */}
+            {activeOrder.customerRequests && activeOrder.customerRequests.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {activeOrder.customerRequests.map((req, idx) => (
+                  <div key={req.id || idx} className="bg-white/60 p-2 rounded-lg flex items-center gap-2 text-xs border border-orange-100">
+                    <div className={`w-2 h-2 rounded-full ${req.isCompleted ? 'bg-green-500' : 'bg-orange-500 animate-pulse'}`}></div>
+                    <span className={req.isCompleted ? 'text-gray-500 line-through' : 'text-orange-900'}>{req.message}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
