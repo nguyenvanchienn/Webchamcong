@@ -37,6 +37,7 @@ const CustomerOrder: React.FC = () => {
   const [pendingOrderCode, setPendingOrderCode] = useState<string | null>(null);
   
   const [showSidebar, setShowSidebar] = useState(false);
+  const [showMobileCart, setShowMobileCart] = useState(false);
   const [loading, setLoading] = useState(true);
   
   const [showExitPasswordModal, setShowExitPasswordModal] = useState(false);
@@ -243,9 +244,9 @@ const CustomerOrder: React.FC = () => {
   if (loading) return <div className="p-8 text-center text-gray-500 font-medium">Đang tải thực đơn...</div>;
 
   return (
-    <div className="flex flex-col lg:flex-row w-screen h-[100dvh] overflow-hidden bg-gray-50">
+    <div className="flex flex-col md:flex-row w-screen h-[100dvh] overflow-hidden bg-gray-50">
       {/* Cột trái: Menu */}
-      <div className="flex-1 flex flex-col p-3 lg:p-6 h-1/2 lg:h-full pointer-events-auto">
+      <div className="flex-1 flex flex-col p-3 md:p-6 h-full pointer-events-auto">
         <div className="flex items-center gap-4 mb-6">
           <button 
             onDoubleClick={() => {
@@ -288,9 +289,9 @@ const CustomerOrder: React.FC = () => {
         <div 
           ref={scrollRef}
           onScroll={handleScroll}
-          className="flex-1 overflow-y-auto pr-2 pb-16 custom-scrollbar"
+          className="flex-1 overflow-y-auto pr-2 pb-24 custom-scrollbar"
         >
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
             {filteredMenu.map(item => (
               <div
                 key={item.id}
@@ -331,21 +332,44 @@ const CustomerOrder: React.FC = () => {
         </div>
       </div>
 
+      {/* Nút nổi Giỏ hàng trên Mobile */}
+      <div className="md:hidden fixed bottom-4 right-4 z-40">
+        <button
+          onClick={() => setShowMobileCart(true)}
+          className="bg-blue-600 text-white p-4 rounded-full shadow-2xl flex items-center justify-center relative hover:bg-blue-700 transition-colors"
+        >
+          <ShoppingCart size={24} />
+          {cart.length > 0 && (
+            <span className="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold border-2 border-white">
+              {cart.reduce((a, b) => a + b.quantity, 0)}
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* Cột phải: Giỏ hàng */}
-      <div className="w-full lg:w-[400px] h-1/2 lg:h-full bg-white shadow-2xl flex flex-col border-t lg:border-t-0 lg:border-l border-gray-100 z-10 rounded-t-[2rem] lg:rounded-t-none lg:rounded-l-[2rem] overflow-hidden pointer-events-auto">
-        <div className="p-4 lg:p-6 border-b border-gray-100 bg-gradient-to-b from-blue-50/50 to-white flex items-center justify-between">
+      <div className={`fixed inset-0 md:static w-full md:w-[350px] lg:w-[400px] h-full bg-white shadow-2xl flex flex-col border-t md:border-t-0 md:border-l border-gray-100 z-50 md:z-10 transition-transform duration-300 ${showMobileCart ? 'translate-y-0 flex' : 'translate-y-full md:translate-y-0 hidden md:flex'}`}>
+        <div className="p-4 md:p-6 border-b border-gray-100 bg-gradient-to-b from-blue-50/50 to-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3 text-gray-800">
             <div className="p-2.5 bg-blue-100 text-blue-600 rounded-xl">
               <ShoppingCart size={24} />
             </div>
-            <h2 className="text-2xl font-black">Món đã chọn</h2>
+            <h2 className="text-xl md:text-2xl font-black">Món đã chọn</h2>
           </div>
-          <span className="bg-blue-600 text-white font-bold px-3 py-1 rounded-full text-sm shadow-sm shadow-blue-500/20">
-            {cart.reduce((a, b) => a + b.quantity, 0)}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="bg-blue-600 text-white font-bold px-3 py-1 rounded-full text-sm shadow-sm shadow-blue-500/20">
+              {cart.reduce((a, b) => a + b.quantity, 0)}
+            </span>
+            <button
+              onClick={() => setShowMobileCart(false)}
+              className="md:hidden text-gray-500 hover:bg-gray-200 p-1.5 rounded-lg"
+            >
+              <X size={24} />
+            </button>
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-gray-50/50 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-4 md:p-5 space-y-4 bg-gray-50/50 custom-scrollbar">
           {cart.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-4">
               <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-2">
