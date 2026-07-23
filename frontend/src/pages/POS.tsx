@@ -1194,7 +1194,7 @@ const POS: React.FC = () => {
                 <div className="mt-4 pt-4 border-t border-dashed border-gray-300 flex justify-between items-center">
                   <div className="text-center text-xs text-gray-500 italic flex-1 mr-2">
                     <p>Cảm ơn quý khách đã ủng hộ!</p>
-                    <p>Hẹn gặp lại ♡</p>
+                    <p className="flex items-center justify-center gap-1">Hẹn gặp lại <span className="text-base leading-none">♡</span></p>
                   </div>
 
                   {storeBankId && storeBankAccount && (
