@@ -301,6 +301,33 @@ const POS: React.FC = () => {
     return () => unsub();
   }, []);
 
+  // Tự động đóng bàn sau 5 phút nếu không có món và không có yêu cầu chưa xử lý
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      activeTableOrders.forEach(async (order) => {
+        if (order.items && order.items.length === 0) {
+          const hasPendingRequests = order.customerRequests?.some((r: any) => !r.isCompleted);
+          if (!hasPendingRequests) {
+            const updatedTime = order.updatedAt?.toMillis?.() || (order.updatedAt?.seconds ? order.updatedAt.seconds * 1000 : 0);
+            // 5 phút = 300,000 ms
+            if (updatedTime > 0 && (now - updatedTime) > 300000) {
+              try {
+                await deleteDoc(doc(db, 'active_table_orders', order.id));
+                await updateDoc(doc(db, 'tables', order.tableId), { status: 'AVAILABLE' });
+                toast.success(`Đã tự động đóng bàn trống: ${order.tableName}`, { duration: 3000 });
+              } catch (e) {
+                console.error('Lỗi tự động đóng bàn', e);
+              }
+            }
+          }
+        }
+      });
+    }, 60000); // Check every phút
+
+    return () => clearInterval(interval);
+  }, [activeTableOrders]);
+
   const getActiveCashierName = async (branchIdStr: string) => {
     try {
       // 1. Kiểm tra xem có ca nào đang MỞ (OPEN) ở cơ sở này không
@@ -1526,30 +1553,9 @@ const POS: React.FC = () => {
                         <span className="text-xs font-bold text-gray-400 uppercase">
                           {currentTableOrderId === order.id ? 'Đang xử lý' : 'Nhấn để thanh toán'}
                         </span>
-                        {order.items.length === 0 && (!order.customerRequests || order.customerRequests.every((r: any) => r.isCompleted)) ? (
-                          <button
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              if (window.confirm('Bàn này không có món nào. Bạn muốn kết thúc bàn?')) {
-                                try {
-                                  await deleteDoc(doc(db, 'active_table_orders', order.id));
-                                  await updateDoc(doc(db, 'tables', order.tableId), { status: 'AVAILABLE' });
-                                  toast.success(`Đã đóng ${order.tableName}`);
-                                } catch (err) {
-                                  toast.error('Lỗi khi đóng bàn');
-                                }
-                              }
-                            }}
-                            className="bg-red-100 text-red-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-200 transition-colors flex items-center gap-1"
-                            title="Bàn trống, nhấn để dọn bàn"
-                          >
-                            <Trash2 size={14} /> Đóng bàn
-                          </button>
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
-                            <CheckCircle size={16} />
-                          </div>
-                        )}
+                        <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
+                          <CheckCircle size={16} />
+                        </div>
                       </div>
                     </div>
                   ))}
