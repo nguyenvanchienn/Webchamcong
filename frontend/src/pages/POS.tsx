@@ -82,6 +82,7 @@ const POS: React.FC = () => {
   const [currentTableName, setCurrentTableName] = useState<string | null>(null);
   const [pendingOrderCode, setPendingOrderCode] = useState<string | null>(null);
   const [itemToDelete, setItemToDelete] = useState<{ orderId: string; tableId: string; tableName: string; itemIndex: number; itemName: string; orderItems: any[] } | null>(null);
+  const [deleteReason, setDeleteReason] = useState<string>('');
 
   const navigate = useNavigate();
 
@@ -1451,13 +1452,23 @@ const POS: React.FC = () => {
               Bạn có chắc chắn muốn xoá <span className="font-bold text-gray-800">{itemToDelete.itemName}</span> khỏi đơn của <span className="font-bold text-blue-600">{itemToDelete.tableName}</span> không?
             </p>
 
-            <div className="flex gap-3">
-              <button
-                onClick={() => setItemToDelete(null)}
-                className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
-              >
-                Hủy
-              </button>
+              <div className="mb-6">
+                <input
+                  type="text"
+                  value={deleteReason}
+                  onChange={(e) => setDeleteReason(e.target.value)}
+                  placeholder="Lý do huỷ (không bắt buộc)..."
+                  className="w-full border border-gray-300 rounded-xl p-3 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setItemToDelete(null); setDeleteReason(''); }}
+                  className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
+                >
+                  Hủy
+                </button>
               <button
                 onClick={async () => {
                   const { orderId, tableId, tableName, itemIndex, orderItems } = itemToDelete;
@@ -1465,6 +1476,12 @@ const POS: React.FC = () => {
                   newItems.splice(itemIndex, 1);
 
                   try {
+                    const cancellationData = {
+                      itemName,
+                      reason: deleteReason.trim(),
+                      timestamp: Date.now()
+                    };
+
                     if (newItems.length === 0) {
                       await deleteDoc(doc(db, 'active_table_orders', orderId));
                       await updateDoc(doc(db, 'tables', tableId), { status: 'AVAILABLE' });
@@ -1473,7 +1490,8 @@ const POS: React.FC = () => {
                       const newTotal = newItems.reduce((sum, i) => sum + (i.price * i.quantity), 0);
                       await updateDoc(doc(db, 'active_table_orders', orderId), {
                         items: newItems,
-                        totalAmount: newTotal
+                        totalAmount: newTotal,
+                        latestCancellation: cancellationData
                       });
                       toast.success('Đã xoá món');
                     }
@@ -1481,6 +1499,7 @@ const POS: React.FC = () => {
                     toast.error('Có lỗi xảy ra');
                   }
                   setItemToDelete(null);
+                  setDeleteReason('');
                 }}
                 className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-200"
               >

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { collection, doc, getDoc, getDocs, addDoc, updateDoc, query, where, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, addDoc, updateDoc, query, where, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
 import { signInAnonymously } from 'firebase/auth';
 import { ShoppingCart, Plus, Minus, Search, Image as ImageIcon, Clock, ChefHat, X, Edit2 } from 'lucide-react';
@@ -89,18 +89,6 @@ const TableOrder: React.FC = () => {
 
         const cats = Array.from(new Set(items.map(i => i.category)));
         setCategories(['Tất cả', ...cats]);
-
-        // Fetch Active Order for this table
-        const q = query(
-          collection(db, 'active_table_orders'), 
-          where('tableId', '==', tableId),
-          where('status', '==', 'UNPAID')
-        );
-        const orderSnap = await getDocs(q);
-        if (!orderSnap.empty) {
-          const orderData = orderSnap.docs[0].data();
-          setActiveOrder({ id: orderSnap.docs[0].id, ...orderData } as TableOrderDoc);
-        }
       } catch (error) {
         console.error(error);
         toast.error('Có lỗi xảy ra khi tải dữ liệu');
@@ -109,6 +97,39 @@ const TableOrder: React.FC = () => {
       }
     };
     fetchData();
+  }, [branchId, tableId]);
+
+  const lastCancellationTimeRef = React.useRef<number>(0);
+
+  useEffect(() => {
+    if (!branchId || !tableId) return;
+    const q = query(
+      collection(db, 'active_table_orders'), 
+      where('tableId', '==', tableId),
+      where('status', '==', 'UNPAID')
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      if (!snap.empty) {
+        const orderData = snap.docs[0].data();
+        setActiveOrder({ id: snap.docs[0].id, ...orderData } as TableOrderDoc);
+
+        if (orderData.latestCancellation && orderData.latestCancellation.timestamp > lastCancellationTimeRef.current) {
+          if (lastCancellationTimeRef.current !== 0) {
+            toast.error(`Món ${orderData.latestCancellation.itemName} đã bị huỷ${orderData.latestCancellation.reason ? `\nLý do: ${orderData.latestCancellation.reason}` : ''}`, {
+              duration: 6000,
+              icon: '❌',
+              style: { background: '#fee2e2', color: '#991b1b', fontWeight: 'bold' }
+            });
+          }
+          lastCancellationTimeRef.current = orderData.latestCancellation.timestamp;
+        } else if (orderData.latestCancellation) {
+          lastCancellationTimeRef.current = orderData.latestCancellation.timestamp;
+        }
+      } else {
+        setActiveOrder(null);
+      }
+    });
+    return () => unsub();
   }, [branchId, tableId]);
 
   const filteredItems = menuItems.filter(item => {
@@ -311,10 +332,10 @@ const TableOrder: React.FC = () => {
           <div className="space-y-2">
             {activeOrder.items.map((item, idx) => (
               <div key={idx} className="flex justify-between items-center text-sm">
-                <span className="font-medium text-orange-900">
+                <span className={`font-medium ${item.isServed ? 'text-gray-400 line-through' : 'text-orange-900'}`}>
                   {item.quantity}x {item.name} {item.selectedSize ? `(${item.selectedSize})` : ''}
                 </span>
-                <span className="text-orange-700 font-bold">{new Intl.NumberFormat('vi-VN').format(item.price * item.quantity)}đ</span>
+                <span className={`${item.isServed ? 'text-gray-400 line-through' : 'text-orange-700 font-bold'}`}>{new Intl.NumberFormat('vi-VN').format(item.price * item.quantity)}đ</span>
               </div>
             ))}
           </div>
