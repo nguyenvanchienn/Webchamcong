@@ -34,7 +34,7 @@ interface TableOrderDoc {
   items: CartItem[];
   totalAmount: number;
   status: 'UNPAID';
-  notifications?: { id: string; message: string; timestamp: number }[];
+  notifications?: { id: string; message: string; timestamp: number; isRead?: boolean }[];
   customerRequests?: { id: string; message: string; timestamp: number; isCompleted: boolean }[];
 }
 
@@ -308,11 +308,19 @@ const TableOrder: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-2">
-            <button onClick={() => setShowNotificationsModal(true)} className="relative p-2 bg-white rounded-full shadow-sm border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+            <button onClick={async () => {
+              setShowNotificationsModal(true);
+              if (activeOrder && activeOrder.notifications?.some(n => !n.isRead)) {
+                const newNotifs = activeOrder.notifications.map(n => ({ ...n, isRead: true }));
+                await updateDoc(doc(db, 'active_table_orders', activeOrder.id), {
+                  notifications: newNotifs
+                });
+              }
+            }} className="relative p-2 bg-white rounded-full shadow-sm border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
               <Bell size={20} />
-              {activeOrder?.notifications && activeOrder.notifications.length > 0 && (
+              {activeOrder?.notifications && activeOrder.notifications.filter(n => !n.isRead).length > 0 && (
                 <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] flex items-center justify-center rounded-full font-bold shadow-sm border border-white">
-                  {activeOrder.notifications.length}
+                  {activeOrder.notifications.filter(n => !n.isRead).length}
                 </span>
               )}
             </button>
