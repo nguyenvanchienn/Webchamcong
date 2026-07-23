@@ -160,15 +160,19 @@ const Kiosk: React.FC = () => {
       }
       setLoading(true);
       try {
+        const pastDate = new Date();
+        pastDate.setDate(pastDate.getDate() - 3); // 3 ngày gần nhất
+        const pastDateStr = pastDate.toLocaleDateString("en-CA");
         const todayStr = new Date().toLocaleDateString("en-CA");
+
         const q = query(
           collection(db, "attendance"),
           where("employeeId", "==", selectedEmp.id),
-          where("date", "==", todayStr),
+          where("date", ">=", pastDateStr)
         );
         const snap = await getDocs(q);
+        
         if (!snap.empty) {
-          // Lấy record mới nhất (nếu có nhiều record)
           const records = snap.docs.map((d) => ({ id: d.id, data: d.data() }));
           records.sort((a, b) => {
             const timeA = a.data.checkIn?.toMillis
@@ -183,29 +187,44 @@ const Kiosk: React.FC = () => {
                 : 0;
             return timeB - timeA;
           });
-          const docData = records[0];
-          const data = docData.data;
 
-          setTodayAttendance({
-            id: docData.id,
-            employeeId: data.employeeId,
-            date: data.date,
-            checkIn: data.checkIn?.toDate
-              ? data.checkIn.toDate()
-              : data.checkIn
-                ? new Date(data.checkIn)
-                : null,
-            checkOut: data.checkOut?.toDate
-              ? data.checkOut.toDate()
-              : data.checkOut
-                ? new Date(data.checkOut)
-                : null,
-            logs:
-              data.logs?.map((l: any) => ({
-                action: l.action,
-                time: l.time?.toDate ? l.time.toDate() : new Date(l.time),
-              })) || [],
-          });
+          // Tìm ca đang làm (chưa checkout)
+          let activeRecord = null;
+          for (const r of records) {
+            if (!r.data.checkOut) {
+              activeRecord = r;
+              break;
+            }
+          }
+          
+          // Ưu tiên hiển thị ca đang làm, nếu không thì lấy ca mới nhất của hôm nay
+          const targetRecord = activeRecord || records.find(r => r.data.date === todayStr);
+
+          if (targetRecord) {
+            const data = targetRecord.data;
+            setTodayAttendance({
+              id: targetRecord.id,
+              employeeId: data.employeeId,
+              date: data.date,
+              checkIn: data.checkIn?.toDate
+                ? data.checkIn.toDate()
+                : data.checkIn
+                  ? new Date(data.checkIn)
+                  : null,
+              checkOut: data.checkOut?.toDate
+                ? data.checkOut.toDate()
+                : data.checkOut
+                  ? new Date(data.checkOut)
+                  : null,
+              logs:
+                data.logs?.map((l: any) => ({
+                  action: l.action,
+                  time: l.time?.toDate ? l.time.toDate() : new Date(l.time),
+                })) || [],
+            });
+          } else {
+            setTodayAttendance(null);
+          }
         } else {
           setTodayAttendance(null);
         }

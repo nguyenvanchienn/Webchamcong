@@ -120,6 +120,7 @@ const Attendance: React.FC = () => {
           branchName: data.branchName,
           branchId: data.branchId,
           position: data.position || "Khác",
+          salaryPerHour: data.salaryPerHour || 0,
         });
       });
       setEmployees(empList);
@@ -385,20 +386,19 @@ const Attendance: React.FC = () => {
     // Kiểm tra xem đã check-in hôm nay nhưng chưa check-out chưa
     const today = new Date().toLocaleDateString("en-CA");
 
-    if (filterDate !== today) {
-      toast.error(
-        "Nút Check-In/Out Ngay chỉ dùng được cho ngày hôm nay. Để sửa giờ quá khứ, vui lòng dùng nút Sửa (hình cây bút)!",
-      );
-      return;
-    }
-
     const existing = records.find(
       (r) =>
         r.employeeId === selectedEmp &&
-        r.date === today &&
         r.checkIn &&
         !r.checkOut,
     );
+
+    if (!existing && filterDate !== today) {
+      toast.error(
+        "Không thể Check-in cho ngày trong quá khứ. Để thêm giờ làm quá khứ, vui lòng dùng nút Sửa (hình cây bút)!",
+      );
+      return;
+    }
 
     try {
       if (existing) {

@@ -175,7 +175,12 @@ const EmployeeDashboard: React.FC = () => {
 
       sortedMyAttendances.forEach(a => {
         myAttendances.push(a);
-        if (a.date === todayStr) {
+        
+        // Ưu tiên hiển thị ca đang làm (chưa checkout) lên Dashboard, bất kể ngày nào
+        if (!a.checkOut) {
+          todayAtt = a;
+        } else if (a.date === todayStr && (!todayAtt || todayAtt.checkOut)) {
+          // Nếu không có ca đang mở, thì lấy ca của hôm nay
           todayAtt = a;
         }
       });
