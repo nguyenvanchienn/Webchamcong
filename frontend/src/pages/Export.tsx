@@ -73,7 +73,9 @@ const Export: React.FC = () => {
   const userRole = localStorage.getItem("userRole");
   const currentUserBranchId = localStorage.getItem("branchId");
   const currentEmployeeId = localStorage.getItem("employeeId") || "";
-  const isManager = userRole === "SUPER_ADMIN" || userRole === "BRANCH_ADMIN";
+  const isSuperAdmin = userRole === "SUPER_ADMIN";
+  const isBranchAdmin = userRole === "BRANCH_ADMIN";
+  const isManager = isSuperAdmin || isBranchAdmin;
 
   const [filterBranchId, setFilterBranchId] = useState(
     userRole === "BRANCH_ADMIN" ? currentUserBranchId || "ALL" : "ALL",
@@ -81,7 +83,7 @@ const Export: React.FC = () => {
   const [branches, setBranches] = useState<any[]>([]);
   const [payrollExportMode, setPayrollExportMode] = useState<
     "PERSONAL" | "ALL"
-  >(isManager ? "PERSONAL" : "PERSONAL");
+  >(isSuperAdmin ? "ALL" : "PERSONAL");
 
   useEffect(() => {
     const fetchBranches = async () => {
@@ -110,8 +112,12 @@ const Export: React.FC = () => {
   }, [userRole, currentUserBranchId]);
 
   useEffect(() => {
-    if (!isManager) setPayrollExportMode("PERSONAL");
-  }, [isManager]);
+    if (isSuperAdmin) {
+      setPayrollExportMode("ALL");
+      return;
+    }
+    if (!isBranchAdmin) setPayrollExportMode("PERSONAL");
+  }, [isSuperAdmin, isBranchAdmin]);
 
   const handleExport = async () => {
     setExporting(true);
@@ -119,6 +125,13 @@ const Export: React.FC = () => {
       if (payrollExportMode === "PERSONAL" && !currentEmployeeId) {
         toast.error(
           "Không tìm thấy tài khoản nhân viên hiện tại để xuất lương cá nhân!",
+        );
+        return;
+      }
+
+      if (isSuperAdmin && payrollExportMode !== "ALL") {
+        toast.error(
+          "SUPER_ADMIN chỉ được xuất bảng lương theo cơ sở/toàn hệ thống.",
         );
         return;
       }
@@ -803,9 +816,11 @@ const Export: React.FC = () => {
           (Excel)
         </h2>
         <p className="text-sm text-gray-500 mt-1">
-          {isManager
-            ? "Xuất bảng lương cá nhân, bảng lương toàn bộ nhân viên và báo cáo tài chính."
-            : "Xuất bảng lương chi tiết cá nhân theo tháng."}
+          {isSuperAdmin
+            ? "Xuất bảng lương theo tất cả cơ sở hoặc từng cơ sở, kèm báo cáo tài chính."
+            : isBranchAdmin
+              ? "Xuất bảng lương cá nhân, bảng lương toàn bộ nhân viên và báo cáo tài chính."
+              : "Xuất bảng lương chi tiết cá nhân theo tháng."}
         </p>
       </div>
 
@@ -827,7 +842,7 @@ const Export: React.FC = () => {
             />
           </div>
 
-          {isManager && (
+          {isBranchAdmin && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2 text-left">
                 Chế độ xuất bảng lương
@@ -845,7 +860,7 @@ const Export: React.FC = () => {
             </div>
           )}
 
-          {userRole === "SUPER_ADMIN" && payrollExportMode === "ALL" && (
+          {isSuperAdmin && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2 text-left">
                 Chọn cơ sở xuất dữ liệu
@@ -880,9 +895,11 @@ const Export: React.FC = () => {
               ) : (
                 <>
                   <Download size={20} className="mr-2" />
-                  {payrollExportMode === "PERSONAL"
-                    ? "Xuất bảng lương cá nhân"
-                    : "Xuất bảng lương toàn bộ"}
+                  {isSuperAdmin
+                    ? "Xuất bảng lương theo cơ sở"
+                    : payrollExportMode === "PERSONAL"
+                      ? "Xuất bảng lương cá nhân"
+                      : "Xuất bảng lương toàn bộ"}
                 </>
               )}
             </button>
@@ -902,9 +919,9 @@ const Export: React.FC = () => {
                 ) : (
                   <>
                     <Download size={20} className="mr-2" />
-                    {userRole === "BRANCH_ADMIN"
+                    {isBranchAdmin
                       ? "Xuất báo cáo tài chính cơ sở"
-                      : "Xuất báo cáo Doanh Thu"}
+                      : "Xuất báo cáo tài chính theo cơ sở"}
                   </>
                 )}
               </button>
