@@ -198,7 +198,7 @@ const POS: React.FC = () => {
         setCurrentTableId(data.currentTableId || null);
         setCurrentTableName(data.currentTableName || null);
         setPendingOrderCode(data.pendingOrderCode || null);
-        
+
         // Chỉ đồng bộ Danh mục & Cuộn nếu đang BẬT đồng bộ
         if (isSyncEnabledRef.current) {
           if (data.activeCategory) {
@@ -222,7 +222,7 @@ const POS: React.FC = () => {
   useEffect(() => {
     isSyncEnabledRef.current = isSyncToCustomerEnabled;
     if (isSyncToCustomerEnabled) {
-      updatePosState({ 
+      updatePosState({
         isSyncEnabled: true,
         activeCategory,
         scrollPosition: scrollRef.current?.scrollTop || 0
@@ -872,7 +872,7 @@ const POS: React.FC = () => {
                   <h4 className="font-bold text-gray-800 leading-tight flex items-center flex-wrap">
                     <span className="mr-1">{item.name}</span>
                     {item.hasSizes && item.sizes && item.sizes.length > 0 ? (
-                      <span 
+                      <span
                         className="inline-flex items-center text-blue-600 cursor-pointer hover:text-blue-800 transition-colors group/edit"
                         onClick={(e) => {
                           e.stopPropagation();
@@ -1343,11 +1343,11 @@ const POS: React.FC = () => {
                     const oldestB = getOldestPendingTimestamp(b);
                     const hasPendingA = oldestA !== Infinity;
                     const hasPendingB = oldestB !== Infinity;
-                    
+
                     if (hasPendingA && hasPendingB) return oldestA - oldestB;
                     if (hasPendingA) return -1;
                     if (hasPendingB) return 1;
-                    
+
                     return (b.updatedAt?.toMillis?.() || 0) - (a.updatedAt?.toMillis?.() || 0);
                   }).map(order => (
                     <div
@@ -1526,9 +1526,30 @@ const POS: React.FC = () => {
                         <span className="text-xs font-bold text-gray-400 uppercase">
                           {currentTableOrderId === order.id ? 'Đang xử lý' : 'Nhấn để thanh toán'}
                         </span>
-                        <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
-                          <CheckCircle size={16} />
-                        </div>
+                        {order.items.length === 0 && (!order.customerRequests || order.customerRequests.every((r: any) => r.isCompleted)) ? (
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (window.confirm('Bàn này không có món nào. Bạn muốn kết thúc bàn?')) {
+                                try {
+                                  await deleteDoc(doc(db, 'active_table_orders', order.id));
+                                  await updateDoc(doc(db, 'tables', order.tableId), { status: 'AVAILABLE' });
+                                  toast.success(`Đã đóng ${order.tableName}`);
+                                } catch (err) {
+                                  toast.error('Lỗi khi đóng bàn');
+                                }
+                              }
+                            }}
+                            className="bg-red-100 text-red-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-200 transition-colors flex items-center gap-1"
+                            title="Bàn trống, nhấn để dọn bàn"
+                          >
+                            <Trash2 size={14} /> Đóng bàn
+                          </button>
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
+                            <CheckCircle size={16} />
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1553,23 +1574,23 @@ const POS: React.FC = () => {
               Bạn có chắc chắn muốn xoá <span className="font-bold text-gray-800">{itemToDelete.type === 'ITEM' ? itemToDelete.itemName : itemToDelete.reqMessage}</span> khỏi đơn của <span className="font-bold text-blue-600">{itemToDelete.tableName}</span> không?
             </p>
 
-              <div className="mb-6">
-                <input
-                  type="text"
-                  value={deleteReason}
-                  onChange={(e) => setDeleteReason(e.target.value)}
-                  placeholder="Lý do huỷ (không bắt buộc)..."
-                  className="w-full border border-gray-300 rounded-xl p-3 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none"
-                />
-              </div>
+            <div className="mb-6">
+              <input
+                type="text"
+                value={deleteReason}
+                onChange={(e) => setDeleteReason(e.target.value)}
+                placeholder="Lý do huỷ (không bắt buộc)..."
+                className="w-full border border-gray-300 rounded-xl p-3 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none"
+              />
+            </div>
 
-              <div className="flex gap-3">
-                <button
-                  onClick={() => { setItemToDelete(null); setDeleteReason(''); }}
-                  className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
-                >
-                  Hủy
-                </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setItemToDelete(null); setDeleteReason(''); }}
+                className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
+              >
+                Hủy
+              </button>
               <button
                 onClick={async () => {
                   try {
