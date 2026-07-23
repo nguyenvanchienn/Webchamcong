@@ -582,7 +582,7 @@ const PersonalSalaryCalc: React.FC = () => {
         </div>
 
         {/* Tổng kết */}
-        <div className="order-1 lg:order-2 bg-gradient-to-br from-blue-600 to-indigo-700 p-8 rounded-3xl shadow-xl text-white flex flex-col justify-center space-y-8 relative overflow-hidden h-fit sticky top-6">
+        <div className="order-1 lg:order-2 bg-gradient-to-br from-blue-600 to-indigo-700 p-8 rounded-3xl shadow-xl text-white flex flex-col justify-center space-y-8 relative overflow-hidden h-fit lg:sticky lg:top-6">
           <div className="absolute top-0 right-0 p-8 opacity-10">
             <DollarSign size={120} />
           </div>
