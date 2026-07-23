@@ -95,11 +95,15 @@ const Timesheets: React.FC = () => {
     setLoading(true);
     try {
       let latePenaltyMap: Record<string, number> = { ALL: 0 };
+      let lateGracePeriodMap: Record<string, number> = { ALL: 0 };
       const settingsDoc = await getDoc(doc(db, 'settings', 'general'));
       if (settingsDoc.exists()) {
         const data = settingsDoc.data();
         if (typeof data.latePenalty === 'number') latePenaltyMap = { ALL: data.latePenalty };
         else if (typeof data.latePenalty === 'object') latePenaltyMap = data.latePenalty;
+
+        if (typeof data.lateGracePeriod === 'number') lateGracePeriodMap = { ALL: data.lateGracePeriod };
+        else if (typeof data.lateGracePeriod === 'object') lateGracePeriodMap = data.lateGracePeriod;
       }
 
       // Tìm theo tháng (VD: 2023-10) -> date >= 2023-10-01 và date <= 2023-10-31
@@ -152,8 +156,9 @@ const Timesheets: React.FC = () => {
         const shiftStr = schedulesMap[`${data.employeeId}_${data.date}`] || (data.assignedRole ? `Ca được giao\n(bởi ${data.assignedRole})` : 'Ca được giao');
         
         let latePenaltyAmount = 0;
-        const branchIdForRecord = data.branchId || allEmps[data.employeeId]?.branchId;
+        const branchIdForRecord = data.branchId || allEmps[data.employeeId]?.branchId || currentUserBranchId;
         const latePenaltyRate = (latePenaltyMap[branchIdForRecord] !== undefined ? latePenaltyMap[branchIdForRecord] : latePenaltyMap['ALL']) || 0;
+        const gracePeriod = (lateGracePeriodMap[branchIdForRecord] !== undefined ? lateGracePeriodMap[branchIdForRecord] : lateGracePeriodMap['ALL']) ?? 0;
         
         if (data.checkIn && shiftStr !== 'Ca được giao' && !shiftStr.includes('Ca được giao')) {
            const inTime = data.checkIn.toDate ? data.checkIn.toDate() : new Date(data.checkIn);
@@ -164,8 +169,11 @@ const Timesheets: React.FC = () => {
                const startM = parseInt(match[1]) * 60 + parseInt(match[2]);
                if (startM < earliestShiftM) earliestShiftM = startM;
            }
-           if (inTotalM > earliestShiftM + 15) {
-               latePenaltyAmount = (inTotalM - earliestShiftM) * latePenaltyRate;
+           const inTotalS = inTime.getHours() * 3600 + inTime.getMinutes() * 60 + inTime.getSeconds();
+           const earliestShiftS = earliestShiftM * 60;
+           if (inTotalS > earliestShiftS + gracePeriod) {
+               const lateMinutes = Math.floor((inTotalS - earliestShiftS) / 60);
+               latePenaltyAmount = lateMinutes * latePenaltyRate;
            }
         }
 
@@ -419,7 +427,7 @@ const Timesheets: React.FC = () => {
       </div>
 
       {selectedLogs && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 transition-opacity">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm transition-opacity">
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden flex flex-col">
             <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50">
               <h3 className="font-semibold text-gray-800 flex items-center gap-2">

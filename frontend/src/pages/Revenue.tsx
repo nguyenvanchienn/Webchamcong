@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { collection, query, orderBy, getDocs, addDoc, updateDoc, doc, serverTimestamp, where, getDoc } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
-import { CircleDollarSign, Receipt, TrendingUp, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, FileText, Trash2, Edit2, Minus, X } from 'lucide-react';
+import { CircleDollarSign, Receipt, TrendingUp, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, FileText, Trash2, Edit2, Minus, X, Printer, BarChart2, Table as TableIcon } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import toast from 'react-hot-toast';
 
 interface MenuItem {
@@ -30,12 +32,18 @@ interface Order {
   editHistory?: { editedAt: string; editedBy: string; oldAmount?: number; newAmount?: number; note?: string }[];
   deletedBy?: string;
   deletedAt?: string;
+  paymentMethod?: string;
+  branchName?: string;
 }
 
 interface Branch {
   id: string;
   name: string;
   address?: string;
+  phone?: string;
+  bankId?: string;
+  bankAccount?: string;
+  bankAccountName?: string;
 }
 
 const Revenue: React.FC = () => {
@@ -44,8 +52,27 @@ const Revenue: React.FC = () => {
   const userRole = localStorage.getItem('userRole');
   const userBranchId = localStorage.getItem('branchId');
   const [selectedBranch, setSelectedBranch] = useState<string>(userRole === 'SUPER_ADMIN' ? 'all' : (userBranchId || 'all'));
-  const [filterMode, setFilterMode] = useState<'day'|'week'|'month'>('day');
+  const [filterMode, setFilterMode] = useState<'day' | 'week' | 'month'>('day');
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>('all');
   const [refDate, setRefDate] = useState<Date>(new Date());
+  const [viewMode, setViewMode] = useState<'table' | 'chart'>('table');
+  const [hiddenChartBranches, setHiddenChartBranches] = useState<string[]>([]);
+
+  const toggleChartBranch = (branchName: string) => {
+    setHiddenChartBranches(prev =>
+      prev.includes(branchName)
+        ? prev.filter(n => n !== branchName)
+        : [...prev, branchName]
+    );
+  };
+  const location = useLocation();
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const pm = params.get('paymentMethod');
+    if (pm && ['CASH', 'TRANSFER', 'all'].includes(pm)) {
+      setPaymentMethodFilter(pm);
+    }
+  }, [location.search]);
   const [cashierNameMap, setCashierNameMap] = useState<Record<string, string>>({});
   const [branchAddressMap, setBranchAddressMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -54,7 +81,7 @@ const Revenue: React.FC = () => {
   const [billEditItems, setBillEditItems] = useState<any[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [selectedItemToAdd, setSelectedItemToAdd] = useState<string>('');
-  const [confirmDialog, setConfirmDialog] = useState<{isOpen: boolean, message: string, requireInput?: boolean, onConfirm: (input?: string) => void} | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean, message: string, requireInput?: boolean, onConfirm: (input?: string) => void } | null>(null);
   const [confirmInput, setConfirmInput] = useState('');
 
   // Expense Modal State
@@ -62,10 +89,11 @@ const Revenue: React.FC = () => {
   const [expenseReason, setExpenseReason] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expenseNote, setExpenseNote] = useState('');
+  const [expenseBranchId, setExpenseBranchId] = useState<string>('all');
   const [isSubmittingExpense, setIsSubmittingExpense] = useState(false);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [historyModalOrder, setHistoryModalOrder] = useState<Order | null>(null);
-  const [activeCashiers, setActiveCashiers] = useState<{id: string, name: string}[]>([]);
+  const [activeCashiers, setActiveCashiers] = useState<{ id: string, name: string }[]>([]);
   const [selectedCashierId, setSelectedCashierId] = useState<string>('');
 
 
@@ -79,9 +107,10 @@ const Revenue: React.FC = () => {
         const branchMap: Record<string, string> = {};
         const addressMap: Record<string, string> = {};
         branchSnap.forEach(doc => {
-          branchList.push({ id: doc.id, name: doc.data().name, address: doc.data().address });
-          branchMap[doc.id] = doc.data().name;
-          if (doc.data().address) addressMap[doc.id] = doc.data().address;
+          const d = doc.data();
+          branchList.push({ id: doc.id, name: d.name, address: d.address, phone: d.phone, bankId: d.bankId, bankAccount: d.bankAccount, bankAccountName: d.bankAccountName });
+          branchMap[doc.id] = d.name;
+          if (d.address) addressMap[doc.id] = d.address;
         });
         setBranches(branchList);
         setBranchAddressMap(addressMap);
@@ -111,8 +140,8 @@ const Revenue: React.FC = () => {
         // Fetch Orders
         const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
         const snap = await getDocs(q);
-        const list = snap.docs.map(doc => ({ 
-          id: doc.id, 
+        const list = snap.docs.map(doc => ({
+          id: doc.id,
           ...doc.data(),
           branchName: doc.data().branchId ? branchMap[doc.data().branchId] || 'Chưa rõ' : 'Chưa rõ'
         } as Order & { branchName: string }));
@@ -155,9 +184,13 @@ const Revenue: React.FC = () => {
     if (userRole === 'SUPER_ADMIN' && selectedBranch !== 'all' && o.branchId !== selectedBranch) {
       return false;
     }
+    if (paymentMethodFilter !== 'all') {
+      const pm = o.paymentMethod || 'CASH';
+      if (pm !== paymentMethodFilter) return false;
+    }
 
     if (!o.createdAt) return false;
-    
+
     const orderDate = o.createdAt.toDate ? o.createdAt.toDate() : new Date(o.createdAt);
 
     if (filterMode === 'day') {
@@ -198,7 +231,7 @@ const Revenue: React.FC = () => {
     if (filterMode === 'day') {
       const dateStr = refDate.toLocaleDateString('en-CA');
       return (
-        <input 
+        <input
           type="date"
           value={dateStr}
           onChange={(e) => {
@@ -215,14 +248,14 @@ const Revenue: React.FC = () => {
       end.setDate(end.getDate() + 6);
       return (
         <span className="text-sm font-medium text-gray-700 whitespace-nowrap">
-          {start.toLocaleDateString('vi-VN', {day: '2-digit', month: '2-digit'})} - {end.toLocaleDateString('vi-VN')}
+          {start.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })} - {end.toLocaleDateString('vi-VN')}
         </span>
       );
     }
     if (filterMode === 'month') {
       const monthStr = `${refDate.getFullYear()}-${String(refDate.getMonth() + 1).padStart(2, '0')}`;
       return (
-        <input 
+        <input
           type="month"
           value={monthStr}
           onChange={(e) => {
@@ -244,26 +277,26 @@ const Revenue: React.FC = () => {
     setIsSubmittingExpense(true);
     try {
       let editorName = await getEditorName();
-      
+
       if (userRole === 'POS') {
-         if (!selectedCashierId) {
-            toast.error("Vui lòng chọn thu ngân chi tiền!");
-            setIsSubmittingExpense(false);
-            return;
-         }
-         const selectedCashier = activeCashiers.find(c => c.id === selectedCashierId);
-         if (selectedCashier) {
-            editorName = selectedCashier.name;
-         }
+        if (!selectedCashierId) {
+          toast.error("Vui lòng chọn thu ngân chi tiền!");
+          setIsSubmittingExpense(false);
+          return;
+        }
+        const selectedCashier = activeCashiers.find(c => c.id === selectedCashierId);
+        if (selectedCashier) {
+          editorName = selectedCashier.name;
+        }
       }
 
       if (editingExpenseId) {
         const expenseRef = doc(db, 'orders', editingExpenseId);
         const existingOrder = orders.find(o => o.id === editingExpenseId);
         const newCount = (existingOrder?.editCount || 0) + 1;
-        
-        const newHistory = [...(existingOrder?.editHistory || []), { 
-          editedAt: new Date().toISOString(), 
+
+        const newHistory = [...(existingOrder?.editHistory || []), {
+          editedAt: new Date().toISOString(),
           editedBy: editorName,
           oldAmount: existingOrder?.totalAmount || 0,
           newAmount: Number(expenseAmount.replace(/\./g, ''))
@@ -279,8 +312,22 @@ const Revenue: React.FC = () => {
         });
         toast.success('Đã cập nhật phiếu chi');
       } else {
-        if (selectedBranch === 'all' && branches.length > 0) {
-          const promises = branches.map(async (branch, idx) => {
+        const targetBranchId = userRole === 'SUPER_ADMIN' ? expenseBranchId : (userBranchId || null);
+
+        if (targetBranchId === 'all' && branches.length > 0) {
+          // Check which branches have POS accounts
+          const usersSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'POS')));
+          const posBranchIds = usersSnap.docs.map(d => d.data().branchId).filter(Boolean);
+          
+          const validBranches = branches.filter(b => posBranchIds.includes(b.id));
+          
+          if (validBranches.length === 0) {
+            toast.error("Không có cơ sở nào có tài khoản máy order để thêm phiếu chi!");
+            setIsSubmittingExpense(false);
+            return;
+          }
+
+          const promises = validBranches.map(async (branch, idx) => {
             const expenseData = {
               orderCode: 'CHI-' + (Date.now() + idx).toString().slice(-6),
               items: [{ name: expenseReason, quantity: 1, price: Number(expenseAmount.replace(/\./g, '')) }],
@@ -291,13 +338,18 @@ const Revenue: React.FC = () => {
               status: 'COMPLETED',
               branchId: branch.id,
               type: 'EXPENSE',
+              paymentMethod: 'CASH',
               note: expenseNote,
               editCount: 0
             };
             return addDoc(collection(db, 'orders'), expenseData);
           });
           await Promise.all(promises);
-          toast.success(`Đã tạo ${branches.length} phiếu chi cho tất cả cơ sở`);
+          if (validBranches.length < branches.length) {
+            toast.success(`Đã tạo phiếu chi cho ${validBranches.length} cơ sở (bỏ qua ${branches.length - validBranches.length} cơ sở chưa có tài khoản máy order)`);
+          } else {
+            toast.success(`Đã tạo ${validBranches.length} phiếu chi cho tất cả cơ sở`);
+          }
         } else {
           const expenseData = {
             orderCode: 'CHI-' + Date.now().toString().slice(-6),
@@ -307,8 +359,9 @@ const Revenue: React.FC = () => {
             cashierEmail: editorName,
             employeeId: localStorage.getItem('employeeId') || 'Unknown',
             status: 'COMPLETED',
-            branchId: selectedBranch !== 'all' ? selectedBranch : (userBranchId || null),
+            branchId: targetBranchId,
             type: 'EXPENSE',
+            paymentMethod: 'CASH',
             note: expenseNote,
             editCount: 0
           };
@@ -316,12 +369,13 @@ const Revenue: React.FC = () => {
           toast.success('Đã tạo phiếu chi');
         }
       }
-      
+
       setShowExpenseModal(false);
       setEditingExpenseId(null);
       setExpenseReason('');
       setExpenseAmount('');
       setExpenseNote('');
+      setExpenseBranchId('all');
     } catch (error) {
       console.error(error);
       toast.error('Lỗi khi lưu phiếu chi');
@@ -350,14 +404,14 @@ const Revenue: React.FC = () => {
         try {
           const editorName = await getEditorName();
           const newCount = (billModalData.editCount || 0) + 1;
-          const newHistory = [...(billModalData.editHistory || []), { 
-            editedAt: new Date().toISOString(), 
+          const newHistory = [...(billModalData.editHistory || []), {
+            editedAt: new Date().toISOString(),
             editedBy: editorName,
             oldAmount: billModalData.totalAmount,
             newAmount: 0,
             note: `XÓA - Lý do: ${reason || 'Không có'}`
           }];
-          
+
           await updateDoc(doc(db, 'orders', billModalData.id), {
             totalAmount: 0,
             deletedBy: editorName,
@@ -387,14 +441,14 @@ const Revenue: React.FC = () => {
           const editorName = await getEditorName();
           const existingOrder = orders.find(o => o.id === editingExpenseId);
           const newCount = (existingOrder?.editCount || 0) + 1;
-          const newHistory = [...(existingOrder?.editHistory || []), { 
-            editedAt: new Date().toISOString(), 
+          const newHistory = [...(existingOrder?.editHistory || []), {
+            editedAt: new Date().toISOString(),
             editedBy: editorName,
             oldAmount: existingOrder?.totalAmount || 0,
             newAmount: 0,
             note: `XÓA - Lý do: ${reason || 'Không có'}`
           }];
-          
+
           await updateDoc(doc(db, 'orders', editingExpenseId), {
             totalAmount: 0,
             deletedBy: editorName,
@@ -426,8 +480,8 @@ const Revenue: React.FC = () => {
       const editorName = await getEditorName();
       const newTotal = billEditItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
       const newEditCount = (billModalData.editCount || 0) + 1;
-      const newHistory = [...(billModalData.editHistory || []), { 
-        editedAt: new Date().toISOString(), 
+      const newHistory = [...(billModalData.editHistory || []), {
+        editedAt: new Date().toISOString(),
         editedBy: editorName,
         oldAmount: billModalData.totalAmount,
         newAmount: newTotal
@@ -446,6 +500,38 @@ const Revenue: React.FC = () => {
     } catch (error) {
       console.error(error);
       toast.error('Lỗi khi lưu hóa đơn');
+    }
+  };
+
+  const handlePrintBill = () => {
+    const printContent = document.getElementById('bill-receipt');
+    if (printContent) {
+      const printWindow = window.open('', '', 'width=600,height=800');
+      if (printWindow) {
+        printWindow.document.write(`
+          <html>
+            <head>
+              <title>In Hóa Đơn</title>
+              <script src="https://cdn.tailwindcss.com"></script>
+              <style>
+                @media print {
+                  body { padding: 0 !important; margin: 0 !important; }
+                  @page { margin: 0; }
+                }
+              </style>
+            </head>
+            <body class="p-8 font-mono text-sm text-gray-800">
+              ${printContent.innerHTML}
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+          printWindow.print();
+          printWindow.close();
+        }, 500);
+      }
     }
   };
 
@@ -482,13 +568,75 @@ const Revenue: React.FC = () => {
     return cashierNameMap[editor] || 'Quản lý';
   };
 
+  const incomeCash = incomeOrders.filter(o => (o.paymentMethod || 'CASH') === 'CASH').reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+  const incomeTransfer = incomeOrders.filter(o => o.paymentMethod === 'TRANSFER').reduce((sum, o) => sum + (o.totalAmount || 0), 0);
   const totalIncome = incomeOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
-  const totalExpense = expenseOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
-  const profit = totalIncome - totalExpense;
-  
-  const totalOrders = incomeOrders.length;
-  
 
+  const expenseCash = expenseOrders.filter(o => (o.paymentMethod || 'CASH') === 'CASH').reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+  const expenseTransfer = expenseOrders.filter(o => o.paymentMethod === 'TRANSFER').reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+  const totalExpense = expenseOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+
+  const profit = totalIncome - totalExpense;
+  const profitCash = incomeCash - expenseCash;
+  const profitTransfer = incomeTransfer - expenseTransfer;
+
+  const formatMoney = (val: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
+
+  const totalOrders = incomeOrders.length;
+
+  const getChartData = () => {
+    let buckets: any[] = [];
+    if (filterMode === 'day') {
+      for (let i = 0; i < 24; i++) {
+        buckets.push({ time: `${i}:00`, hour: i });
+      }
+    } else if (filterMode === 'week') {
+      const days = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'CN'];
+      days.forEach((d, i) => buckets.push({ time: d, dayIndex: i + 1 }));
+    } else if (filterMode === 'month') {
+      const daysInMonth = new Date(refDate.getFullYear(), refDate.getMonth() + 1, 0).getDate();
+      for (let i = 1; i <= daysInMonth; i++) {
+        buckets.push({ time: `${i}/${refDate.getMonth() + 1}`, date: i });
+      }
+    }
+
+    const activeBranches = selectedBranch === 'all'
+      ? branches
+      : branches.filter(b => b.id === selectedBranch);
+
+    buckets.forEach(b => {
+      activeBranches.forEach(branch => {
+        b[branch.name] = 0;
+      });
+    });
+
+    filteredOrders.forEach(o => {
+      const d = o.createdAt?.toDate ? o.createdAt.toDate() : new Date(o.createdAt);
+      if (isNaN(d.getTime())) return;
+
+      let bucket = null;
+      if (filterMode === 'day') {
+        const h = d.getHours();
+        bucket = buckets.find(b => b.hour === h);
+      } else if (filterMode === 'week') {
+        let dIndex = d.getDay();
+        dIndex = dIndex === 0 ? 7 : dIndex;
+        bucket = buckets.find(b => b.dayIndex === dIndex);
+      } else if (filterMode === 'month') {
+        const date = d.getDate();
+        bucket = buckets.find(b => b.date === date);
+      }
+
+      if (bucket && o.branchName) {
+        if (bucket[o.branchName] !== undefined) {
+          const amount = o.type === 'EXPENSE' ? -(o.totalAmount || 0) : (o.totalAmount || 0);
+          bucket[o.branchName] += amount;
+        }
+      }
+    });
+
+    return { data: buckets, lines: activeBranches.map(b => b.name) };
+  };
 
 
   if (loading) return <div className="p-8 text-center text-gray-500">Đang tải dữ liệu doanh thu...</div>;
@@ -503,7 +651,7 @@ const Revenue: React.FC = () => {
         <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-2">
             <label className="text-sm font-medium text-gray-600">Thời gian:</label>
-            <select 
+            <select
               value={filterMode}
               onChange={(e) => {
                 setFilterMode(e.target.value as any);
@@ -515,14 +663,14 @@ const Revenue: React.FC = () => {
               <option value="week">Theo tuần</option>
               <option value="month">Theo tháng</option>
             </select>
-            
+
             <div className="flex items-center gap-1 bg-white border border-gray-300 rounded-lg px-1 py-1 h-[42px]">
               <button onClick={() => navigateDate(-1)} className="p-1.5 hover:bg-gray-100 rounded-md text-gray-600 transition-colors">
                 <ChevronLeft size={18} />
               </button>
-              
+
               <div className="px-2 flex items-center justify-center min-w-[130px]">
-                 {renderDateDisplay()}
+                {renderDateDisplay()}
               </div>
 
               <button onClick={() => navigateDate(1)} className="p-1.5 hover:bg-gray-100 rounded-md text-gray-600 transition-colors">
@@ -530,11 +678,11 @@ const Revenue: React.FC = () => {
               </button>
             </div>
           </div>
-          
+
           {userRole === 'SUPER_ADMIN' && (
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium text-gray-600">Cơ sở:</label>
-              <select 
+              <select
                 value={selectedBranch}
                 onChange={(e) => setSelectedBranch(e.target.value)}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-gray-700 min-w-[200px]"
@@ -547,11 +695,24 @@ const Revenue: React.FC = () => {
             </div>
           )}
 
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-600">Thanh toán:</label>
+            <select
+              value={paymentMethodFilter}
+              onChange={(e) => setPaymentMethodFilter(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-gray-700 min-w-[150px]"
+            >
+              <option value="all">Tất cả</option>
+              <option value="CASH">Tiền mặt</option>
+              <option value="TRANSFER">Chuyển khoản</option>
+            </select>
+          </div>
+
           <button
             onClick={async () => {
               if (userRole === 'POS') {
                 const branchIdStr = userBranchId || '';
-                let cashiers: {id: string, name: string}[] = [];
+                let cashiers: { id: string, name: string }[] = [];
 
                 // 1. Kiểm tra ca đang mở (ưu tiên giống trên bill)
                 const shiftQ = query(
@@ -560,18 +721,18 @@ const Revenue: React.FC = () => {
                   where('status', '==', 'OPEN')
                 );
                 const shiftSnap = await getDocs(shiftQ);
-                
+
                 if (!shiftSnap.empty) {
-                   const openShifts = shiftSnap.docs.map(d => d.data());
-                   openShifts.sort((a, b) => {
-                      const timeA = a.startTime?.toMillis ? a.startTime.toMillis() : 0;
-                      const timeB = b.startTime?.toMillis ? b.startTime.toMillis() : 0;
-                      return timeB - timeA;
-                   });
-                   const openShift = openShifts[0];
-                   if (openShift.cashierName && openShift.cashierEmail) {
-                      cashiers.push({ id: openShift.cashierEmail, name: openShift.cashierName });
-                   }
+                  const openShifts = shiftSnap.docs.map(d => d.data());
+                  openShifts.sort((a, b) => {
+                    const timeA = a.startTime?.toMillis ? a.startTime.toMillis() : 0;
+                    const timeB = b.startTime?.toMillis ? b.startTime.toMillis() : 0;
+                    return timeB - timeA;
+                  });
+                  const openShift = openShifts[0];
+                  if (openShift.cashierName && openShift.cashierEmail) {
+                    cashiers.push({ id: openShift.cashierEmail, name: openShift.cashierName });
+                  }
                 }
 
                 // 2. Nếu không có ca mở, lấy tất cả những người đang check in
@@ -582,20 +743,20 @@ const Revenue: React.FC = () => {
                   const checkedInIds = attSnap.docs
                     .map(d => (d.data().checkIn && !d.data().checkOut) ? d.data().employeeId : null)
                     .filter(Boolean);
-                  
+
                   for (const id of checkedInIds) {
-                     const empDoc = await getDoc(doc(db, 'employees', id as string));
-                     if (empDoc.exists()) {
-                        const code = empDoc.data().employeeCode || empDoc.id;
-                        const name = empDoc.data().fullName || empDoc.data().name || '';
-                        cashiers.push({ id: empDoc.data().email || id as string, name: `${code} - ${name}` });
-                     }
+                    const empDoc = await getDoc(doc(db, 'employees', id as string));
+                    if (empDoc.exists()) {
+                      const code = empDoc.data().employeeCode || empDoc.id;
+                      const name = empDoc.data().fullName || empDoc.data().name || '';
+                      cashiers.push({ id: empDoc.data().email || id as string, name: `${code} - ${name}` });
+                    }
                   }
                 }
 
                 setActiveCashiers(cashiers);
                 setSelectedCashierId(cashiers.length === 1 ? cashiers[0].id : '');
-                
+
                 if (cashiers.length === 0) {
                   toast.error("Không có thu ngân nào đang check-in. Vui lòng chấm công trước!");
                   return; // Chặn không cho thêm phiếu chi nếu chưa ai check-in
@@ -623,8 +784,11 @@ const Revenue: React.FC = () => {
           <div>
             <p className="text-sm font-medium text-gray-500 mb-1">Tổng Thu</p>
             <h3 className="text-2xl font-black text-blue-600">
-              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(totalIncome)}
+              {formatMoney(totalIncome)}
             </h3>
+            <p className="text-[11px] text-gray-400 mt-1 font-medium tracking-tight">
+              Mặt: {formatMoney(incomeCash)} | CK: {formatMoney(incomeTransfer)}
+            </p>
           </div>
         </div>
 
@@ -635,8 +799,11 @@ const Revenue: React.FC = () => {
           <div>
             <p className="text-sm font-medium text-gray-500 mb-1">Tổng Chi</p>
             <h3 className="text-2xl font-black text-red-600">
-              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(totalExpense)}
+              {formatMoney(totalExpense)}
             </h3>
+            <p className="text-[11px] text-gray-400 mt-1 font-medium tracking-tight">
+              Mặt: {formatMoney(expenseCash)} | CK: {formatMoney(expenseTransfer)}
+            </p>
           </div>
         </div>
 
@@ -647,8 +814,11 @@ const Revenue: React.FC = () => {
           <div>
             <p className="text-sm font-medium text-gray-500 mb-1">Thực thu</p>
             <h3 className="text-2xl font-black text-green-600">
-              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(profit)}
+              {formatMoney(profit)}
             </h3>
+            <p className="text-[11px] text-gray-400 mt-1 font-medium tracking-tight">
+              Mặt: {formatMoney(profitCash)} | CK: {formatMoney(profitTransfer)}
+            </p>
           </div>
         </div>
 
@@ -666,106 +836,181 @@ const Revenue: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 mb-8">
-        <div className="p-5 border-b border-gray-100 bg-white rounded-t-2xl">
-          <h2 className="text-lg font-bold text-gray-800">Lịch sử Hóa đơn gần đây</h2>
+        <div className="p-5 border-b border-gray-100 bg-white rounded-t-2xl flex justify-between items-center flex-wrap gap-4">
+          <h2 className="text-lg font-bold text-gray-800">
+            {viewMode === 'table' ? 'Lịch sử Hóa đơn gần đây' : 'Biểu đồ Doanh thu (Thực thu)'}
+          </h2>
+          <div className="flex bg-gray-100 p-1 rounded-lg">
+            <button
+              onClick={() => setViewMode('table')}
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'table' ? 'bg-white shadow text-blue-600' : 'text-gray-600 hover:bg-gray-200'}`}
+            >
+              <TableIcon size={16} /> Bảng
+            </button>
+            <button
+              onClick={() => setViewMode('chart')}
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'chart' ? 'bg-white shadow text-blue-600' : 'text-gray-600 hover:bg-gray-200'}`}
+            >
+              <BarChart2 size={16} /> Biểu đồ
+            </button>
+          </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse whitespace-nowrap">
-            <thead className="sticky top-0 bg-gray-50 z-10 shadow-sm">
-              <tr>
-                <th className="p-4 font-semibold text-gray-600">STT</th>
-                <th className="p-4 font-semibold text-gray-600">Mã Đơn</th>
-                <th className="p-4 font-semibold text-gray-600">Cơ sở</th>
-                <th className="p-4 font-semibold text-gray-600">Thời gian</th>
-                <th className="p-4 font-semibold text-gray-600">Thu ngân</th>
-                <th className="p-4 font-semibold text-gray-600">Chi tiết món</th>
-                <th className="p-4 font-semibold text-gray-600 text-right">Tổng tiền</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredOrders.length === 0 ? (
-                <tr><td colSpan={7} className="p-8 text-center text-gray-500 italic">Chưa có hóa đơn nào</td></tr>
-              ) : (
-                filteredOrders.map((order, index) => {
-                  const dateObj = order.createdAt?.toDate ? order.createdAt.toDate() : new Date(order.createdAt);
-                  const dateStr = !isNaN(dateObj.getTime()) ? `${dateObj.toLocaleDateString('vi-VN')} ${dateObj.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}` : 'Chưa rõ';
-                  let cashierName = 'null';
-                  if (order.cashierEmail && order.cashierEmail !== 'null') {
-                    if (order.cashierEmail.includes('@')) {
-                      cashierName = cashierNameMap[order.cashierEmail] || 'null';
-                    } else {
-                      cashierName = order.cashierEmail;
+
+        {viewMode === 'table' ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead className="sticky top-0 bg-gray-50 z-10 shadow-sm whitespace-nowrap">
+                <tr>
+                  <th className="p-3 font-semibold text-gray-600">STT</th>
+                  <th className="p-3 font-semibold text-gray-600">Mã Đơn</th>
+                  <th className="p-3 font-semibold text-gray-600">Cơ sở</th>
+                  <th className="p-3 font-semibold text-gray-600">Thời gian</th>
+                  <th className="p-3 font-semibold text-gray-600">Thu ngân</th>
+                  <th className="p-3 font-semibold text-gray-600">Chi tiết món</th>
+                  <th className="p-3 font-semibold text-gray-600 text-right">Tổng tiền</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredOrders.length === 0 ? (
+                  <tr><td colSpan={7} className="p-8 text-center text-gray-500 italic">Chưa có hóa đơn nào</td></tr>
+                ) : (
+                  filteredOrders.map((order, index) => {
+                    const dateObj = order.createdAt?.toDate ? order.createdAt.toDate() : new Date(order.createdAt);
+                    const dateStr = !isNaN(dateObj.getTime()) ? `${dateObj.toLocaleDateString('vi-VN')} ${dateObj.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}` : 'Chưa rõ';
+                    let cashierName = 'null';
+                    if (order.cashierEmail && order.cashierEmail !== 'null') {
+                      if (order.cashierEmail.includes('@')) {
+                        cashierName = cashierNameMap[order.cashierEmail] || 'null';
+                      } else {
+                        cashierName = order.cashierEmail;
+                      }
                     }
-                  }
-                  
-                  const isExpense = order.type === 'EXPENSE';
-                  const canEdit = isExpense && userRole !== 'POS' && !order.deletedBy;
-                  
-                  return (
-                    <tr 
-                      key={order.id} 
-                      onClick={() => {
-                        if (canEdit) openEditExpense(order);
-                        else {
+
+                    const isExpense = order.type === 'EXPENSE';
+                    const canEdit = isExpense && userRole !== 'POS' && !order.deletedBy;
+
+                    return (
+                      <tr
+                        key={order.id}
+                        onClick={() => {
                           setBillModalData({ ...order, cashierName, branchAddress: order.branchId ? branchAddressMap[order.branchId] : null });
                           setIsEditBillMode(false);
-                        }
-                      }}
-                      className={`border-b border-gray-100 transition-colors ${isExpense ? 'bg-red-50' : 'hover:bg-gray-50'} cursor-pointer ${canEdit ? 'hover:bg-red-100' : ''} ${order.deletedBy ? 'opacity-70' : ''}`}
-                    >
-                      <td className="p-4 text-gray-600 font-medium">{filteredOrders.length - index}</td>
-                      <td className={`p-4 font-mono font-medium ${isExpense ? 'text-red-600' : 'text-blue-600'}`}>
-                        {isExpense && <span className="bg-red-100 text-red-600 px-2 py-0.5 rounded text-xs mr-2 font-bold">[CHI]</span>}
-                        #{order.orderCode || order.id.slice(-6).toUpperCase()}
-                      </td>
-                      <td className="p-4 text-gray-600">{(order as any).branchName}</td>
-                      <td className="p-4 text-gray-600 flex items-center gap-2">
-                        <CalendarIcon size={14} className="text-gray-400" />
-                        {dateStr}
-                      </td>
-                      <td className="p-4 text-gray-600">{cashierName}</td>
-                      <td className="p-4 text-sm text-gray-500 max-w-xs truncate">
-                        {order.items?.map(i => isExpense ? i.name : `${i.quantity}x ${i.name}`).join(', ')}
-                        {order.note && <span className="block text-xs text-gray-400 mt-0.5">Ghi chú: {order.note}</span>}
-                        {order.deletedBy && (
-                          <span className="block text-[11px] text-red-500 font-bold mt-1">
-                            (Đã xóa bởi {formatEditorName(order.deletedBy)})
-                          </span>
-                        )}
-                        {!order.deletedBy && order.editCount && order.editCount > 0 ? (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setHistoryModalOrder(order);
-                            }}
-                            className="block text-[10px] text-blue-500 hover:text-blue-700 font-medium mt-1 cursor-pointer"
-                          >
-                            (Đã sửa {order.editCount} lần - Xem chi tiết)
-                          </button>
-                        ) : null}
-                      </td>
-                      <td className={`p-4 font-bold text-right text-lg ${isExpense ? 'text-red-600' : 'text-gray-800'} ${order.deletedBy ? 'line-through text-gray-400' : ''}`}>
-                        {isExpense && !order.deletedBy ? '-' : ''}{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(order.totalAmount)}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                        }}
+                        className={`border-b border-gray-100 transition-colors ${isExpense ? 'bg-red-50' : 'hover:bg-gray-50'} cursor-pointer ${canEdit ? 'hover:bg-red-100' : ''} ${order.deletedBy ? 'opacity-70' : ''}`}
+                      >
+                        <td className="p-3 text-gray-600 font-medium whitespace-nowrap">{filteredOrders.length - index}</td>
+                        <td className={`p-3 font-mono font-medium whitespace-nowrap ${isExpense ? 'text-red-600' : 'text-blue-600'}`}>
+                          {isExpense && <span className="bg-red-100 text-red-600 px-2 py-0.5 rounded text-xs mr-2 font-bold">[CHI]</span>}
+                          #{order.orderCode || order.id.slice(-6).toUpperCase()}
+                        </td>
+                        <td className="p-3 text-gray-600 whitespace-nowrap">{(order as any).branchName}</td>
+                        <td className="p-3 text-gray-600 flex items-center gap-2 whitespace-nowrap">
+                          <CalendarIcon size={14} className="text-gray-400" />
+                          {dateStr}
+                        </td>
+                        <td className="p-3 text-gray-600 whitespace-nowrap">{cashierName}</td>
+                        <td className="p-3 text-sm text-gray-500 min-w-[200px] break-words">
+                          {order.items?.map(i => isExpense ? i.name : `${i.quantity}x ${i.name}`).join(', ')}
+                          {order.note && <span className="block text-xs text-gray-400 mt-0.5">Ghi chú: {order.note}</span>}
+                          {order.deletedBy && (
+                            <span className="block text-[11px] text-red-500 font-bold mt-1">
+                              (Đã xóa bởi {formatEditorName(order.deletedBy)})
+                            </span>
+                          )}
+                          {!order.deletedBy && order.editCount && order.editCount > 0 ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setHistoryModalOrder(order);
+                              }}
+                              className="block text-[10px] text-blue-500 hover:text-blue-700 font-medium mt-1 cursor-pointer"
+                            >
+                              (Đã sửa {order.editCount} lần - Xem chi tiết)
+                            </button>
+                          ) : null}
+                        </td>
+                        <td className={`p-3 font-bold text-right text-lg whitespace-nowrap ${isExpense ? 'text-red-600' : 'text-gray-800'} ${order.deletedBy ? 'line-through text-gray-400' : ''}`}>
+                          {isExpense && !order.deletedBy ? '-' : ''}{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(order.totalAmount)}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="p-6">
+            <div className="flex flex-wrap items-center gap-2 mb-6 border-b border-gray-100 pb-4">
+              <span className="text-sm font-medium text-gray-600 mr-2">Chọn cơ sở hiển thị:</span>
+              {getChartData().lines.map((branchName, idx) => {
+                const isHidden = hiddenChartBranches.includes(branchName);
+                const color = ['#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'][idx % 6];
+                return (
+                  <button
+                    key={branchName}
+                    onClick={() => toggleChartBranch(branchName)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${!isHidden ? 'text-white' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
+                    style={{
+                      backgroundColor: !isHidden ? color : undefined,
+                      borderColor: !isHidden ? color : '#E5E7EB'
+                    }}
+                  >
+                    {branchName}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="h-[400px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={getChartData().data}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                  <XAxis dataKey="time" tick={{ fontSize: 12, fill: '#6B7280' }} tickLine={false} axisLine={false} />
+                  <YAxis
+                    tickFormatter={(val) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(val)}
+                    tick={{ fontSize: 12, fill: '#6B7280' }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={90}
+                  />
+                  <Tooltip
+                    formatter={(value: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value)}
+                    labelStyle={{ fontWeight: 'bold', color: '#374151' }}
+                  />
+                  <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
+                  {getChartData().lines.map((branchName, idx) => {
+                    if (hiddenChartBranches.includes(branchName)) return null;
+                    const colors = ['#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
+                    return (
+                      <Line
+                        key={branchName}
+                        type="monotone"
+                        dataKey={branchName}
+                        name={branchName}
+                        stroke={colors[idx % colors.length]}
+                        strokeWidth={3}
+                        dot={{ r: 4, strokeWidth: 2 }}
+                        activeDot={{ r: 6 }}
+                      />
+                    );
+                  })}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modal Xuất Bill */}
       {billModalData && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-w-md w-full max-h-[90vh]">
             <div className="p-6 bg-blue-500 text-white flex flex-col items-center justify-center pb-8 rounded-b-[40px] shadow-sm z-10 relative">
               <button
                 onClick={() => setBillModalData(null)}
                 className="absolute top-4 right-4 bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
               </button>
               <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-3 shadow-lg">
                 <Receipt size={32} className="text-blue-500" />
@@ -786,7 +1031,7 @@ const Revenue: React.FC = () => {
                 <div className="border-t border-b border-dashed border-gray-300 py-3 mb-4 space-y-1 text-xs">
                   <div className="flex justify-between"><span>Mã ĐH:</span> <strong>#{billModalData.orderCode || billModalData.id.slice(-6).toUpperCase()}</strong></div>
                   <div className="flex justify-between">
-                    <span>Ngày:</span> 
+                    <span>Ngày:</span>
                     <strong>
                       {(() => {
                         const dateObj = billModalData.createdAt?.toDate ? billModalData.createdAt.toDate() : new Date(billModalData.createdAt);
@@ -836,7 +1081,7 @@ const Revenue: React.FC = () => {
                     ))}
                   </tbody>
                 </table>
-                
+
                 {isEditBillMode && (
                   <div className="mb-4 flex gap-2">
                     <select
@@ -856,7 +1101,7 @@ const Revenue: React.FC = () => {
                 <div className="flex justify-between items-center pt-4 mt-4 border-t border-gray-300 font-bold text-lg">
                   <span>TỔNG CỘNG:</span>
                   <span>
-                    {isEditBillMode 
+                    {isEditBillMode
                       ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(billEditItems.reduce((sum, item) => sum + (item.price * item.quantity), 0))
                       : new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(billModalData.totalAmount)
                     }
@@ -874,14 +1119,14 @@ const Revenue: React.FC = () => {
                           history.push({ editedAt: null, editedBy: billModalData.lastEditedBy });
                         }
                         if (billModalData.editHistory) history.push(...billModalData.editHistory);
-                        
+
                         return history.map((h: any, i: number) => (
                           <li key={i}>
                             - Lần {i + 1}: {h.editedAt ? new Date(h.editedAt).toLocaleString('vi-VN') : 'Trước đây'} bởi <strong>{formatEditorName(h.editedBy)}</strong>
                             {h.oldAmount !== undefined && h.newAmount !== undefined && (
                               <span className="block text-gray-400 ml-3">
-                                {h.note?.startsWith('XÓA') 
-                                  ? `(${h.note}, giảm từ ${new Intl.NumberFormat('vi-VN').format(h.oldAmount)}đ)` 
+                                {h.note?.startsWith('XÓA')
+                                  ? `(${h.note}, giảm từ ${new Intl.NumberFormat('vi-VN').format(h.oldAmount)}đ)`
                                   : `(Sửa từ ${new Intl.NumberFormat('vi-VN').format(h.oldAmount)}đ -> ${new Intl.NumberFormat('vi-VN').format(h.newAmount)}đ)`}
                               </span>
                             )}
@@ -910,16 +1155,42 @@ const Revenue: React.FC = () => {
                     </>
                   )}
                 </div>
-                
-                {billModalData.branchAddress && (
-                  <div className="text-left mt-4 text-xs text-gray-600 border-t border-dashed border-gray-300 pt-4">
-                    <p>Địa chỉ: {billModalData.branchAddress}</p>
-                  </div>
-                )}
 
-                <div className="text-center mt-4 text-xs text-gray-500">
-                  <p>Cảm ơn quý khách đã ủng hộ!</p>
-                  <p>Hẹn gặp lại</p>
+                {(() => {
+                  const currentBranch = branches.find(b => b.id === (billModalData.branchId || userBranchId));
+                  if (currentBranch?.address) {
+                    return (
+                      <div className="text-left mt-4 text-xs text-gray-600 border-t border-dashed border-gray-300 pt-4 space-y-1">
+                        <p>Địa chỉ: {currentBranch.address}</p>
+                        {currentBranch.phone && <p>Hotline: {currentBranch.phone}</p>}
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
+                <div className="mt-4 pt-4 border-t border-dashed border-gray-300 flex justify-between items-center">
+                  <div className="text-center text-xs text-gray-500 italic flex-1 mr-2">
+                    <p>Cảm ơn quý khách đã ủng hộ!</p>
+                    <p>Hẹn gặp lại</p>
+                  </div>
+
+                  {(() => {
+                    const currentBranch = branches.find(b => b.id === (billModalData.branchId || userBranchId));
+                    if (currentBranch?.bankId && currentBranch?.bankAccount) {
+                      return (
+                        <div className="flex flex-col items-center justify-center">
+                          <img
+                            src={`https://img.vietqr.io/image/${currentBranch.bankId}-${currentBranch.bankAccount}-qr_only.png?amount=${billModalData.totalAmount}&addInfo=Thanh toan don ${billModalData.orderCode || billModalData.id.slice(-6).toUpperCase()}&accountName=${currentBranch.bankAccountName || ''}`}
+                            alt="Mã QR Thanh Toán"
+                            className="w-16 h-16 object-contain"
+                          />
+                          <p className="text-[9px] mt-1 text-gray-500 text-center uppercase font-medium">Quét thanh toán</p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               </div>
             </div>
@@ -948,6 +1219,13 @@ const Revenue: React.FC = () => {
                   >
                     Đóng
                   </button>
+                  <button
+                    onClick={() => handlePrintBill()}
+                    className="py-3 px-4 bg-green-100 text-green-600 font-bold rounded-xl hover:bg-green-200 transition-colors flex items-center justify-center"
+                    title="In hóa đơn"
+                  >
+                    <Printer size={20} />
+                  </button>
                   {userRole !== 'POS' && (
                     <>
                       <button
@@ -959,8 +1237,13 @@ const Revenue: React.FC = () => {
                       </button>
                       <button
                         onClick={() => {
-                          setBillEditItems(JSON.parse(JSON.stringify(billModalData.items || [])));
-                          setIsEditBillMode(true);
+                          if (billModalData.type === 'EXPENSE') {
+                            setBillModalData(null);
+                            openEditExpense(billModalData as any);
+                          } else {
+                            setBillEditItems(JSON.parse(JSON.stringify(billModalData.items || [])));
+                            setIsEditBillMode(true);
+                          }
                         }}
                         className="py-3 px-4 bg-blue-100 text-blue-600 font-bold rounded-xl hover:bg-blue-200 transition-colors flex items-center justify-center"
                         title="Sửa hóa đơn"
@@ -978,7 +1261,7 @@ const Revenue: React.FC = () => {
 
       {/* Expense Modal */}
       {showExpenseModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full animate-slide-up">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-red-50 rounded-t-2xl">
               <div className="flex items-center gap-3 text-red-600">
@@ -986,7 +1269,7 @@ const Revenue: React.FC = () => {
                 <h2 className="text-xl font-bold">{editingExpenseId ? 'Sửa Phiếu Chi' : 'Thêm Phiếu Chi'}</h2>
               </div>
             </div>
-            
+
             <form onSubmit={handleAddExpense} className="p-6">
               <div className="space-y-4">
                 {userRole === 'POS' && !editingExpenseId && (
@@ -1001,6 +1284,23 @@ const Revenue: React.FC = () => {
                       <option value="" disabled>-- Chọn thu ngân đang trong ca --</option>
                       {activeCashiers.map(c => (
                         <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {userRole === 'SUPER_ADMIN' && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Cơ sở (Bắt buộc) *</label>
+                    <select
+                      value={expenseBranchId}
+                      onChange={e => setExpenseBranchId(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 outline-none"
+                      required
+                      disabled={!!editingExpenseId}
+                    >
+                      <option value="all">Tất cả cơ sở</option>
+                      {branches.map(b => (
+                        <option key={b.id} value={b.id}>{b.name}</option>
                       ))}
                     </select>
                   </div>
@@ -1056,14 +1356,14 @@ const Revenue: React.FC = () => {
                               history.push({ editedAt: null, editedBy: editingOrder.lastEditedBy });
                             }
                             if (editingOrder.editHistory) history.push(...editingOrder.editHistory);
-                            
+
                             return history.map((h: any, i: number) => (
                               <li key={i}>
                                 - Lần {i + 1}: {h.editedAt ? new Date(h.editedAt).toLocaleString('vi-VN') : 'Trước đây'} bởi <strong>{formatEditorName(h.editedBy)}</strong>
                                 {h.oldAmount !== undefined && h.newAmount !== undefined && (
                                   <span className="block text-gray-400 ml-3">
-                                    {h.note?.startsWith('XÓA') 
-                                      ? `(${h.note}, giảm từ ${new Intl.NumberFormat('vi-VN').format(h.oldAmount)}đ)` 
+                                    {h.note?.startsWith('XÓA')
+                                      ? `(${h.note}, giảm từ ${new Intl.NumberFormat('vi-VN').format(h.oldAmount)}đ)`
                                       : `(Sửa từ ${new Intl.NumberFormat('vi-VN').format(h.oldAmount)}đ -> ${new Intl.NumberFormat('vi-VN').format(h.newAmount)}đ)`}
                                   </span>
                                 )}
@@ -1112,7 +1412,7 @@ const Revenue: React.FC = () => {
 
       {/* Custom Confirm Dialog */}
       {confirmDialog?.isOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 animate-slide-up">
             <h3 className="text-xl font-bold text-gray-800 mb-2">Xác nhận</h3>
             <p className="text-gray-600 mb-4">{confirmDialog.message}</p>
@@ -1157,7 +1457,7 @@ const Revenue: React.FC = () => {
 
       {/* History Modal */}
       {historyModalOrder && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-4 border-b flex justify-between items-center bg-gray-50">
               <h3 className="font-bold text-lg text-gray-800">Lịch sử chỉnh sửa</h3>
@@ -1174,7 +1474,7 @@ const Revenue: React.FC = () => {
                     history.push({ editedAt: null, editedBy: historyModalOrder.lastEditedBy });
                   }
                   if (historyModalOrder.editHistory) history.push(...historyModalOrder.editHistory);
-                  
+
                   return history.map((h: any, idx: number) => (
                     <div key={idx} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm relative">
                       <div className="absolute -left-2 top-4 w-4 h-4 bg-blue-100 rounded-full border-2 border-white shadow-sm"></div>
@@ -1191,7 +1491,7 @@ const Revenue: React.FC = () => {
                           <span className="mr-2 text-blue-400 mt-0.5">•</span>
                           <span>
                             {h.oldAmount !== undefined && h.newAmount !== undefined ? (
-                              h.note?.startsWith('XÓA') 
+                              h.note?.startsWith('XÓA')
                                 ? `${h.note}, giảm từ ${new Intl.NumberFormat('vi-VN').format(h.oldAmount)}đ`
                                 : `Sửa số tiền từ ${new Intl.NumberFormat('vi-VN').format(h.oldAmount)}đ -> ${new Intl.NumberFormat('vi-VN').format(h.newAmount)}đ`
                             ) : (

@@ -1,34 +1,75 @@
 import React, { useState, useEffect } from 'react';
 import { Settings as SettingsIcon } from 'lucide-react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteField, collection, getDocs, addDoc, query, where } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import toast from 'react-hot-toast';
 import { TimeInput24 } from '../components/TimeInput24';
 
-import { collection, getDocs, addDoc } from 'firebase/firestore';
+const calculateHoursWorked = (data: any): number => {
+  if (!data.checkIn) return 0;
+  if (data.logs && data.logs.length > 0) {
+    let totalMs = 0;
+    let lastIn: Date | null = null;
+    for (const log of data.logs) {
+      if (log.action === 'CHECK_IN') {
+        lastIn = log.time?.toDate ? log.time.toDate() : new Date(log.time);
+      } else if (log.action === 'CHECK_OUT' && lastIn) {
+        const outTime = log.time?.toDate ? log.time.toDate() : new Date(log.time);
+        totalMs += outTime.getTime() - lastIn.getTime();
+        lastIn = null;
+      }
+    }
+    if (lastIn && !data.checkOut) {
+      totalMs += Date.now() - lastIn.getTime();
+    }
+    return totalMs / (1000 * 60 * 60);
+  }
+  const inTime = data.checkIn?.toDate ? data.checkIn.toDate() : new Date(data.checkIn);
+  if (!data.checkOut) {
+    return Math.max(0, Date.now() - inTime.getTime()) / (1000 * 60 * 60);
+  }
+  const outTime = data.checkOut?.toDate ? data.checkOut.toDate() : new Date(data.checkOut);
+  return Math.max(0, outTime.getTime() - inTime.getTime()) / (1000 * 60 * 60);
+};
 
 const Settings: React.FC = () => {
   const [penaltyMap, setPenaltyMap] = useState<Record<string, number>>({});
+  const [lateGracePeriodMap, setLateGracePeriodMap] = useState<Record<string, number>>({});
+  const [dbPenaltyMap, setDbPenaltyMap] = useState<Record<string, number>>({});
+  const [dbLateGracePeriodMap, setDbLateGracePeriodMap] = useState<Record<string, number>>({});
   const [selectedBranch, setSelectedBranch] = useState('ALL');
+  const [graceString, setGraceString] = useState<string>('');
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [branches, setBranches] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   const [bonusTargetType, setBonusTargetType] = useState('ALL');
   const [bonusTargetId, setBonusTargetId] = useState('');
-  const [bonusAmount, setBonusAmount] = useState(0);
-  const [bonusReason, setBonusReason] = useState('');
-  const [bonusLoading, setBonusLoading] = useState(false);
+  const [bonusEmployeeBranchId, setBonusEmployeeBranchId] = useState('ALL');
+  const [bonusAmount, setBonusAmount] = useState<number>(0);
+  const [bonusReason, setBonusReason] = useState<string>('');
+  const [bonusType, setBonusType] = useState<string>('BONUS');
+  const [bonusLoading, setBonusLoading] = useState<boolean>(false);
   const [employees, setEmployees] = useState<any[]>([]);
-  
+
   const userRole = localStorage.getItem('userRole') || 'EMPLOYEE';
   const employeeId = localStorage.getItem('employeeId');
   const [userBranchId, setUserBranchId] = useState('');
 
   useEffect(() => {
+    // Only update graceString from db state when branch changes or db state changes
+    const secs = dbLateGracePeriodMap[selectedBranch] !== undefined ? dbLateGracePeriodMap[selectedBranch] : (dbLateGracePeriodMap['ALL'] ?? 900);
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    setGraceString(`${m}:${s.toString().padStart(2, '0')}`);
+  }, [selectedBranch, dbLateGracePeriodMap]);
+
+  useEffect(() => {
     const fetchSettings = async () => {
       try {
         const docSnap = await getDoc(doc(db, 'settings', 'general'));
-        let pm: Record<string, number> = { ALL: 1000 };
+        let pm: Record<string, number> = { ALL: 0 };
+        let sm: Record<string, number> = { ALL: 0 };
         if (docSnap.exists()) {
           const data = docSnap.data();
           if (typeof data.latePenalty === 'number') {
@@ -36,8 +77,16 @@ const Settings: React.FC = () => {
           } else if (typeof data.latePenalty === 'object') {
             pm = { ...pm, ...data.latePenalty };
           }
+          if (typeof data.lateGracePeriod === 'number') {
+            sm = { ALL: data.lateGracePeriod };
+          } else if (typeof data.lateGracePeriod === 'object') {
+            sm = { ...sm, ...data.lateGracePeriod };
+          }
         }
         setPenaltyMap(pm);
+        setLateGracePeriodMap(sm);
+        setDbPenaltyMap(pm);
+        setDbLateGracePeriodMap(sm);
 
         const branchSnap = await getDocs(collection(db, 'branches'));
         const brs: any[] = [];
@@ -48,15 +97,21 @@ const Settings: React.FC = () => {
         const emps: any[] = [];
         let myBranch = '';
         empSnap.forEach(e => {
-            const data = e.data();
-            emps.push({ id: e.id, fullName: data.fullName, branchId: data.branchId });
-            if (e.id === employeeId) myBranch = data.branchId;
+          const data = e.data();
+          emps.push({
+            id: e.id,
+            fullName: data.fullName,
+            branchId: data.branchId,
+            employeeCode: data.employeeCode,
+            position: data.position || 'Khác'
+          });
+          if (e.id === employeeId) myBranch = data.branchId;
         });
         setEmployees(emps);
         setUserBranchId(myBranch);
 
         if (userRole === 'BRANCH_ADMIN') {
-            setSelectedBranch(myBranch);
+          setSelectedBranch(myBranch);
         }
       } catch (error) {
         console.error('Error fetching settings:', error);
@@ -68,7 +123,12 @@ const Settings: React.FC = () => {
   const handleSave = async () => {
     setLoading(true);
     try {
-      await setDoc(doc(db, 'settings', 'general'), { latePenalty: penaltyMap }, { merge: true });
+      await setDoc(doc(db, 'settings', 'general'), {
+        latePenalty: penaltyMap,
+        lateGracePeriod: lateGracePeriodMap
+      }, { merge: true });
+      setDbPenaltyMap(penaltyMap);
+      setDbLateGracePeriodMap(lateGracePeriodMap);
       toast.success('Lưu cấu hình thành công!');
     } catch (error) {
       toast.error('Lỗi khi lưu cấu hình');
@@ -77,11 +137,35 @@ const Settings: React.FC = () => {
       setLoading(false);
     }
   };
-  const handleBonus = async () => {
-    if (!bonusAmount || !bonusReason) {
-      toast.error('Vui lòng nhập số tiền và lý do thưởng');
-      return;
+
+  const handleDeleteBranchConfig = async () => {
+    setLoading(true);
+    try {
+      const newPenaltyMap = { ...penaltyMap };
+      const newShiftStartTimeMap = { ...lateGracePeriodMap };
+      delete newPenaltyMap[selectedBranch];
+      delete newShiftStartTimeMap[selectedBranch];
+
+      await updateDoc(doc(db, 'settings', 'general'), {
+        [`latePenalty.${selectedBranch}`]: deleteField(),
+        [`lateGracePeriod.${selectedBranch}`]: deleteField()
+      });
+
+      setPenaltyMap(newPenaltyMap);
+      setLateGracePeriodMap(newShiftStartTimeMap);
+      setDbPenaltyMap(newPenaltyMap);
+      setDbLateGracePeriodMap(newShiftStartTimeMap);
+      toast.success('Đã xóa cấu hình!');
+    } catch (error) {
+      toast.error('Lỗi khi xóa cấu hình');
+      console.error(error);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleAddBonus = async () => {
+    setShowConfirmModal(false);
     setBonusLoading(true);
     try {
       const month = new Date().toISOString().substring(0, 7); // current month
@@ -113,28 +197,57 @@ const Settings: React.FC = () => {
       }
 
       for (const emp of targetEmployees) {
+        let currentBalance = 0;
+        try {
+          const attQ = query(collection(db, 'attendance'), where('employeeId', '==', emp.id), where('isPaid', '==', false));
+          const attSnap = await getDocs(attQ);
+          attSnap.forEach(d => {
+            const hours = calculateHoursWorked(d.data());
+            currentBalance += hours * (emp.salaryPerHour || 0);
+          });
+
+          const bonusQ = query(collection(db, 'bonuses'), where('employeeId', '==', emp.id), where('isPaid', '==', false));
+          const bonusSnap = await getDocs(bonusQ);
+          bonusSnap.forEach(d => {
+            const val = d.data().amount || 0;
+            if (d.data().type === 'DEDUCT') currentBalance -= val;
+            else currentBalance += val;
+          });
+        } catch (e) {
+          console.error("Lỗi tính balance:", e);
+        }
+
+        let newBalance = currentBalance;
+        if (bonusType === 'DEDUCT') newBalance -= bonusAmount;
+        else newBalance += bonusAmount;
+
         // Add to bonuses collection
         promises.push(addDoc(collection(db, 'bonuses'), {
           employeeId: emp.id,
           amount: bonusAmount,
           reason: bonusReason,
+          type: bonusType,
           month: month,
+          isPaid: false,
           createdAt: new Date()
         }));
 
         // Send notification
+        const isBonus = bonusType === 'BONUS';
         promises.push(addDoc(collection(db, 'notifications'), {
           employeeId: emp.id,
-          title: 'Nhận thưởng đột xuất',
-          message: `Bạn vừa được thưởng ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(bonusAmount)} với lý do: ${bonusReason}.`,
-          type: 'MONEY_ADD',
+          title: isBonus ? 'Nhận thưởng đột xuất' : 'Bị trừ tiền / Phạt',
+          message: isBonus
+            ? `Bạn vừa được thưởng ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(bonusAmount)} với lý do: ${bonusReason}.\nSố dư hiện tại (Tạm tính): ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(newBalance)}`
+            : `Tài khoản của bạn vừa bị trừ ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(bonusAmount)} với lý do: ${bonusReason}.\nSố dư hiện tại (Tạm tính): ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(newBalance)}`,
+          type: isBonus ? 'MONEY_ADD' : 'MONEY_DEDUCT',
           read: false,
           createdAt: new Date()
         }));
       }
 
       await Promise.all(promises);
-      toast.success(`Đã thưởng cho ${targetEmployees.length} nhân viên!`);
+      toast.success(`Đã ${bonusType === 'BONUS' ? 'thưởng' : 'phạt'} cho ${targetEmployees.length} nhân viên!`);
       setBonusAmount(0);
       setBonusReason('');
       setBonusTargetId('');
@@ -159,9 +272,9 @@ const Settings: React.FC = () => {
         <div className="flex flex-col sm:flex-row gap-4 mb-4">
           <div className="flex-1">
             <label className="block text-sm font-medium text-gray-700 mb-1">Cơ sở áp dụng</label>
-            <select 
-              value={selectedBranch} 
-              onChange={e => setSelectedBranch(e.target.value)} 
+            <select
+              value={selectedBranch}
+              onChange={e => setSelectedBranch(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none"
               disabled={userRole === 'BRANCH_ADMIN'}
             >
@@ -171,46 +284,106 @@ const Settings: React.FC = () => {
           </div>
           <div className="flex-1">
             <label className="block text-sm font-medium text-gray-700 mb-1">Mức phạt đi trễ (VNĐ / phút)</label>
-            <input 
-              type="text" 
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none" 
-              value={(penaltyMap[selectedBranch] || 0) === 0 ? '' : (penaltyMap[selectedBranch] || 0).toLocaleString('vi-VN')} 
+            <input
+              type="text"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none"
+              value={(penaltyMap[selectedBranch] || 0) === 0 ? '' : (penaltyMap[selectedBranch] || 0).toLocaleString('vi-VN')}
               onChange={e => {
                 const val = e.target.value.replace(/\D/g, '');
                 const num = parseInt(val) || 0;
                 setPenaltyMap(prev => ({ ...prev, [selectedBranch]: num }));
-              }} 
+              }}
               placeholder="0"
             />
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Giờ bắt đầu ca sáng</label>
-          <TimeInput24 
-            value="08:00" 
-            onChange={() => {}} 
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-blue-500 bg-white" 
+          <label className="block text-sm font-medium text-gray-700 mb-1">Thời gian châm chước đi trễ (phút:giây)</label>
+          <TimeInput24
+            value={graceString}
+            onChange={val => {
+              setGraceString(val);
+              if (val.includes(':')) {
+                const [mStr, sStr] = val.split(':');
+                const m = parseInt(mStr) || 0;
+                const s = parseInt(sStr) || 0;
+                setLateGracePeriodMap(prev => ({ ...prev, [selectedBranch]: m * 60 + s }));
+              } else {
+                const m = parseInt(val) || 0;
+                setLateGracePeriodMap(prev => ({ ...prev, [selectedBranch]: m * 60 }));
+              }
+            }}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-blue-500 bg-white"
           />
         </div>
 
-        <button 
-          onClick={handleSave}
-          disabled={loading}
-          className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-        >
-          {loading ? 'Đang lưu...' : 'Lưu Cấu Hình'}
-        </button>
+        <div className="flex items-center gap-3">
+          {(() => {
+            const isPenaltyModified = penaltyMap[selectedBranch] !== dbPenaltyMap[selectedBranch];
+            const isGraceModified = lateGracePeriodMap[selectedBranch] !== dbLateGracePeriodMap[selectedBranch];
+            const isModified = isPenaltyModified || isGraceModified;
+            const hasCustomConfig = dbPenaltyMap[selectedBranch] !== undefined || dbLateGracePeriodMap[selectedBranch] !== undefined;
+
+            if (isModified) {
+              return (
+                <button
+                  onClick={handleSave}
+                  disabled={loading}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                >
+                  {loading ? 'Đang lưu...' : 'Lưu Cấu Hình Mới'}
+                </button>
+              );
+            } else if (hasCustomConfig) {
+              return (
+                <button
+                  onClick={handleDeleteBranchConfig}
+                  disabled={loading}
+                  className="bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                >
+                  {loading ? 'Đang xóa...' : 'Xóa Cấu Hình'}
+                </button>
+              );
+            } else {
+              return (
+                <button
+                  onClick={handleSave}
+                  disabled={loading || !isModified}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                >
+                  Tạo Cấu Hình Riêng
+                </button>
+              );
+            }
+          })()}
+        </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-4 max-w-2xl">
-        <h3 className="text-lg font-semibold text-gray-800 border-b border-gray-100 pb-3">Thưởng Đột Xuất / Lễ Tết</h3>
-        <p className="text-xs text-gray-500">Khoản thưởng sẽ được cộng trực tiếp vào bảng lương tháng này của nhân viên.</p>
-        
+        <h3 className="text-lg font-semibold text-gray-800 border-b border-gray-100 pb-3">Thưởng / Phạt Đột Xuất</h3>
+        <p className="text-xs text-gray-500">Khoản thưởng/phạt sẽ được cộng/trừ trực tiếp vào bảng lương tháng này của nhân viên.</p>
+
+        <div className="flex flex-col sm:flex-row gap-4 mb-2">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Loại</label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="radio" checked={bonusType === 'BONUS'} onChange={() => setBonusType('BONUS')} className="text-blue-600" />
+                <span>Cộng tiền (Thưởng)</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="radio" checked={bonusType === 'DEDUCT'} onChange={() => setBonusType('DEDUCT')} className="text-red-600" />
+                <span>Trừ tiền (Phạt)</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1">
             <label className="block text-sm font-medium text-gray-700 mb-1">Đối tượng áp dụng</label>
-            <select 
-              value={bonusTargetType} 
+            <select
+              value={bonusTargetType}
               onChange={e => { setBonusTargetType(e.target.value); setBonusTargetId(''); }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none"
             >
@@ -219,60 +392,140 @@ const Settings: React.FC = () => {
               <option value="EMPLOYEE">Nhân viên cụ thể</option>
             </select>
           </div>
-          
+
           {bonusTargetType !== 'ALL' && (
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Chọn {bonusTargetType === 'BRANCH' ? 'Cơ sở' : 'Nhân viên'}</label>
-              <select 
-                value={bonusTargetId} 
-                onChange={e => setBonusTargetId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none"
-              >
-                <option value="">-- Chọn --</option>
-                {bonusTargetType === 'BRANCH' && branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                {bonusTargetType === 'EMPLOYEE' && employees.filter(e => userRole === 'SUPER_ADMIN' || e.branchId === userBranchId).map(e => <option key={e.id} value={e.id}>{e.fullName}</option>)}
-              </select>
-            </div>
+            <>
+              {bonusTargetType === 'EMPLOYEE' && userRole === 'SUPER_ADMIN' && (
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Chọn Cơ sở</label>
+                  <select
+                    value={bonusEmployeeBranchId}
+                    onChange={e => { setBonusEmployeeBranchId(e.target.value); setBonusTargetId(''); }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none"
+                  >
+                    <option value="ALL">Tất cả cơ sở</option>
+                    {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+              )}
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Chọn {bonusTargetType === 'BRANCH' ? 'Cơ sở' : 'Nhân viên'}</label>
+                <select
+                  value={bonusTargetId}
+                  onChange={e => setBonusTargetId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none"
+                >
+                  <option value="">-- Chọn --</option>
+                  {bonusTargetType === 'BRANCH' && branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  {bonusTargetType === 'EMPLOYEE' && (() => {
+                    const filteredEmps = employees.filter(e => {
+                      if (userRole !== 'SUPER_ADMIN') return e.branchId === userBranchId;
+                      if (bonusEmployeeBranchId === 'ALL') return true;
+                      return e.branchId === bonusEmployeeBranchId;
+                    });
+
+                    const groupedEmps = filteredEmps.reduce((acc, emp) => {
+                      const pos = emp.position || 'Khác';
+                      if (!acc[pos]) acc[pos] = [];
+                      acc[pos].push(emp);
+                      return acc;
+                    }, {} as Record<string, typeof employees>);
+
+                    const roleOrder = ['Quản lý', 'Thu ngân', 'Pha chế', 'Bếp', 'Nhân viên', 'Bảo vệ', 'Khác'];
+
+                    return Object.entries(groupedEmps)
+                      .sort(([posA], [posB]) => {
+                        const idxA = roleOrder.indexOf(posA);
+                        const idxB = roleOrder.indexOf(posB);
+                        return (idxA === -1 ? 99 : idxA) - (idxB === -1 ? 99 : idxB);
+                      })
+                      .map(([pos, empsList]) => (
+                        <optgroup key={pos} label={pos}>
+                          {(empsList as typeof employees).map(e => (
+                            <option key={e.id} value={e.id}>
+                              [{e.employeeCode || 'No ID'}] {e.fullName}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ));
+                  })()}
+                </select>
+              </div>
+            </>
           )}
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Số tiền thưởng (VNĐ)</label>
-            <input 
-              type="text" 
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors" 
-              value={bonusAmount === 0 ? '' : bonusAmount.toLocaleString('vi-VN')} 
+            <label className="block text-sm font-medium text-gray-700 mb-1">Số tiền (VNĐ)</label>
+            <input
+              type="text"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+              value={bonusAmount === 0 ? '' : bonusAmount.toLocaleString('vi-VN')}
               onChange={e => {
+
                 const val = e.target.value.replace(/\D/g, '');
                 setBonusAmount(parseInt(val) || 0);
-              }} 
+              }}
               placeholder="0"
             />
           </div>
           <div className="flex-[2]">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Lý do thưởng</label>
-            <input 
-              type="text" 
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors" 
-              value={bonusReason} 
-              onChange={e => setBonusReason(e.target.value)} 
+            <label className="block text-sm font-medium text-gray-700 mb-1">Lý do</label>
+            <input
+              type="text"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+              value={bonusReason}
+              onChange={e => setBonusReason(e.target.value)}
               placeholder="VD: Thưởng lễ 2/9, Nhân viên xuất sắc..."
             />
           </div>
         </div>
 
         <button 
-          onClick={handleBonus}
+          onClick={() => {
+            if (!bonusAmount || !bonusReason) {
+              toast.error('Vui lòng nhập số tiền và lý do');
+              return;
+            }
+            setShowConfirmModal(true);
+          }} 
           disabled={bonusLoading}
-          className="bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+          className={`px-4 py-2 rounded-lg font-medium transition-colors text-white ${bonusType === 'DEDUCT' ? 'bg-red-600 hover:bg-red-700 disabled:bg-red-300' : 'bg-green-600 hover:bg-green-700 disabled:bg-green-300'}`}
         >
-          {bonusLoading ? 'Đang xử lý...' : 'Thưởng ngay'}
+          {bonusLoading ? 'Đang xử lý...' : (bonusType === 'DEDUCT' ? 'Xác Nhận Phạt' : 'Xác Nhận Thưởng')}
         </button>
       </div>
+
+                {
+                  showConfirmModal && (
+                    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[100]">
+                      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 transform transition-all">
+                        <h3 className="text-xl font-bold text-gray-800 mb-4">Xác Nhận {bonusType === 'BONUS' ? 'Thưởng' : 'Phạt'}</h3>
+                        <p className="text-gray-600 mb-6">
+                          Bạn có chắc chắn muốn xác nhận khoản {bonusType === 'BONUS' ? 'thưởng' : 'phạt'} <strong>{bonusAmount.toLocaleString('vi-VN')} VNĐ</strong> này không?
+                        </p>
+                        <div className="flex justify-end gap-3">
+                          <button
+                            onClick={() => setShowConfirmModal(false)}
+                            className="px-4 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg transition-colors"
+                          >
+                            Hủy
+                          </button>
+                          <button
+                            onClick={handleAddBonus}
+                            className={`px-4 py-2 text-white font-medium rounded-lg transition-colors ${bonusType === 'BONUS' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}
+                          >
+                            Đồng ý
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+
     </div>
-  );
+          );
 };
 
-export default Settings;
-
+          export default Settings;

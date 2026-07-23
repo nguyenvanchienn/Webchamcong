@@ -42,6 +42,7 @@ const Attendance: React.FC = () => {
 
   // Manual check-in form
   const [selectedEmp, setSelectedEmp] = useState('');
+  const [isSelectOpen, setIsSelectOpen] = useState(false);
   
   const [selectedLogs, setSelectedLogs] = useState<any[] | null>(null);
 
@@ -139,12 +140,53 @@ const Attendance: React.FC = () => {
         const now = new Date();
         const nowM = now.getHours() * 60 + now.getMinutes();
 
-        const rowCount = Math.max(myAtts.length, myShifts.length);
-        if (rowCount === 0) return;
-        
-        for (let i = 0; i < rowCount; i++) {
-          const att = myAtts[i];
-          const shift = myShifts[i];
+        const paired: { shift?: any, att?: any }[] = [];
+        const usedAtts = new Set<number>();
+
+        myShifts.forEach(shift => {
+             let shiftEndM = 0;
+             const matchStart = shift.shift.match(/\((\d{2}):(\d{2})/);
+             const matchEnd = shift.shift.match(/-\s*(\d{2}):(\d{2})/);
+             if (matchStart && matchEnd) {
+                 const shiftStartM = parseInt(matchStart[1]) * 60 + parseInt(matchStart[2]);
+                 shiftEndM = parseInt(matchEnd[1]) * 60 + parseInt(matchEnd[2]);
+                 if (shiftEndM < shiftStartM) shiftEndM += 24 * 60;
+             }
+             
+             let bestAttIdx = -1;
+             for (let i = 0; i < myAtts.length; i++) {
+                 if (usedAtts.has(i)) continue;
+                 const att = myAtts[i];
+                 if (att.checkIn) {
+                     const inM = att.checkIn.getHours() * 60 + att.checkIn.getMinutes();
+                     if (shiftEndM === 0 || inM < shiftEndM + 120) {
+                         bestAttIdx = i;
+                         break;
+                     }
+                 } else {
+                     bestAttIdx = i;
+                     break;
+                 }
+             }
+             
+             if (bestAttIdx !== -1) {
+                 paired.push({ shift, att: myAtts[bestAttIdx] });
+                 usedAtts.add(bestAttIdx);
+             } else {
+                 paired.push({ shift });
+             }
+        });
+
+        myAtts.forEach((att, idx) => {
+             if (!usedAtts.has(idx)) {
+                 paired.push({ att });
+             }
+        });
+
+        if (paired.length === 0) return;
+
+        paired.forEach((pair, i) => {
+          const { shift, att } = pair;
           
           let calcStatus = 'Không có mặt';
           if (!shift) {
@@ -194,7 +236,7 @@ const Attendance: React.FC = () => {
                 else calcStatus = 'Hoàn thành (Đúng giờ)';
               }
               
-              if (att.logs && att.logs.length > 3) { // Multiple IN/OUTs
+              if (att.logs && att.logs.length > 3) {
                 calcStatus += ' - Ngắt quãng';
               }
             }
@@ -222,7 +264,7 @@ const Attendance: React.FC = () => {
             }
           }
 
-          if (calcStatus === 'Chưa tới ca') continue;
+          if (calcStatus === 'Chưa tới ca') return;
 
           attList.push({
             id: att?.id || `temp-${emp.id}-${i}`,
@@ -239,7 +281,7 @@ const Attendance: React.FC = () => {
             logs: att?.logs,
             totalMs
           });
-        }
+        });
       });
 
       attList.sort((a, b) => {
@@ -282,6 +324,12 @@ const Attendance: React.FC = () => {
 
     // Kiểm tra xem đã check-in hôm nay nhưng chưa check-out chưa
     const today = new Date().toLocaleDateString('en-CA');
+    
+    if (filterDate !== today) {
+      toast.error('Nút Check-In/Out Ngay chỉ dùng được cho ngày hôm nay. Để sửa giờ quá khứ, vui lòng dùng nút Sửa (hình cây bút)!');
+      return;
+    }
+
     const existing = records.find(r => r.employeeId === selectedEmp && r.date === today && r.checkIn && !r.checkOut);
     const absentRecord = records.find(r => r.employeeId === selectedEmp && r.date === today && !r.checkIn);
     
@@ -320,6 +368,37 @@ const Attendance: React.FC = () => {
         toast.success(`Đã Check-out cho ${emp.fullName}!`);
       } else {
         // Chưa check-in => Thực hiện check-in
+        const checkInTime = new Date();
+        const nowM = checkInTime.getHours() * 60 + checkInTime.getMinutes();
+        
+        let targetRecord = null;
+        const empRecords = records.filter(r => r.employeeId === selectedEmp && r.date === today);
+        
+        // 1. Tìm xem có ca làm việc nào đang trong khung giờ này không
+        for (const r of empRecords) {
+           if (r.shiftStr && !r.shiftStr.includes('Ca được giao')) {
+               const matchStart = r.shiftStr.match(/\((\d{2}):(\d{2})/);
+               const matchEnd = r.shiftStr.match(/-\s*(\d{2}):(\d{2})/);
+               if (matchStart && matchEnd) {
+                    const startM = parseInt(matchStart[1]) * 60 + parseInt(matchStart[2]);
+                    let endM = parseInt(matchEnd[1]) * 60 + parseInt(matchEnd[2]);
+                    if (endM < startM) endM += 24 * 60;
+                    if (nowM >= startM - 60 && nowM <= endM + 120) {
+                        // Nếu r.checkIn cũng nằm trong ca này, hoặc chưa có checkIn (temp-)
+                        if (!r.checkIn || (r.checkIn.getHours() * 60 + r.checkIn.getMinutes() >= startM - 60 && r.checkIn.getHours() * 60 + r.checkIn.getMinutes() <= endM + 120)) {
+                            targetRecord = r;
+                            break;
+                        }
+                    }
+               }
+           }
+        }
+        
+        // 2. Nếu không có ca nào khớp giờ hiện tại, xem có ca nào sắp tới/trống không
+        if (!targetRecord) {
+           targetRecord = empRecords.find(r => !r.checkIn);
+        }
+
         const schedQ = query(
           collection(db, 'schedules'),
           where('employeeId', '==', emp.id),
@@ -334,18 +413,22 @@ const Attendance: React.FC = () => {
           }
         });
         const finalSalary = (emp.salaryPerHour || 0) * maxMultiplier;
-        
-        const checkInTime = new Date();
-        if (absentRecord) {
-           await updateDoc(doc(db, 'attendance', absentRecord.id), {
-              checkIn: checkInTime,
+
+        if (targetRecord && !targetRecord.id.startsWith('temp-')) {
+           // Đã có record thật trong DB -> Cập nhật lại (Reopen)
+           const logs = targetRecord.logs || [];
+           const isReopen = !!targetRecord.checkIn;
+           await updateDoc(doc(db, 'attendance', targetRecord.id), {
+              checkIn: isReopen ? targetRecord.checkIn : checkInTime,
+              checkOut: null,
               status: 'PRESENT',
               salaryPerHour: finalSalary,
-              logs: [...(absentRecord.logs || []), { action: 'CHECK_IN', time: checkInTime }],
+              logs: [...logs, { action: 'CHECK_IN', time: checkInTime }],
               assignedBy: localStorage.getItem('userEmail') || 'Hệ thống',
               assignedRole: localStorage.getItem('userRole') === 'SUPER_ADMIN' ? 'Quản trị viên' : 'Quản lý cơ sở'
            });
         } else {
+           // Tạo mới hoàn toàn
            await addDoc(collection(db, 'attendance'), {
              employeeId: emp.id,
              employeeName: emp.fullName,
@@ -503,43 +586,91 @@ const Attendance: React.FC = () => {
         </div>
         
         <div className="flex items-center space-x-3 bg-blue-50 p-3 rounded-lg border border-blue-100">
-          <select 
-            value={selectedEmp} 
-            onChange={(e) => setSelectedEmp(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg outline-none"
-          >
-            <option value="">-- Chọn nhân viên --</option>
-            {(() => {
-              const filtered = employees.filter(e => localStorage.getItem('userRole') !== 'SUPER_ADMIN' || filterBranchId === 'ALL' || e.branchId === filterBranchId);
-              
-              const grouped: Record<string, Employee[]> = {};
-              filtered.forEach(e => {
-                const pos = e.position || 'Khác';
-                if (!grouped[pos]) grouped[pos] = [];
-                grouped[pos].push(e);
-              });
+          <div className="relative">
+            <div 
+              className="px-3 py-2 border border-gray-300 bg-white rounded-lg cursor-pointer flex items-center justify-between min-w-[250px]"
+              onClick={() => setIsSelectOpen(!isSelectOpen)}
+            >
+              <span className="truncate pr-4">
+                {selectedEmp ? (() => {
+                  const emp = employees.find(e => e.id === selectedEmp);
+                  if (!emp) return '-- Chọn nhân viên --';
+                  const empRecords = records.filter(r => r.employeeId === selectedEmp);
+                  let textClass = 'text-gray-800';
+                  if (empRecords.some(r => r.status.includes('Đang làm'))) {
+                    textClass = 'text-green-600 font-bold';
+                  } else if (empRecords.some(r => r.status.includes('Vắng mặt'))) {
+                    textClass = 'text-red-600 font-bold';
+                  }
+                  return <span className={textClass}>[{emp.employeeCode || 'No ID'}] {emp.fullName}</span>;
+                })() : '-- Chọn nhân viên --'}
+              </span>
+              <span className="text-gray-400 text-xs">▼</span>
+            </div>
+            
+            {isSelectOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setIsSelectOpen(false)}></div>
+                <div className="absolute z-50 mt-1 w-max min-w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  <div 
+                    className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-gray-700"
+                    onClick={() => { setSelectedEmp(''); setIsSelectOpen(false); }}
+                  >
+                    -- Chọn nhân viên --
+                  </div>
+                  {(() => {
+                    const filtered = employees.filter(e => localStorage.getItem('userRole') !== 'SUPER_ADMIN' || filterBranchId === 'ALL' || e.branchId === filterBranchId);
+                    
+                    const grouped: Record<string, Employee[]> = {};
+                    filtered.forEach(e => {
+                      const pos = e.position || 'Khác';
+                      if (!grouped[pos]) grouped[pos] = [];
+                      grouped[pos].push(e);
+                    });
 
-              const positionOrder = ['Quản lý', 'Quản lý cơ sở', 'Trưởng ca', 'Thu ngân', 'Pha chế', 'Phục vụ', 'Nhân viên', 'Bảo vệ', 'Tạp vụ', 'Khác'];
-              const sortedPositions = Object.keys(grouped).sort((a, b) => {
-                const idxA = positionOrder.indexOf(a);
-                const idxB = positionOrder.indexOf(b);
-                if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-                if (idxA !== -1) return -1;
-                if (idxB !== -1) return 1;
-                return a.localeCompare(b);
-              });
+                    const positionOrder = ['Quản lý', 'Quản lý cơ sở', 'Trưởng ca', 'Thu ngân', 'Pha chế', 'Phục vụ', 'Nhân viên', 'Bảo vệ', 'Tạp vụ', 'Khác'];
+                    const sortedPositions = Object.keys(grouped).sort((a, b) => {
+                      const idxA = positionOrder.indexOf(a);
+                      const idxB = positionOrder.indexOf(b);
+                      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                      if (idxA !== -1) return -1;
+                      if (idxB !== -1) return 1;
+                      return a.localeCompare(b);
+                    });
 
-              return sortedPositions.map(pos => (
-                <optgroup key={pos} label={`--- ${pos} ---`}>
-                  {grouped[pos].map(e => (
-                    <option key={e.id} value={e.id}>
-                      [{e.employeeCode || 'No ID'}] {e.fullName} - {e.branchName}
-                    </option>
-                  ))}
-                </optgroup>
-              ));
-            })()}
-          </select>
+                    return sortedPositions.map(pos => (
+                      <div key={pos}>
+                        <div className="px-3 py-1.5 bg-gray-50 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                          {pos}
+                        </div>
+                        {grouped[pos].map(e => {
+                          const empRecords = records.filter(r => r.employeeId === e.id);
+                          let textClass = 'text-gray-700';
+                          if (empRecords.some(r => r.status.includes('Đang làm'))) {
+                            textClass = 'text-green-600 font-medium';
+                          } else if (empRecords.some(r => r.status.includes('Vắng mặt'))) {
+                            textClass = 'text-red-600 font-medium';
+                          } else if (selectedEmp === e.id) {
+                            textClass = 'text-blue-700 font-medium';
+                          }
+                          
+                          return (
+                            <div 
+                              key={e.id} 
+                              className={`px-4 py-2 hover:bg-blue-50 cursor-pointer flex items-center ${selectedEmp === e.id ? 'bg-blue-50' : ''}`}
+                              onClick={() => { setSelectedEmp(e.id); setIsSelectOpen(false); }}
+                            >
+                              <span className={`truncate ${textClass}`}>[{e.employeeCode || 'No ID'}] {e.fullName} - {e.branchName}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </>
+            )}
+          </div>
           <button 
             onClick={handleAction}
             className={`px-4 py-2 rounded-lg font-medium shadow-sm transition-colors text-white ${(() => {
@@ -695,7 +826,7 @@ const Attendance: React.FC = () => {
       </div>
 
       {selectedLogs && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 transition-opacity">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm transition-opacity">
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden flex flex-col">
             <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50">
               <h3 className="font-semibold text-gray-800 flex items-center gap-2">

@@ -121,15 +121,27 @@ const EmployeeDashboard: React.FC = () => {
       const endOfWeek = dates[6].dateStr;
       const todayStr = curr.toLocaleDateString('en-CA');
 
-      // 3. Lấy TẤT CẢ lịch làm việc của cả tuần này
       const schQuery = query(
         collection(db, 'schedules'), 
         where('date', '>=', startOfWeek),
         where('date', '<=', endOfWeek)
       );
       const schSnap = await getDocs(schQuery);
+      
+      // Lấy thời gian mở xem trước / mở đăng ký từ settings
+      const settingsDoc = await getDoc(doc(db, 'settings', 'general'));
+      let visibleAfter = null;
+      if (settingsDoc.exists()) {
+         const data = settingsDoc.data();
+         const previewTime = data.previewTimes?.[startOfWeek];
+         const openTime = data.openTimes?.[startOfWeek];
+         visibleAfter = previewTime || openTime;
+      }
+
       const allSchList: Schedule[] = [];
-      schSnap.forEach(d => allSchList.push({ id: d.id, ...d.data() } as Schedule));
+      if (!visibleAfter || new Date() >= new Date(visibleAfter)) {
+         schSnap.forEach(d => allSchList.push({ id: d.id, ...d.data() } as Schedule));
+      }
 
       // 4. Lấy tất cả chấm công trong tuần này (để xác định trạng thái đồng nghiệp)
       const attQuery = query(
@@ -410,11 +422,16 @@ const EmployeeDashboard: React.FC = () => {
                 <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
               </svg>
             </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-bold text-yellow-800">{systemAnnouncement.title || 'Thông báo từ Ban Quản Lý'}</h3>
-              <div className="mt-2 text-sm text-yellow-700 whitespace-pre-wrap">
+            <div className="ml-3 flex-1 min-w-0">
+              <h3 className="text-sm font-bold text-yellow-800 break-words">{systemAnnouncement.title || 'Thông báo từ Ban Quản Lý'}</h3>
+              <div className="mt-2 text-sm text-yellow-700 whitespace-pre-wrap break-words">
                 <p>{systemAnnouncement.message}</p>
               </div>
+              {systemAnnouncement.createdAt && (
+                <div className="mt-2 text-xs text-yellow-600 italic">
+                  {new Date(systemAnnouncement.createdAt?.toDate ? systemAnnouncement.createdAt.toDate() : systemAnnouncement.createdAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -427,7 +444,8 @@ const EmployeeDashboard: React.FC = () => {
           </div>
           <div>
             <h2 className="text-2xl font-bold">{employeeInfo.fullName}</h2>
-            <p className="text-blue-100 mt-1">Cơ sở: {employeeInfo.branchName}</p>
+            <p className="text-blue-100 mt-1 text-sm">Cơ sở: {employeeInfo.branchName}</p>
+            <p className="text-blue-100 mt-1 text-sm">Mã NV: {employeeInfo.employeeCode || employeeInfo.id}</p>
           </div>
         </div>
         <div className="text-right">

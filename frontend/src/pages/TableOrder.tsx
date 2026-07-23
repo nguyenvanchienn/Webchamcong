@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { collection, doc, getDoc, getDocs, addDoc, updateDoc, query, where, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
 import { signInAnonymously } from 'firebase/auth';
-import { ShoppingCart, Plus, Minus, Search, Image as ImageIcon, Clock, ChefHat } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Search, Image as ImageIcon, Clock, ChefHat, X, Edit2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface MenuItem {
@@ -15,12 +15,15 @@ interface MenuItem {
   isAvailable: boolean;
   description?: string;
   branchId?: string | null;
+  hasSizes?: boolean;
+  sizes?: { name: string; price: number }[];
 }
 
 interface CartItem extends MenuItem {
   quantity: number;
   cartItemId?: string;
   isServed?: boolean;
+  selectedSize?: string;
 }
 
 interface TableOrderDoc {
@@ -42,6 +45,10 @@ const TableOrder: React.FC = () => {
   
   const [cart, setCart] = useState<CartItem[]>([]);
   const [activeOrder, setActiveOrder] = useState<TableOrderDoc | null>(null);
+
+  const [selectedItemForSize, setSelectedItemForSize] = useState<MenuItem | null>(null);
+  const [showSizeModal, setShowSizeModal] = useState(false);
+  const [editingCartItemId, setEditingCartItemId] = useState<string | null>(null);
   
   const [tableName, setTableName] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -110,19 +117,47 @@ const TableOrder: React.FC = () => {
     return matchesCategory && matchesSearch;
   });
 
-  const addToCart = (item: MenuItem) => {
+  const addToCart = (item: MenuItem, selectedSize?: string, customPrice?: number) => {
     setCart(prev => {
-      const existing = prev.find(i => i.id === item.id);
+      const existing = prev.find(i => i.id === item.id && i.selectedSize === selectedSize);
       if (existing) {
-        return prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i);
+        return prev.map(i => (i.id === item.id && i.selectedSize === selectedSize) ? { ...i, quantity: i.quantity + 1 } : i);
       }
-      return [...prev, { ...item, quantity: 1 }];
+      const newItem: any = { 
+        ...item, 
+        quantity: 1, 
+        cartItemId: Date.now().toString() + Math.random().toString(36).substring(2),
+        price: customPrice !== undefined ? customPrice : item.price 
+      };
+      if (selectedSize) newItem.selectedSize = selectedSize;
+      return [...prev, newItem];
     });
   };
 
-  const updateQuantity = (id: string, delta: number) => {
+  const updateCartItemSize = (cartItemId: string, newSize: string, newPrice: number) => {
+    setCart(prev => {
+      const newCart = [...prev];
+      const targetIndex = newCart.findIndex(i => i.cartItemId === cartItemId);
+      if (targetIndex === -1) return prev;
+      
+      const target = { ...newCart[targetIndex] };
+      newCart.splice(targetIndex, 1);
+      
+      const existingIndex = newCart.findIndex(i => i.id === target.id && i.selectedSize === newSize);
+      if (existingIndex !== -1) {
+        newCart[existingIndex] = { ...newCart[existingIndex], quantity: newCart[existingIndex].quantity + target.quantity };
+      } else {
+        target.selectedSize = newSize;
+        target.price = newPrice;
+        newCart.push(target);
+      }
+      return newCart;
+    });
+  };
+
+  const updateQuantity = (cartItemId: string, delta: number) => {
     setCart(prev => prev.map(item => {
-      if (item.id === id) {
+      if (item.cartItemId === cartItemId || item.id === cartItemId) {
         const newQ = item.quantity + delta;
         return newQ > 0 ? { ...item, quantity: newQ } : item;
       }
@@ -276,7 +311,9 @@ const TableOrder: React.FC = () => {
           <div className="space-y-2">
             {activeOrder.items.map((item, idx) => (
               <div key={idx} className="flex justify-between items-center text-sm">
-                <span className="font-medium text-orange-900">{item.quantity}x {item.name}</span>
+                <span className="font-medium text-orange-900">
+                  {item.quantity}x {item.name} {item.selectedSize ? `(${item.selectedSize})` : ''}
+                </span>
                 <span className="text-orange-700 font-bold">{new Intl.NumberFormat('vi-VN').format(item.price * item.quantity)}đ</span>
               </div>
             ))}
@@ -309,7 +346,14 @@ const TableOrder: React.FC = () => {
                 </div>
                 <div className="flex justify-end">
                   <button 
-                    onClick={() => addToCart(item)}
+                    onClick={() => {
+                      if (item.hasSizes && item.sizes && item.sizes.length > 0) {
+                        setSelectedItemForSize(item);
+                        setShowSizeModal(true);
+                      } else {
+                        addToCart(item);
+                      }
+                    }}
                     className="w-8 h-8 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center hover:bg-blue-600 hover:text-white transition-colors"
                   >
                     <Plus size={18} />
@@ -340,15 +384,34 @@ const TableOrder: React.FC = () => {
               </button>
             </div>
             {cart.map(item => (
-              <div key={item.id} className="flex justify-between items-center">
+              <div key={item.cartItemId} className="flex justify-between items-center">
                 <div className="flex-1">
-                  <div className="font-bold text-gray-800 text-sm truncate pr-2">{item.name}</div>
+                  <div className="font-bold text-gray-800 text-sm truncate pr-2 flex items-center flex-wrap">
+                    <span className="mr-1">{item.name}</span>
+                    {item.hasSizes && item.sizes && item.sizes.length > 0 ? (
+                      <span 
+                        className="inline-flex items-center text-blue-600 cursor-pointer hover:text-blue-800 transition-colors group/edit"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedItemForSize(item);
+                          setEditingCartItemId(item.cartItemId || null);
+                          setShowSizeModal(true);
+                        }}
+                        title="Đổi kích cỡ"
+                      >
+                        {item.selectedSize ? `(${item.selectedSize})` : ''}
+                        <Edit2 size={12} className="ml-1 opacity-50 group-hover/edit:opacity-100" />
+                      </span>
+                    ) : (
+                      item.selectedSize ? <span className="text-gray-600">({item.selectedSize})</span> : null
+                    )}
+                  </div>
                   <div className="text-blue-600 font-bold text-xs">{new Intl.NumberFormat('vi-VN').format(item.price)}đ</div>
                 </div>
                 <div className="flex items-center gap-3 bg-gray-100 rounded-full p-1 shrink-0">
-                  <button onClick={() => updateQuantity(item.id, -1)} className="w-7 h-7 bg-white rounded-full flex items-center justify-center text-gray-600 shadow-sm"><Minus size={14}/></button>
+                  <button onClick={() => updateQuantity(item.cartItemId as string, -1)} className="w-7 h-7 bg-white rounded-full flex items-center justify-center text-gray-600 shadow-sm"><Minus size={14}/></button>
                   <span className="font-bold text-sm w-4 text-center">{item.quantity}</span>
-                  <button onClick={() => updateQuantity(item.id, 1)} className="w-7 h-7 bg-white rounded-full flex items-center justify-center text-gray-600 shadow-sm"><Plus size={14}/></button>
+                  <button onClick={() => updateQuantity(item.cartItemId as string, 1)} className="w-7 h-7 bg-white rounded-full flex items-center justify-center text-gray-600 shadow-sm"><Plus size={14}/></button>
                 </div>
               </div>
             ))}
@@ -367,6 +430,52 @@ const TableOrder: React.FC = () => {
               {new Intl.NumberFormat('vi-VN').format(cartTotal)}đ
             </span>
           </button>
+        </div>
+      )}
+      {/* Chọn Size Modal */}
+      {showSizeModal && selectedItemForSize && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl animate-scale-up relative">
+            <button 
+              onClick={() => { 
+                setShowSizeModal(false); 
+                setSelectedItemForSize(null); 
+                setEditingCartItemId(null);
+              }}
+              className="absolute top-4 right-4 p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 rounded-full transition-colors"
+            >
+              <X size={20} />
+            </button>
+            
+            <h3 className="text-xl font-black text-gray-800 mb-1">
+              {editingCartItemId ? 'Đổi kích cỡ' : 'Chọn kích cỡ'}
+            </h3>
+            <p className="text-sm text-gray-500 mb-6">{selectedItemForSize.name}</p>
+            
+            <div className="space-y-3 mb-2">
+              {selectedItemForSize.sizes?.map((sz, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => {
+                    if (editingCartItemId) {
+                      updateCartItemSize(editingCartItemId, sz.name, sz.price);
+                    } else {
+                      addToCart(selectedItemForSize, sz.name, sz.price);
+                    }
+                    setShowSizeModal(false);
+                    setSelectedItemForSize(null);
+                    setEditingCartItemId(null);
+                  }}
+                  className="w-full flex items-center justify-between p-4 rounded-2xl border-2 border-gray-100 hover:border-blue-500 hover:bg-blue-50 transition-all group text-left shadow-sm active:scale-[0.98]"
+                >
+                  <span className="font-bold text-gray-700 group-hover:text-blue-700">{sz.name}</span>
+                  <span className="font-black text-blue-600">
+                    {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(sz.price)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </div>

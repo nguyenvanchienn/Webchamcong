@@ -417,7 +417,7 @@ const Employees: React.FC = () => {
 
       {/* Modal Thêm/Sửa */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
             <div className="flex justify-between items-center p-4 border-b border-gray-200">
               <h3 className="font-bold text-lg text-gray-800">
@@ -666,8 +666,17 @@ const Employees: React.FC = () => {
                   <button 
                     onClick={async () => {
                       await updateDoc(doc(db, 'employees', editingEmployee.id), { cccdStatus: 'REJECTED' });
+                      await addDoc(collection(db, 'notifications'), {
+                        employeeId: editingEmployee.id,
+                        title: 'Kết quả duyệt CCCD',
+                        message: 'Thông tin CCCD của bạn đã bị từ chối. Vui lòng kiểm tra và cập nhật lại.',
+                        type: 'SYSTEM',
+                        read: false,
+                        createdAt: new Date()
+                      });
+                      toast.success('Đã từ chối CCCD!');
+                      fetchData(true);
                       closeModal();
-                      fetchData();
                     }}
                     className="px-4 py-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg font-medium text-sm transition-colors"
                   >
@@ -676,8 +685,17 @@ const Employees: React.FC = () => {
                   <button 
                     onClick={async () => {
                       await updateDoc(doc(db, 'employees', editingEmployee.id), { cccdStatus: 'APPROVED' });
+                      await addDoc(collection(db, 'notifications'), {
+                        employeeId: editingEmployee.id,
+                        title: 'Kết quả duyệt CCCD',
+                        message: 'Thông tin CCCD của bạn đã được phê duyệt thành công.',
+                        type: 'SYSTEM',
+                        read: false,
+                        createdAt: new Date()
+                      });
+                      toast.success('Đã phê duyệt CCCD!');
+                      fetchData(true);
                       closeModal();
-                      fetchData();
                     }}
                     className="px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded-lg font-medium text-sm transition-colors"
                   >
@@ -692,7 +710,7 @@ const Employees: React.FC = () => {
 
       {/* View Profile Modal */}
       {viewingEmployee && (
-        <div className="fixed inset-0 bg-black/60 z-[100] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[100] overflow-y-auto">
           <div className="min-h-screen px-4 text-center">
             <div className="fixed inset-0" onClick={() => setViewingEmployee(null)}></div>
             <span className="inline-block h-screen align-middle" aria-hidden="true">&#8203;</span>

@@ -86,7 +86,13 @@ const Notifications: React.FC = () => {
             where('employeeId', '==', currentEmployeeId)
           );
           const snap = await getDocs(q);
-          snap.forEach(d => list.push({ id: d.id, ...d.data() } as Notification));
+          const now = new Date();
+          snap.forEach(d => {
+             const data = d.data();
+             if (!data.visibleAfter || new Date(data.visibleAfter) <= now) {
+                list.push({ id: d.id, ...data } as Notification);
+             }
+          });
         }
 
         // Fetch announcements
@@ -342,7 +348,7 @@ const Notifications: React.FC = () => {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
             <div className="flex justify-between items-center p-4 border-b border-gray-200">
               <h3 className="font-bold text-lg text-gray-800">
@@ -430,7 +436,7 @@ const Notifications: React.FC = () => {
         )}
 
         {selectedNotification && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col">
               <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-gray-50">
                 <div className="flex items-center gap-3">

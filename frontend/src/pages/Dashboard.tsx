@@ -148,7 +148,7 @@ const Dashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       {userRole === 'BRANCH_ADMIN' && (
-        <div className="flex border-b border-gray-200 bg-white px-2 rounded-t-xl pt-2">
+        <div className="flex border-b border-gray-200 bg-white px-2 rounded-t-xl pt-2 overflow-x-auto whitespace-nowrap scrollbar-hide">
           <button 
             className={`py-3 px-6 font-medium text-sm border-b-2 transition-colors ${activeTab === 'personal' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
             onClick={() => setActiveTab('personal')}

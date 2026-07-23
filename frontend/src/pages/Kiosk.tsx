@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, addDoc, doc, updateDoc, onSnapshot, arrayUnion } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, doc, updateDoc, onSnapshot, arrayUnion, deleteField } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -18,10 +18,38 @@ interface Employee {
 interface Attendance {
   id: string;
   employeeId: string;
+  date: string;
   checkIn: Date | null;
   checkOut: Date | null;
-  logs?: any[];
+  logs?: { action: string, time: Date, note?: string }[];
 }
+
+const calculateHoursWorked = (data: any): number => {
+  if (!data.checkIn) return 0;
+  if (data.logs && data.logs.length > 0) {
+    let totalMs = 0;
+    let lastIn: Date | null = null;
+    for (const log of data.logs) {
+      if (log.action === 'CHECK_IN') {
+        lastIn = log.time?.toDate ? log.time.toDate() : new Date(log.time);
+      } else if (log.action === 'CHECK_OUT' && lastIn) {
+        const outTime = log.time?.toDate ? log.time.toDate() : new Date(log.time);
+        totalMs += outTime.getTime() - lastIn.getTime();
+        lastIn = null;
+      }
+    }
+    if (lastIn && !data.checkOut) {
+      totalMs += Date.now() - lastIn.getTime();
+    }
+    return totalMs / (1000 * 60 * 60);
+  }
+  const inTime = data.checkIn?.toDate ? data.checkIn.toDate() : new Date(data.checkIn);
+  if (!data.checkOut) {
+    return Math.max(0, Date.now() - inTime.getTime()) / (1000 * 60 * 60);
+  }
+  const outTime = data.checkOut?.toDate ? data.checkOut.toDate() : new Date(data.checkOut);
+  return Math.max(0, outTime.getTime() - inTime.getTime()) / (1000 * 60 * 60);
+};
 
 const Kiosk: React.FC = () => {
   const navigate = useNavigate();
@@ -128,6 +156,7 @@ const Kiosk: React.FC = () => {
           setTodayAttendance({
             id: docData.id,
             employeeId: data.employeeId,
+            date: data.date,
             checkIn: data.checkIn?.toDate ? data.checkIn.toDate() : (data.checkIn ? new Date(data.checkIn) : null),
             checkOut: data.checkOut?.toDate ? data.checkOut.toDate() : (data.checkOut ? new Date(data.checkOut) : null),
             logs: data.logs?.map((l: any) => ({ action: l.action, time: l.time?.toDate ? l.time.toDate() : new Date(l.time) })) || []
@@ -185,6 +214,7 @@ const Kiosk: React.FC = () => {
         setTodayAttendance({
           id: docRef.id,
           employeeId: selectedEmp.id,
+          date: todayStr,
           checkIn: checkInTime,
           checkOut: null,
           logs: [{ action: 'CHECK_IN', time: checkInTime }]
@@ -224,18 +254,141 @@ const Kiosk: React.FC = () => {
           checkOut: checkOutTime,
           logs: arrayUnion(newLog)
         });
-        setTodayAttendance({ ...todayAttendance, checkOut: checkOutTime, logs: [...(todayAttendance.logs || []), newLog] });
+        
+        const updatedLogs = [...(todayAttendance.logs || []), newLog];
+        setTodayAttendance({ ...todayAttendance, checkOut: checkOutTime, logs: updatedLogs });
+
+        try {
+          // Tính thu nhập tạm tính (old balance + shift earned)
+          const attQ = query(collection(db, 'attendance'), where('employeeId', '==', selectedEmp.id), where('isPaid', '==', false));
+          const attSnap = await getDocs(attQ);
+          
+          let oldBalance = 0;
+          let shiftEarned = 0;
+          
+
+          // Calculate for the exact last interval in this shift
+          let lastInTime: Date | null = null;
+          if (todayAttendance.logs && todayAttendance.logs.length > 0) {
+             const inLogs = todayAttendance.logs.filter((l: any) => l.action === 'CHECK_IN');
+             if (inLogs.length > 0) {
+                 lastInTime = inLogs[inLogs.length - 1].time;
+             }
+          }
+          if (!lastInTime) lastInTime = todayAttendance.checkIn;
+          if (lastInTime) {
+             const durationMs = checkOutTime.getTime() - lastInTime.getTime();
+             shiftEarned = (durationMs / 3600000) * (selectedEmp.salaryPerHour || 0);
+          }
+
+          attSnap.forEach(d => {
+             if (d.id !== todayAttendance.id) {
+               const hours = calculateHoursWorked(d.data());
+               oldBalance += hours * (selectedEmp.salaryPerHour || 0);
+             } else {
+               // The old balance of THIS shift (if they checked out, then checked in again)
+               const beforeThisCheckoutData = {
+                  checkIn: todayAttendance.checkIn,
+                  checkOut: null,
+                  logs: todayAttendance.logs || []
+               };
+               const beforeHours = calculateHoursWorked(beforeThisCheckoutData);
+               oldBalance += beforeHours * (selectedEmp.salaryPerHour || 0);
+             }
+          });
+
+          // Fetch unpaid bonuses
+          const bonusQ = query(collection(db, 'bonuses'), where('employeeId', '==', selectedEmp.id), where('isPaid', '==', false));
+          const bonusSnap = await getDocs(bonusQ);
+          bonusSnap.forEach(d => {
+             const val = d.data().amount || 0;
+             if (d.data().type === 'DEDUCT') oldBalance -= val;
+             else oldBalance += val;
+          });
+
+          const newBalance = oldBalance + shiftEarned;
+
+          const formatMoney = (val: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
+
+          await addDoc(collection(db, 'notifications'), {
+             employeeId: selectedEmp.id,
+             title: 'Thu nhập ca làm việc',
+             message: `Số dư của bạn đã tăng +${formatMoney(shiftEarned)} cho ca làm hiện tại.\nSố dư cũ: ${formatMoney(oldBalance)}\nSố dư hiện tại (Thu nhập tạm tính): ${formatMoney(newBalance)}`,
+             type: 'MONEY_ADD',
+             read: false,
+             createdAt: new Date()
+          });
+        } catch (e) {
+          console.error("Lỗi tính tiền:", e);
+        }
+
         toast.success(`Check-out thành công cho ${selectedEmp.fullName}`);
         setCheckoutSuccess(true);
       } else if (todayAttendance && todayAttendance.checkOut) {
         // Check in lại
-        const newLog = { action: 'CHECK_IN', time: new Date() };
-        await updateDoc(doc(db, 'attendance', todayAttendance.id), {
-          checkOut: null,
-          logs: arrayUnion(newLog)
-        });
-        setTodayAttendance({ ...todayAttendance, checkOut: null, logs: [...(todayAttendance.logs || []), newLog] });
-        toast.success(`Tiếp tục ca làm thành công cho ${selectedEmp.fullName}`);
+        const checkInTime = new Date();
+        const nowM = checkInTime.getHours() * 60 + checkInTime.getMinutes();
+        
+        let isSameShift = false;
+        if (todayShifts && todayShifts.length > 0) {
+           for (const s of todayShifts) {
+              const matchStart = s.shift.match(/\((\d{2}):(\d{2})/);
+              const matchEnd = s.shift.match(/-\s*(\d{2}):(\d{2})/);
+              if (matchStart && matchEnd) {
+                  const startM = parseInt(matchStart[1]) * 60 + parseInt(matchStart[2]);
+                  let endM = parseInt(matchEnd[1]) * 60 + parseInt(matchEnd[2]);
+                  if (endM < startM) endM += 24 * 60;
+                  
+                  if (nowM >= startM - 60 && nowM <= endM + 120) {
+                      const prevInM = todayAttendance.checkIn.getHours() * 60 + todayAttendance.checkIn.getMinutes();
+                      if (prevInM >= startM - 60 && prevInM <= endM + 120) {
+                          isSameShift = true;
+                          break;
+                      }
+                  }
+              }
+           }
+        }
+        
+        if (isSameShift) {
+           const newLog = { action: 'CHECK_IN', time: checkInTime };
+           await updateDoc(doc(db, 'attendance', todayAttendance.id), {
+             checkOut: deleteField(),
+             logs: arrayUnion(newLog)
+           });
+           setTodayAttendance({ ...todayAttendance, checkOut: null, logs: [...(todayAttendance.logs || []), newLog] });
+           toast.success(`Tiếp tục ca làm thành công cho ${selectedEmp.fullName}`);
+        } else {
+           let maxMultiplier = 1;
+           todayShifts.forEach(s => {
+             if (s.salaryMultiplier && s.salaryMultiplier > maxMultiplier) {
+               maxMultiplier = s.salaryMultiplier;
+             }
+           });
+           const finalSalary = (selectedEmp.salaryPerHour || 0) * maxMultiplier;
+
+           const docRef = await addDoc(collection(db, 'attendance'), {
+             employeeId: selectedEmp.id,
+             employeeName: selectedEmp.fullName,
+             branchName: selectedEmp.branchName,
+             branchId: branchId || null,
+             date: todayStr,
+             checkIn: checkInTime,
+             checkOut: null,
+             status: 'PRESENT',
+             salaryPerHour: finalSalary,
+             logs: [{ action: 'CHECK_IN', time: checkInTime }]
+           });
+           setTodayAttendance({
+             id: docRef.id,
+             employeeId: selectedEmp.id,
+             date: todayStr,
+             checkIn: checkInTime,
+             checkOut: null,
+             logs: [{ action: 'CHECK_IN', time: checkInTime }]
+           });
+           toast.success(`Check-in ca mới thành công cho ${selectedEmp.fullName}`);
+        }
       }
       
       // Bỏ tự động thoát ra để nhân viên có thể xem đồng hồ bấm giờ

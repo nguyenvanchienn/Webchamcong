@@ -12,6 +12,9 @@ interface Branch {
   phone: string;
   status: 'ACTIVE' | 'INACTIVE';
   managers?: string[];
+  bankId?: string;
+  bankAccount?: string;
+  bankAccountName?: string;
 }
 
 const Branches: React.FC = () => {
@@ -19,13 +22,28 @@ const Branches: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
+  const [bankList, setBankList] = useState<{bin: string, shortName: string, name: string}[]>([]);
+
+  useEffect(() => {
+    fetch('https://api.vietqr.io/v2/banks')
+      .then(res => res.json())
+      .then(data => {
+        if (data.code === '00') {
+          setBankList(data.data);
+        }
+      })
+      .catch(err => console.error('Error fetching banks', err));
+  }, []);
 
   // Form State
   const [formData, setFormData] = useState({
     name: '',
     address: '',
     phone: '',
-    status: 'ACTIVE'
+    status: 'ACTIVE',
+    bankId: '',
+    bankAccount: '',
+    bankAccountName: ''
   });
 
   const fetchBranches = async (silent = false) => {
@@ -123,13 +141,16 @@ const Branches: React.FC = () => {
       setEditingBranch(branch);
       setFormData({
         name: branch.name,
-        address: branch.address,
+        address: branch.address || '',
         phone: branch.phone || '',
-        status: branch.status || 'ACTIVE'
+        status: branch.status || 'ACTIVE',
+        bankId: branch.bankId || '',
+        bankAccount: branch.bankAccount || '',
+        bankAccountName: branch.bankAccountName || ''
       });
     } else {
       setEditingBranch(null);
-      setFormData({ name: '', address: '', phone: '', status: 'ACTIVE' });
+      setFormData({ name: '', address: '', phone: '', status: 'ACTIVE', bankId: '', bankAccount: '', bankAccountName: '' });
     }
     setIsModalOpen(true);
   };
@@ -225,7 +246,7 @@ const Branches: React.FC = () => {
 
       {/* Modal Thêm/Sửa */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
             <div className="flex justify-between items-center p-4 border-b border-gray-200">
               <h3 className="font-bold text-lg text-gray-800">
@@ -257,15 +278,54 @@ const Branches: React.FC = () => {
                   placeholder="VD: 123 Lê Lợi, Q1"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Số điện thoại</label>
-                <input 
-                  type="text"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none"
-                  placeholder="VD: 0901234567"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Số điện thoại</label>
+                  <input 
+                    type="text" 
+                    value={formData.phone}
+                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    placeholder="VD: 0987..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Ngân hàng (Tùy chọn)</label>
+                  <input 
+                    list="bank-list"
+                    value={formData.bankId}
+                    onChange={(e) => setFormData({...formData, bankId: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm"
+                    placeholder="VD: MB, VCB..."
+                  />
+                  <datalist id="bank-list">
+                    {bankList.map(bank => (
+                      <option key={bank.bin} value={bank.shortName}>{bank.name}</option>
+                    ))}
+                  </datalist>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Số tài khoản (Tùy chọn)</label>
+                  <input 
+                    type="text" 
+                    value={formData.bankAccount}
+                    onChange={(e) => setFormData({...formData, bankAccount: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    placeholder="Số TK nhận tiền"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tên chủ thẻ (Tùy chọn)</label>
+                  <input 
+                    type="text" 
+                    value={formData.bankAccountName}
+                    onChange={(e) => setFormData({...formData, bankAccountName: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none uppercase"
+                    placeholder="VD: NGUYEN VAN A"
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>

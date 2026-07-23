@@ -114,7 +114,7 @@ const Payroll: React.FC = () => {
     bonuses?: any[];
   } | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'admin' | 'personal'>('admin');
+  const [activeTab, setActiveTab] = useState<'admin' | 'personal'>('personal');
   const userRole = localStorage.getItem('userRole') || 'EMPLOYEE';
   const currentEmployeeId = localStorage.getItem('employeeId');
 
@@ -134,11 +134,15 @@ const Payroll: React.FC = () => {
     if (!silent) setLoading(true);
     try {
       let latePenaltyMap: Record<string, number> = { ALL: 0 };
+      let lateGracePeriodMap: Record<string, number> = { ALL: 0 };
       const settingsDoc = await getDoc(doc(db, 'settings', 'general'));
       if (settingsDoc.exists()) {
         const data = settingsDoc.data();
         if (typeof data.latePenalty === 'number') latePenaltyMap = { ALL: data.latePenalty };
         else if (typeof data.latePenalty === 'object') latePenaltyMap = data.latePenalty;
+        
+        if (typeof data.lateGracePeriod === 'number') lateGracePeriodMap = { ALL: data.lateGracePeriod };
+        else if (typeof data.lateGracePeriod === 'object') lateGracePeriodMap = data.lateGracePeriod;
       }
 
       const startDate = `${month}-01`;
@@ -175,8 +179,10 @@ const Payroll: React.FC = () => {
         let totalBonus = 0;
         const userBonuses: any[] = [];
         bonusSnap.forEach(d => {
-           totalBonus += d.data().amount || 0;
-           userBonuses.push(d.data());
+           const b = d.data();
+           const amt = b.amount || 0;
+           totalBonus += (b.type === 'DEDUCT' ? -amt : amt);
+           userBonuses.push(b);
         });
         setBonuses(userBonuses);
 
@@ -211,6 +217,7 @@ const Payroll: React.FC = () => {
               let latePenalty = 0;
               const branchIdForRecord = data.branchId || currentUserBranchId;
               const latePenaltyRate = (latePenaltyMap[branchIdForRecord] !== undefined ? latePenaltyMap[branchIdForRecord] : latePenaltyMap['ALL']) || 0;
+              const gracePeriod = (lateGracePeriodMap[branchIdForRecord] !== undefined ? lateGracePeriodMap[branchIdForRecord] : lateGracePeriodMap['ALL']) ?? 0;
               
               const shiftsToday = schedulesMap[data.date];
               if (shiftsToday && shiftsToday.length > 0) {
@@ -231,10 +238,13 @@ const Payroll: React.FC = () => {
                       if (endM > latestEndM) latestEndM = endM;
                    }
                 });
-                const inTotalM = inTime.getHours() * 60 + inTime.getMinutes();
-                if (inTotalM > earliestShiftM + 15) { // Cho phép trễ 15 phút
+                const inTotalS = inTime.getHours() * 3600 + inTime.getMinutes() * 60 + inTime.getSeconds();
+                const earliestShiftS = earliestShiftM * 60;
+                // gracePeriod is in seconds
+                if (inTotalS > earliestShiftS + gracePeriod) { // Cho phép trễ theo cấu hình
                    isLate = true;
-                   latePenalty = (inTotalM - earliestShiftM) * latePenaltyRate;
+                   const lateMinutes = Math.floor((inTotalS - earliestShiftS) / 60);
+                   latePenalty = lateMinutes * latePenaltyRate;
                 }
                 if (outTime) {
                    const outTotalM = outTime.getHours() * 60 + outTime.getMinutes();
@@ -341,7 +351,8 @@ const Payroll: React.FC = () => {
            if (!b.isPaid) {
              if (!adminBonusMap[b.employeeId]) adminBonusMap[b.employeeId] = 0;
              if (!adminBonusDetails[b.employeeId]) adminBonusDetails[b.employeeId] = [];
-             adminBonusMap[b.employeeId] += b.amount || 0;
+             const amt = b.amount || 0;
+             adminBonusMap[b.employeeId] += (b.type === 'DEDUCT' ? -amt : amt);
              adminBonusDetails[b.employeeId].push(b);
            }
         });
@@ -415,6 +426,7 @@ const Payroll: React.FC = () => {
             let latePenalty = 0;
             const branchIdForRecord = data.branchId || allEmps[empId]?.branchId;
             const latePenaltyRate = (latePenaltyMap[branchIdForRecord] !== undefined ? latePenaltyMap[branchIdForRecord] : latePenaltyMap['ALL']) || 0;
+            const gracePeriod = (lateGracePeriodMap[branchIdForRecord] !== undefined ? lateGracePeriodMap[branchIdForRecord] : lateGracePeriodMap['ALL']) ?? 0;
 
             const inTime = data.checkIn.toDate ? data.checkIn.toDate() : new Date(data.checkIn);
             const inTotalM = inTime.getHours() * 60 + inTime.getMinutes();
@@ -428,8 +440,11 @@ const Payroll: React.FC = () => {
                        if (startM < earliestShiftM) earliestShiftM = startM;
                     }
                  });
-                 if (inTotalM > earliestShiftM + 15) {
-                    latePenalty = (inTotalM - earliestShiftM) * latePenaltyRate;
+                 const inTotalS = inTime.getHours() * 3600 + inTime.getMinutes() * 60 + inTime.getSeconds();
+                 const earliestShiftS = earliestShiftM * 60;
+                 if (inTotalS > earliestShiftS + gracePeriod) {
+                    const lateMinutes = Math.floor((inTotalS - earliestShiftS) / 60);
+                    latePenalty = lateMinutes * latePenaltyRate;
                  }
             }
 
@@ -557,8 +572,8 @@ const Payroll: React.FC = () => {
       // Send notification to employee
       await addDoc(collection(db, 'notifications'), {
         employeeId: paymentModalData.employeeId,
-        title: 'Nhận thanh toán lương',
-        message: `Tài khoản của bạn vừa được cộng thêm ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(paymentModalData.amount)} từ đợt thanh toán lương tháng ${month}.`,
+        title: 'Thanh toán lương',
+        message: `Lương tháng ${month} của bạn đã được thanh toán. Tổng nhận: ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(paymentModalData.amount)}`,
         type: 'MONEY_ADD',
         read: false,
         createdAt: new Date()
@@ -600,16 +615,16 @@ const Payroll: React.FC = () => {
       {userRole === 'BRANCH_ADMIN' && (
         <div className="flex border-b border-gray-200 bg-white px-2 rounded-t-xl pt-2">
           <button 
-            className={`py-3 px-6 font-medium text-sm border-b-2 transition-colors ${activeTab === 'admin' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-            onClick={() => setActiveTab('admin')}
-          >
-            Quản lý Lương Nhân viên
-          </button>
-          <button 
             className={`py-3 px-6 font-medium text-sm border-b-2 transition-colors ${activeTab === 'personal' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
             onClick={() => setActiveTab('personal')}
           >
             Bảng lương Cá nhân
+          </button>
+          <button 
+            className={`py-3 px-6 font-medium text-sm border-b-2 transition-colors ${activeTab === 'admin' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+            onClick={() => setActiveTab('admin')}
+          >
+            Quản lý Lương Nhân viên
           </button>
         </div>
       )}
@@ -637,9 +652,9 @@ const Payroll: React.FC = () => {
       {/* TỔNG KẾT NHÂN VIÊN (Dành cho Admin) */}
       {(userRole === 'SUPER_ADMIN' || (userRole === 'BRANCH_ADMIN' && activeTab === 'admin')) && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto overflow-y-hidden">
-          <div className="p-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+          <div className="p-4 bg-gray-50 border-b border-gray-200 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
             <h3 className="font-bold text-gray-800">Tổng hợp Bảng Lương Nhân Viên</h3>
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full lg:w-auto">
               {userRole === 'SUPER_ADMIN' && (
                 <select
                   value={filterBranchId}
@@ -660,9 +675,10 @@ const Payroll: React.FC = () => {
                   ))}
                 </select>
               )}
-              <label className="text-sm font-medium text-gray-700">Chọn tháng:</label>
-              <div className="flex items-center space-x-1 bg-white border border-gray-300 rounded-lg p-0.5">
-                <button 
+              <div className="flex items-center justify-between sm:justify-start gap-2">
+                <label className="text-sm font-medium text-gray-700 whitespace-nowrap">Chọn tháng:</label>
+                <div className="flex items-center space-x-1 bg-white border border-gray-300 rounded-lg p-0.5">
+                  <button 
                   onClick={() => {
                     const [y, m] = month.split('-');
                     let date = new Date(parseInt(y), parseInt(m) - 2, 1);
@@ -676,7 +692,7 @@ const Payroll: React.FC = () => {
                   type="month" 
                   value={month}
                   onChange={e => setMonth(e.target.value)}
-                  className="px-2 py-1.5 text-sm outline-none bg-transparent w-[120px] text-center font-medium"
+                  className="px-2 py-1.5 text-sm outline-none bg-transparent w-[140px] md:w-[150px] text-center font-medium"
                 />
                 <button 
                   onClick={() => {
@@ -689,6 +705,7 @@ const Payroll: React.FC = () => {
                   <ChevronRight size={16} />
                 </button>
               </div>
+             </div>
             </div>
           </div>
           <table className="w-full text-left border-collapse whitespace-nowrap">
@@ -742,8 +759,17 @@ const Payroll: React.FC = () => {
                     <td className="p-4 text-sm text-right font-bold text-gray-800">
                       {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.totalEarned)}
                       {item.bonuses && item.bonuses.length > 0 && (
-                        <div className="text-[10px] text-green-600 font-normal mt-1 flex flex-col items-end">
-                           <span>(+ {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.bonuses.reduce((sum: number, b: any) => sum + b.amount, 0))} thưởng)</span>
+                        <div className="text-[10px] font-normal mt-1 flex flex-col items-end">
+                           {(() => {
+                             const tBonus = item.bonuses.filter((b: any) => b.type === 'BONUS' || !b.type).reduce((sum: number, b: any) => sum + (b.amount || 0), 0);
+                             const tDeduct = item.bonuses.filter((b: any) => b.type === 'DEDUCT').reduce((sum: number, b: any) => sum + (b.amount || 0), 0);
+                             return (
+                               <>
+                                 {tBonus > 0 && <span className="text-green-600">(+ {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(tBonus)} thưởng)</span>}
+                                 {tDeduct > 0 && <span className="text-red-500">(- {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(tDeduct)} phạt)</span>}
+                               </>
+                             );
+                           })()}
                         </div>
                       )}
                     </td>
@@ -796,7 +822,7 @@ const Payroll: React.FC = () => {
                 type="month" 
                 value={month}
                 onChange={e => setMonth(e.target.value)}
-                className="px-3 py-1 border border-gray-300 rounded-md text-sm outline-none focus:border-blue-500"
+                className="px-3 py-1 border border-gray-300 rounded-md text-sm outline-none focus:border-blue-500 w-[140px] md:w-auto text-center"
               />
               <span className="text-sm font-medium text-gray-600 bg-white px-3 py-1 rounded-full border">
                 Tổng: {formatHours(totalHours + liveHours)}
@@ -872,13 +898,15 @@ const Payroll: React.FC = () => {
             </tbody>
           </table>
           {bonuses && bonuses.length > 0 && (
-            <div className="p-4 bg-green-50/50 border-t border-green-100">
-               <h4 className="font-semibold text-green-800 mb-2">Các khoản thưởng thêm trong tháng:</h4>
+            <div className="p-4 bg-gray-50 border-t border-gray-100">
+               <h4 className="font-semibold text-gray-800 mb-2">Các khoản thưởng/phạt trong tháng:</h4>
                <ul className="space-y-1">
                  {bonuses.map((b, idx) => (
-                   <li key={idx} className="flex justify-between items-center text-sm border-b border-green-100 pb-1 last:border-b-0">
+                   <li key={idx} className="flex justify-between items-center text-sm border-b border-gray-200 pb-1 last:border-b-0">
                      <span className="text-gray-700">{b.reason} <span className="text-gray-400 text-xs ml-1">({new Date(b.createdAt?.toDate ? b.createdAt.toDate() : b.createdAt).toLocaleDateString('vi-VN')})</span></span>
-                     <span className="font-bold text-green-600">+{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(b.amount)}</span>
+                     <span className={`font-bold ${b.type === 'DEDUCT' ? 'text-red-500' : 'text-green-600'}`}>
+                       {b.type === 'DEDUCT' ? '-' : '+'}{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(b.amount || 0)}
+                     </span>
                    </li>
                  ))}
                </ul>
@@ -889,7 +917,7 @@ const Payroll: React.FC = () => {
 
       {/* PAYMENT MODAL */}
       {paymentModalData && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-fade-in-up flex flex-col max-h-[90vh]">
             <div className="bg-blue-600 p-4 text-white flex justify-between items-center shrink-0">
               <h3 className="font-bold text-lg">Thông tin thanh toán</h3>
@@ -1002,7 +1030,7 @@ const Payroll: React.FC = () => {
       )}
 
       {selectedLogs && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 transition-opacity">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm transition-opacity">
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden flex flex-col">
             <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50">
               <h3 className="font-semibold text-gray-800 flex items-center gap-2">

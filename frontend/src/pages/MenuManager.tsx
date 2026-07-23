@@ -3,6 +3,7 @@ import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where } 
 import { db } from '../config/firebase';
 import { Plus, Edit2, Trash2, X, Image as ImageIcon, Camera } from 'lucide-react';
 import toast from 'react-hot-toast';
+import Swal from 'sweetalert2';
 
 interface MenuItem {
   id: string;
@@ -14,6 +15,8 @@ interface MenuItem {
   description?: string;
   subCategory?: string;
   branchId?: string | null;
+  hasSizes?: boolean;
+  sizes?: { name: string; price: number }[];
 }
 
 const compressImage = (file: File): Promise<string> => {
@@ -61,6 +64,7 @@ const MenuManager: React.FC = () => {
   const [viewingItem, setViewingItem] = useState<MenuItem | null>(null);
   const [branches, setBranches] = useState<any[]>([]);
   const [filterBranch, setFilterBranch] = useState<string>('all');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
   
   const userRole = localStorage.getItem('userRole');
   const userBranchId = localStorage.getItem('branchId');
@@ -79,7 +83,9 @@ const MenuManager: React.FC = () => {
     isAvailable: true,
     description: '',
     subCategory: '',
-    branchId: 'all'
+    branchId: 'all',
+    hasSizes: false,
+    sizes: [] as { name: string; price: number }[]
   });
 
   const predefinedCategories = ['Đồ uống', 'Đồ ăn', 'Tráng miệng', 'Khác'];
@@ -130,7 +136,9 @@ const MenuManager: React.FC = () => {
         isAvailable: item.isAvailable,
         description: item.description || '',
         subCategory: item.subCategory || '',
-        branchId: item.branchId || 'all'
+        branchId: item.branchId || 'all',
+        hasSizes: item.hasSizes || false,
+        sizes: item.sizes || []
       });
       setCustomCategory(isCustomCat ? item.category : '');
       setPriceText(item.price ? new Intl.NumberFormat('vi-VN').format(item.price) : '0');
@@ -146,7 +154,9 @@ const MenuManager: React.FC = () => {
         isAvailable: true,
         description: '',
         subCategory: '',
-        branchId: 'all'
+        branchId: 'all',
+        hasSizes: false,
+        sizes: []
       });
       setCustomCategory('');
       setPriceText('');
@@ -183,8 +193,24 @@ const MenuManager: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || formData.price <= 0) {
-      toast.error('Vui lòng nhập tên và giá hợp lệ');
+    if (!formData.name) {
+      toast.error('Vui lòng nhập tên món');
+      return;
+    }
+
+    if (formData.hasSizes) {
+      if (formData.sizes.length === 0) {
+        toast.error('Vui lòng thêm ít nhất một kích cỡ (size)');
+        return;
+      }
+      for (const s of formData.sizes) {
+        if (!s.name || s.price <= 0) {
+          toast.error('Tên kích cỡ và giá phải hợp lệ');
+          return;
+        }
+      }
+    } else if (formData.price <= 0) {
+      toast.error('Vui lòng nhập giá hợp lệ');
       return;
     }
 
@@ -198,12 +224,14 @@ const MenuManager: React.FC = () => {
       
       const payload: any = {
         name: formData.name,
-        price: formData.price,
+        price: formData.hasSizes ? formData.sizes[0]?.price || 0 : formData.price,
         category: formData.category === 'Khác' ? customCategory : formData.category,
         imageUrl: imageUrl,
         isAvailable: formData.isAvailable,
         description: formData.description,
-        subCategory: formData.subCategory
+        subCategory: formData.subCategory,
+        hasSizes: formData.hasSizes,
+        sizes: formData.hasSizes ? formData.sizes : []
       };
 
       const targetBranchId = userRole === 'BRANCH_ADMIN' ? userBranchId : (formData.branchId === 'all' ? null : formData.branchId);
@@ -271,7 +299,16 @@ const MenuManager: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa món này?')) {
+    const result = await Swal.fire({
+      title: 'Xóa món này?',
+      text: 'Bạn có chắc chắn muốn xóa món này không?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Xóa',
+      cancelButtonText: 'Hủy'
+    });
+
+    if (result.isConfirmed) {
       try {
         await deleteDoc(doc(db, 'menu_items', id));
         toast.success('Đã xóa món');
@@ -285,11 +322,17 @@ const MenuManager: React.FC = () => {
   if (loading) return <div className="p-8 text-center">Đang tải dữ liệu...</div>;
 
   const displayedItems = items.filter(item => {
+    let match = true;
     if (userRole === 'SUPER_ADMIN' && filterBranch !== 'all') {
-      return item.branchId === filterBranch || !item.branchId || item.branchId === 'all';
+      match = match && (item.branchId === filterBranch || !item.branchId || item.branchId === 'all');
     }
-    return true;
+    if (filterCategory !== 'all') {
+      match = match && item.category === filterCategory;
+    }
+    return match;
   });
+
+  const availableCategories = Array.from(new Set(items.map(i => i.category)));
 
   return (
     <div className="p-6 h-full flex flex-col bg-gray-50">
@@ -308,6 +351,16 @@ const MenuManager: React.FC = () => {
               ))}
             </select>
           )}
+          <select
+            value={filterCategory}
+            onChange={(e) => setFilterCategory(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 outline-none bg-white font-medium shadow-sm"
+          >
+            <option value="all">Tất cả danh mục</option>
+            {availableCategories.map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
+          </select>
           <button
             onClick={() => openModal()}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm"
@@ -356,7 +409,18 @@ const MenuManager: React.FC = () => {
                       </div>
                     </td>
                     <td className="p-4 font-bold text-blue-600 text-right text-lg">
-                      {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.price)}
+                      {item.hasSizes && item.sizes && item.sizes.length > 0 ? (
+                        <div className="flex flex-col gap-1 items-end">
+                          {item.sizes.map((sz, idx) => (
+                            <span key={idx} className="text-sm font-medium text-gray-700 bg-gray-50 px-2 py-0.5 rounded border border-gray-100 flex items-center justify-between w-full max-w-[140px]">
+                              <span className="text-gray-500 mr-2">{sz.name}:</span>
+                              <span className="text-blue-600 font-bold">{new Intl.NumberFormat('vi-VN').format(sz.price)}đ</span>
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.price)
+                      )}
                     </td>
                     <td className="p-4 text-center">
                       <span className={`px-3 py-1 rounded-full text-xs font-medium border ${item.isAvailable ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
@@ -398,7 +462,7 @@ const MenuManager: React.FC = () => {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-slide-up flex flex-col max-h-[90vh]">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
               <h2 className="text-xl font-bold text-gray-800">{editingItem ? 'Sửa món ăn/nước uống' : 'Thêm món mới'}</h2>
@@ -424,13 +488,58 @@ const MenuManager: React.FC = () => {
                 <input type="text" value={formData.subCategory} onChange={e => setFormData({...formData, subCategory: e.target.value})} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-sm" placeholder="VD: Trà, Sữa, Nước ép..." />
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Giá bán (VNĐ) <span className="text-red-500">*</span></label>
-                <input type="text" value={priceText} onChange={handlePriceChange} required className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none shadow-sm font-bold text-blue-600 text-lg" placeholder="VD: 100.000" />
+              <div className="col-span-2">
+                <div className="flex items-center gap-3 p-3 bg-blue-50/50 rounded-xl border border-blue-100">
+                  <input type="checkbox" id="hasSizes" checked={formData.hasSizes} onChange={e => setFormData({...formData, hasSizes: e.target.checked})} className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500" />
+                  <label htmlFor="hasSizes" className="text-sm font-bold text-gray-700 cursor-pointer select-none">Món có nhiều kích cỡ (Size)</label>
+                </div>
               </div>
-              <div className="flex flex-col justify-end">
-                <label className="block text-sm font-semibold text-gray-700 mb-1 invisible">Trạng thái</label>
-                <div className="flex items-center gap-3 p-3.5 bg-gray-50 rounded-xl border border-gray-200 h-[52px]">
+
+              {!formData.hasSizes && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Giá bán (VNĐ) <span className="text-red-500">*</span></label>
+                  <input type="text" value={priceText} onChange={handlePriceChange} required={!formData.hasSizes} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none shadow-sm font-bold text-blue-600 text-lg" placeholder="VD: 100.000" />
+                </div>
+              )}
+
+              {formData.hasSizes && (
+                <div className="col-span-2 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="block text-sm font-semibold text-gray-700">Các kích cỡ (Size)</label>
+                    <button type="button" onClick={() => setFormData({...formData, sizes: [...formData.sizes, {name: '', price: 0}]})} className="text-sm text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1"><Plus size={16}/> Thêm size</button>
+                  </div>
+                  <div className="space-y-3">
+                    {formData.sizes.map((sz, idx) => (
+                      <div key={idx} className="flex gap-3 items-start">
+                        <div className="flex-1">
+                          <input type="text" value={sz.name} onChange={e => {
+                            const newSizes = [...formData.sizes];
+                            newSizes[idx].name = e.target.value;
+                            setFormData({...formData, sizes: newSizes});
+                          }} placeholder="Tên size (VD: Size L)" required className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
+                        </div>
+                        <div className="flex-1">
+                          <input type="text" value={sz.price === 0 ? '' : sz.price.toLocaleString('vi-VN')} onChange={e => {
+                            const val = e.target.value.replace(/\D/g, '');
+                            const newSizes = [...formData.sizes];
+                            newSizes[idx].price = parseInt(val) || 0;
+                            setFormData({...formData, sizes: newSizes});
+                          }} placeholder="Giá bán" required className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium" />
+                        </div>
+                        <button type="button" onClick={() => {
+                          const newSizes = formData.sizes.filter((_, i) => i !== idx);
+                          setFormData({...formData, sizes: newSizes});
+                        }} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors mt-0.5"><Trash2 size={18}/></button>
+                      </div>
+                    ))}
+                    {formData.sizes.length === 0 && <p className="text-sm text-gray-500 italic text-center py-2">Chưa có size nào. Vui lòng thêm size.</p>}
+                  </div>
+                </div>
+              )}
+
+              <div className={formData.hasSizes ? 'col-span-2' : ''}>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Trạng thái</label>
+                <div className="flex items-center gap-3 p-3.5 bg-gray-50 rounded-xl border border-gray-200">
                   <input type="checkbox" id="isAvailable" checked={formData.isAvailable} onChange={e => setFormData({...formData, isAvailable: e.target.checked})} className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500" />
                   <label htmlFor="isAvailable" className="text-sm font-bold text-gray-700 cursor-pointer select-none flex-1">Đang bán (Hiển thị trên POS)</label>
                 </div>
@@ -488,7 +597,7 @@ const MenuManager: React.FC = () => {
       )}
 
       {viewingItem && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in" onClick={() => setViewingItem(null)}>
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in" onClick={() => setViewingItem(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-slide-up relative" onClick={e => e.stopPropagation()}>
             <div className="relative h-48 bg-gray-100 overflow-hidden group">
               {viewingItem.imageUrl ? (

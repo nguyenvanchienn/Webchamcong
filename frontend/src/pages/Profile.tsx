@@ -43,6 +43,7 @@ const Profile: React.FC = () => {
   const [bankAccountName, setBankAccountName] = useState('');
   const [isUpdatingContact, setIsUpdatingContact] = useState(false);
   const [showPhone2, setShowPhone2] = useState(false);
+  const [bankList, setBankList] = useState<{bin: string, shortName: string, name: string}[]>([]);
 
   // UI State
   const [activeTab, setActiveTab] = useState<'profile' | 'settings'>('profile');
@@ -92,6 +93,14 @@ const Profile: React.FC = () => {
 
   useEffect(() => {
     fetchProfile();
+    fetch('https://api.vietqr.io/v2/banks')
+      .then(res => res.json())
+      .then(data => {
+        if (data.code === '00') {
+          setBankList(data.data);
+        }
+      })
+      .catch(err => console.error('Error fetching banks', err));
   }, [employeeId]);
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -137,7 +146,10 @@ const Profile: React.FC = () => {
 
   const handleUpdateContact = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!employeeId) return;
+    if (!employeeId) {
+      toast.error('Tài khoản Quản trị tối cao không có Hồ sơ nhân viên để lưu!');
+      return;
+    }
     setIsUpdatingContact(true);
     try {
       await updateDoc(doc(db, 'employees', employeeId), {
@@ -162,6 +174,33 @@ const Profile: React.FC = () => {
     } catch (err: any) {
       console.error(err);
       toast.error('Lỗi cập nhật: ' + err.message);
+    } finally {
+      setIsUpdatingContact(false);
+    }
+  };
+
+  const handleDeleteBank = async () => {
+    if (!employeeId) {
+      toast.error('Tài khoản Quản trị tối cao không có Hồ sơ nhân viên để xóa!');
+      return;
+    }
+    if (!window.confirm('Bạn có chắc chắn muốn xóa thông tin ngân hàng?')) return;
+    setIsUpdatingContact(true);
+    try {
+      await updateDoc(doc(db, 'employees', employeeId), {
+        bankName: '',
+        bankAccountNum: '',
+        bankAccountName: ''
+      });
+      setBankName('');
+      setBankAccountNum('');
+      setBankAccountName('');
+      
+      toast.success('Đã xóa thông tin ngân hàng!');
+      fetchProfile(true);
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Lỗi xóa: ' + err.message);
     } finally {
       setIsUpdatingContact(false);
     }
@@ -574,10 +613,16 @@ const Profile: React.FC = () => {
                           <div className="md:col-span-2">
                             <label className="block text-sm text-gray-600 mb-1 font-medium">Ngân hàng thụ hưởng</label>
                             <input 
+                              list="profile-bank-list"
                               type="text" value={bankName} onChange={e => setBankName(e.target.value)}
                               className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:border-purple-500 transition-colors"
-                              placeholder="VD: MB Bank, Vietcombank..."
+                              placeholder="VD: MB, VCB..."
                             />
+                            <datalist id="profile-bank-list">
+                              {bankList.map(bank => (
+                                <option key={bank.bin} value={bank.shortName}>{bank.name}</option>
+                              ))}
+                            </datalist>
                           </div>
                           <div>
                             <label className="block text-sm text-gray-600 mb-1 font-medium">Số tài khoản</label>
@@ -595,14 +640,32 @@ const Profile: React.FC = () => {
                             />
                           </div>
                         </div>
-                        <button 
-                          type="submit" disabled={isUpdatingContact}
-                          className={`px-6 py-2 rounded-lg font-medium text-white transition-colors ${
-                            isUpdatingContact ? 'bg-purple-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700'
-                          }`}
-                        >
-                          {isUpdatingContact ? 'Đang lưu...' : 'Lưu ngân hàng'}
-                        </button>
+                        <div className="flex gap-3">
+                          {!!(profileData?.bankName || profileData?.bankAccountNum) && 
+                           bankName === (profileData?.bankName || '') && 
+                           bankAccountNum === (profileData?.bankAccountNum || '') && 
+                           bankAccountName === (profileData?.bankAccountName || '') ? (
+                            <button 
+                              type="button" 
+                              onClick={handleDeleteBank}
+                              disabled={isUpdatingContact}
+                              className={`px-6 py-2 rounded-lg font-medium text-white transition-colors ${
+                                isUpdatingContact ? 'bg-red-400 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600'
+                              }`}
+                            >
+                              {isUpdatingContact ? 'Đang xử lý...' : 'Xóa ngân hàng'}
+                            </button>
+                          ) : (
+                            <button 
+                              type="submit" disabled={isUpdatingContact}
+                              className={`px-6 py-2 rounded-lg font-medium text-white transition-colors ${
+                                isUpdatingContact ? 'bg-purple-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700'
+                              }`}
+                            >
+                              {isUpdatingContact ? 'Đang lưu...' : 'Lưu ngân hàng'}
+                            </button>
+                          )}
+                        </div>
                       </form>
                     </div>
                   )}

@@ -23,6 +23,7 @@ import Kiosk from './pages/Kiosk';
 import POS from './pages/POS';
 import CustomerOrder from './pages/CustomerOrder';
 import MenuManager from './pages/MenuManager';
+import PersonalSalaryCalc from './pages/PersonalSalaryCalc';
 import Revenue from './pages/Revenue';
 import TableManager from './pages/TableManager';
 import TableOrder from './pages/TableOrder';
@@ -56,12 +57,14 @@ function App() {
           <Route path="employees" element={<Employees />} />
           <Route path="accounts" element={<Accounts />} />
           <Route path="attendance" element={<Attendance />} />
-          <Route path="schedules" element={<Schedules />} />
+          <Route path="schedules-register" element={<Schedules key="REGISTER" mode="REGISTER" />} />
+          <Route path="schedules-create" element={<Schedules key="CREATE" mode="CREATE" />} />
           <Route path="timesheets" element={<Timesheets />} />
           <Route path="payroll" element={<Payroll />} />
           <Route path="shift-handovers" element={<ShiftHandovers />} />
           <Route path="notifications" element={<Notifications />} />
           <Route path="profile" element={<Profile />} />
+          <Route path="personal-salary-calc" element={<PersonalSalaryCalc />} />
           <Route path="reports" element={<Reports />} />
           <Route path="export" element={<Export />} />
           <Route path="settings" element={<Settings />} />

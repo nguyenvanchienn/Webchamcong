@@ -3,12 +3,12 @@ import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { auth, db } from '../config/firebase';
 import { signOut, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import toast from 'react-hot-toast';
-import { doc, getDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, onSnapshot, setDoc } from 'firebase/firestore';
 import { 
   LayoutDashboard, Building2, Users, UserCog, 
   Clock, CalendarDays, ClipboardList, Wallet, 
   BarChart3, FileSpreadsheet, Settings, LogOut, UserCircle, Bell, ChevronLeft, ChevronRight, Menu, X, ClipboardCheck,
-  ShoppingCart, Receipt, Utensils, CircleDollarSign, Store, QrCode
+  ShoppingCart, Receipt, Utensils, CircleDollarSign, Store, QrCode, Lock, Calculator
 } from 'lucide-react';
 
 const DashboardLayout: React.FC = () => {
@@ -34,6 +34,32 @@ const DashboardLayout: React.FC = () => {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
+  const [showSetPasswordModal, setShowSetPasswordModal] = useState(false);
+  const [newExitPassword, setNewExitPassword] = useState('');
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
+  
+  const [enablePersonalSalaryCalc, setEnablePersonalSalaryCalc] = useState(true);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const docSnap = await getDoc(doc(db, 'settings', 'general'));
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.customerOrderExitPassword) {
+            setNewExitPassword(data.customerOrderExitPassword);
+          }
+          if (data.enablePersonalSalaryCalc !== undefined) {
+            setEnablePersonalSalaryCalc(data.enablePersonalSalaryCalc);
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    fetchSettings();
+  }, []);
+
   useEffect(() => {
     if (!employeeId) return;
     const q = query(
@@ -42,7 +68,15 @@ const DashboardLayout: React.FC = () => {
       where('read', '==', false)
     );
     const unsub = onSnapshot(q, (snap) => {
-      setUnreadCount(snap.docs.length);
+      const now = new Date();
+      let count = 0;
+      snap.docs.forEach(doc => {
+        const data = doc.data();
+        if (!data.visibleAfter || new Date(data.visibleAfter) <= now) {
+          count++;
+        }
+      });
+      setUnreadCount(count);
     });
     return () => unsub();
   }, [employeeId]);
@@ -54,12 +88,21 @@ const DashboardLayout: React.FC = () => {
           const empDoc = await getDoc(doc(db, 'employees', employeeId));
           if (empDoc.exists() && empDoc.data().fullName) {
             setDisplayName(empDoc.data().fullName);
+            return;
           }
         } catch (error) {
           console.error(error);
         }
-      } else if (userRole === 'SUPER_ADMIN') {
+      }
+      
+      if (userRole === 'SUPER_ADMIN') {
         setDisplayName('Quản trị viên');
+      } else if (userRole === 'POS') {
+        setDisplayName('Máy Order');
+      } else if (userRole === 'KIOSK') {
+        setDisplayName('Máy Chấm Công');
+      } else if (userRole === 'BRANCH_ADMIN') {
+        setDisplayName('Quản lý Cơ sở');
       }
     };
     fetchName();
@@ -102,14 +145,16 @@ const DashboardLayout: React.FC = () => {
     { name: 'Bán hàng (POS)', path: '/pos', icon: <ShoppingCart size={20} />, roles: ['POS'] },
     { name: 'Màn hình Khách Order', path: '/customer-order', icon: <Store size={20} />, roles: ['POS'] },
     { name: 'Lịch sử Hóa đơn', path: '/dashboard/orders', icon: <Receipt size={20} />, roles: ['POS'] },
+    { name: 'Quản lý Bàn / QR', path: '/dashboard/tables', icon: <QrCode size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN', 'POS'] },
     { name: 'Bàn giao ca', path: '/dashboard/shift-handovers', icon: <ClipboardCheck size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN', 'CASHIER', 'POS'] },
     { name: 'Quản lý Thực đơn', path: '/dashboard/menu', icon: <Utensils size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN'] },
     { name: 'Quản lý cơ sở', path: '/dashboard/branches', icon: <Building2 size={20} />, roles: ['SUPER_ADMIN'] },
-    { name: 'Quản lý Bàn / QR', path: '/dashboard/tables', icon: <QrCode size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN', 'POS'] },
     { name: 'Quản lý nhân viên', path: '/dashboard/employees', icon: <Users size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN'] },
     { name: 'Quản lý tài khoản', path: '/dashboard/accounts', icon: <UserCog size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN'] },
     { name: 'Chấm công (Admin)', path: '/dashboard/attendance', icon: <Clock size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN'] },
-    { name: 'Lịch làm việc', path: '/dashboard/schedules', icon: <CalendarDays size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN', 'EMPLOYEE', 'CASHIER', 'BARTENDER', 'KITCHEN', 'GUARD'] },
+    { name: 'Đăng ký lịch làm việc', path: '/dashboard/schedules-register', icon: <CalendarDays size={20} />, roles: ['BRANCH_ADMIN', 'EMPLOYEE', 'CASHIER', 'BARTENDER', 'KITCHEN', 'GUARD'] },
+    { name: 'Tạo lịch làm việc', path: '/dashboard/schedules-create', icon: <CalendarDays size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN'] },
+    { name: 'Tự tính lương', path: '/dashboard/personal-salary-calc', icon: <Calculator size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN', 'EMPLOYEE', 'CASHIER', 'BARTENDER', 'KITCHEN', 'GUARD'] },
     { name: 'Bảng công', path: '/dashboard/timesheets', icon: <ClipboardList size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN'] },
     { name: 'Bảng lương', path: '/dashboard/payroll', icon: <Wallet size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN', 'EMPLOYEE', 'CASHIER', 'BARTENDER', 'KITCHEN', 'GUARD'] },
     { name: 'Thông báo', path: '/dashboard/notifications', icon: <Bell size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN', 'EMPLOYEE', 'CASHIER', 'BARTENDER', 'KITCHEN', 'GUARD'] },
@@ -120,14 +165,17 @@ const DashboardLayout: React.FC = () => {
     { name: 'Thiết lập', path: '/dashboard/settings', icon: <Settings size={20} />, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN'] },
   ];
 
-  const menuItems = allMenuItems.filter(item => item.roles.includes(userRole));
+  let menuItems = allMenuItems.filter(item => item.roles.includes(userRole));
+  if (!enablePersonalSalaryCalc && userRole !== 'SUPER_ADMIN') {
+    menuItems = menuItems.filter(item => item.name !== 'Tự tính lương');
+  }
 
   return (
     <div className="flex h-screen bg-gray-100">
       {/* Mobile overlay */}
       {isMobileMenuOpen && (
         <div 
-          className="fixed inset-0 bg-black/50 z-40 md:hidden transition-opacity"
+          className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 md:hidden transition-opacity"
           onClick={() => setIsMobileMenuOpen(false)}
         />
       )}
@@ -158,11 +206,13 @@ const DashboardLayout: React.FC = () => {
 
         <div className="h-16 flex flex-col items-center justify-center border-b border-gray-200 mt-2 md:mt-0">
           {isSidebarCollapsed ? (
-            <h1 className="hidden md:block text-xl font-bold text-blue-600">CC</h1>
+            <h1 className="hidden md:block text-xl font-bold text-blue-600">NB</h1>
           ) : (
             <>
-              <h1 className="text-xl font-bold text-blue-600">Chấm Công Pro</h1>
-              <span className="text-xs text-gray-500 font-medium">{userRole}</span>
+              <h1 className="text-xl font-bold text-blue-600">Tiệm Nhà Bơ</h1>
+              <span className="text-xs font-medium text-gray-500 uppercase tracking-widest mt-1">
+                {userRole === 'POS' ? 'MÁY ORDER' : userRole === 'KIOSK' ? 'MÁY CHẤM CÔNG' : userRole}
+              </span>
             </>
           )}
         </div>
@@ -176,7 +226,14 @@ const DashboardLayout: React.FC = () => {
                   key={item.path}
                   to={item.path}
                   title={isSidebarCollapsed ? item.name : ''}
-                  onClick={() => setIsMobileMenuOpen(false)}
+                  onClick={(e) => {
+                    setIsMobileMenuOpen(false);
+                    if (item.path === '/pos' || item.path === '/customer-order') {
+                      if (!document.fullscreenElement) {
+                        document.documentElement.requestFullscreen().catch(() => {});
+                      }
+                    }
+                  }}
                   className={`flex items-center py-3 text-sm font-medium rounded-lg transition-colors relative ${
                     isActive 
                       ? 'bg-blue-50 text-blue-700' 
@@ -198,6 +255,21 @@ const DashboardLayout: React.FC = () => {
                 </Link>
               );
             })}
+            
+            {/* Nút cài mật khẩu khách order */}
+            {userRole === 'POS' && (
+              <div
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  setShowSetPasswordModal(true);
+                }}
+                className={`flex items-center py-3 text-sm font-medium rounded-lg transition-colors relative text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer mt-1 border-t border-gray-100 ${isSidebarCollapsed ? 'md:justify-center px-4 md:px-0' : 'px-4'}`}
+                title={isSidebarCollapsed ? 'Mật khẩu MH Khách' : ''}
+              >
+                <span className={`${isSidebarCollapsed ? 'md:mr-0 mr-3' : 'mr-3'} relative text-gray-400`}><Lock size={20} /></span>
+                <span className={`${isSidebarCollapsed ? 'md:hidden' : ''} flex-1`}>Cài mật khẩu MH Khách</span>
+              </div>
+            )}
           </nav>
         </div>
 
@@ -245,7 +317,7 @@ const DashboardLayout: React.FC = () => {
 
       {/* Logout Confirmation Modal */}
       {showLogoutModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all px-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm transition-all px-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl scale-100 transform transition-transform">
             <h3 className="text-xl font-bold text-gray-800 mb-2">Đăng xuất khỏi hệ thống</h3>
             <p className="text-gray-600 mb-6 text-sm md:text-base">
@@ -280,6 +352,52 @@ const DashboardLayout: React.FC = () => {
                 className="px-4 py-2 md:px-5 md:py-2.5 rounded-xl font-medium text-white bg-red-600 hover:bg-red-700 transition-colors shadow-md shadow-red-200 text-sm md:text-base disabled:bg-gray-300 disabled:shadow-none flex-1 md:flex-none"
               >
                 {isLoggingOut ? 'Đang XL...' : 'Đăng xuất'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cài đặt mật khẩu Màn hình khách */}
+      {showSetPasswordModal && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-sm w-full p-6 animate-scale-up">
+            <h3 className="text-lg font-bold text-gray-800 mb-4">Mật khẩu Màn hình Khách</h3>
+            <p className="text-sm text-gray-600 mb-4">Thiết lập mật khẩu để mở khóa menu ẩn ở màn hình Khách Order (Để trống nếu không cần).</p>
+            <input
+              type="text"
+              placeholder="Nhập mật khẩu..."
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none mb-6 text-center text-lg tracking-widest"
+              value={newExitPassword}
+              onChange={(e) => setNewExitPassword(e.target.value)}
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowSetPasswordModal(false)}
+                className="flex-1 py-2 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={async () => {
+                  setIsSavingPassword(true);
+                  try {
+                    await setDoc(doc(db, 'settings', 'general'), {
+                      customerOrderExitPassword: newExitPassword
+                    }, { merge: true });
+                    toast.success('Lưu mật khẩu thành công!');
+                    setShowSetPasswordModal(false);
+                  } catch (error) {
+                    toast.error('Lỗi khi lưu mật khẩu');
+                  } finally {
+                    setIsSavingPassword(false);
+                  }
+                }}
+                disabled={isSavingPassword}
+                className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
+              >
+                {isSavingPassword ? 'Đang lưu...' : 'Lưu lại'}
               </button>
             </div>
           </div>

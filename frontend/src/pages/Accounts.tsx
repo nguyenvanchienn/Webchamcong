@@ -86,7 +86,7 @@ const Accounts: React.FC = () => {
         const data = doc.data();
         if (data.role !== 'SUPER_ADMIN') {
           if (userRole === 'BRANCH_ADMIN') {
-            if (data.role === 'KIOSK') return;
+            if (data.role === 'KIOSK' || data.role === 'BRANCH_ADMIN') return;
             const accBranchId = data.branchId || (data.employeeId ? empBranchMap[data.employeeId] : null);
             if (accBranchId === actualUserBranchId) {
               userList.push({ id: doc.id, ...data } as UserAccount);
@@ -320,12 +320,12 @@ const Accounts: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
         <div>
           <h2 className="text-xl font-bold text-gray-800">Quản lý Tài khoản</h2>
           <p className="text-sm text-gray-500">Cấp tài khoản đăng nhập cho Quản lý cơ sở và Nhân viên</p>
         </div>
-        <div className="flex items-center space-x-4">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 w-full md:w-auto">
           {userRole === 'SUPER_ADMIN' && (
             <select
               value={filterBranchId}
@@ -340,7 +340,7 @@ const Accounts: React.FC = () => {
           )}
           <button 
             onClick={() => openModal()}
-            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="flex justify-center items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors w-full sm:w-auto"
           >
             <Plus size={20} className="mr-2" />
             Cấp Tài khoản
@@ -463,7 +463,7 @@ const Accounts: React.FC = () => {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
             <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-gray-50">
               <h3 className="font-bold text-lg text-gray-800 flex items-center">
@@ -620,7 +620,7 @@ const Accounts: React.FC = () => {
 
       {/* Change Password Modal */}
       {isPasswordModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
               <h3 className="text-xl font-bold text-gray-800">Đổi Mật Khẩu</h3>

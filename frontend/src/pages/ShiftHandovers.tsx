@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, addDoc, updateDoc, doc, query, where, orderBy, deleteDoc, Timestamp, getDoc, onSnapshot } from 'firebase/firestore';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 import { db, firebaseConfig } from '../config/firebase';
 import { Wallet, CheckCircle2, Plus, X, Trash2, ArrowRightLeft, FileText, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
+import Swal from 'sweetalert2';
 
 interface Branch {
   id: string;
@@ -34,6 +36,7 @@ interface ShiftReport {
 }
 
 const ShiftHandovers = () => {
+  const navigate = useNavigate();
   const [reports, setReports] = useState<ShiftReport[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [branchMap, setBranchMap] = useState<Record<string, string>>({});
@@ -56,10 +59,21 @@ const ShiftHandovers = () => {
   const [historyShift, setHistoryShift] = useState<ShiftReport | null>(null);
   
   // Dữ liệu nhập
-  const [startCash, setStartCash] = useState(0);
-  const [startTransfer, setStartTransfer] = useState(0);
-  const [endCash, setEndCash] = useState(0);
-  const [endTransfer, setEndTransfer] = useState(0);
+  const [startCash, setStartCash] = useState<number | string>(0);
+  const [startTransfer, setStartTransfer] = useState<number | string>(0);
+  const [endCash, setEndCash] = useState<number | string>(0);
+  const [endTransfer, setEndTransfer] = useState<number | string>(0);
+
+  const handleMoneyInput = (val: string, setter: (val: number | string) => void) => {
+    let clean = val.replace(/[^0-9-]/g, '');
+    if (clean === '-' || clean === '') {
+      setter(clean);
+    } else {
+      const isNeg = clean.startsWith('-');
+      clean = clean.replace(/-/g, '');
+      setter(Number(isNeg ? '-' + clean : clean));
+    }
+  };
   const [notes, setNotes] = useState('');
   
   // Doanh thu tạm tính (chỉ khi đang chốt ca mới tính)
@@ -86,29 +100,40 @@ const ShiftHandovers = () => {
       setBranches(branchList);
       setBranchMap(map);
 
-      // 2. Fetch Active Shift (dành cho Thu Ngân / POS)
-      if (userRole === 'CASHIER' || userRole === 'POS') {
-        const activeQuery = userRole === 'POS'
-          ? query(
-              collection(db, 'shift_reports'),
-              where('branchId', '==', currentBranchId),
-              where('status', '==', 'OPEN')
-            )
-          : query(
+      // 2. Fetch Active Shift
+      if (userRole === 'CASHIER' || userRole === 'POS' || userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') {
+        let activeQuery;
+        if (userRole === 'CASHIER') {
+           activeQuery = query(
               collection(db, 'shift_reports'),
               where('cashierEmail', '==', currentUserEmail),
               where('status', '==', 'OPEN')
-            );
-        const activeSnap = await getDocs(activeQuery);
-        if (!activeSnap.empty) {
-          const docData = activeSnap.docs[0];
-          const data = docData.data() as any;
-          setActiveShift({
-            id: docData.id,
-            ...data,
-            startTime: data.startTime.toDate(),
-            endTime: data.endTime ? data.endTime.toDate() : null
-          } as ShiftReport);
+           );
+        } else {
+           const branchIdToUse = (userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') ? filterBranchId : currentBranchId;
+           if (branchIdToUse && branchIdToUse !== 'all') {
+             activeQuery = query(
+                collection(db, 'shift_reports'),
+                where('branchId', '==', branchIdToUse),
+                where('status', '==', 'OPEN')
+             );
+           }
+        }
+        
+        if (activeQuery) {
+          const activeSnap = await getDocs(activeQuery);
+          if (!activeSnap.empty) {
+            const docData = activeSnap.docs[0];
+            const data = docData.data() as any;
+            setActiveShift({
+              id: docData.id,
+              ...data,
+              startTime: data.startTime.toDate(),
+              endTime: data.endTime ? data.endTime.toDate() : null
+            } as ShiftReport);
+          } else {
+            setActiveShift(null);
+          }
         } else {
           setActiveShift(null);
         }
@@ -203,7 +228,7 @@ const ShiftHandovers = () => {
     return () => {
       unsubscribeOrders();
     };
-  }, [filterBranchId, filterDate]);
+  }, [filterBranchId, filterDate, fetchData]);
 
   const calculateRevenue = async (start: Date, end: Date, branchId: string) => {
     try {
@@ -254,12 +279,19 @@ const ShiftHandovers = () => {
   };
 
   const handleOpenShift = async () => {
+    const branchIdToUse = (userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') ? filterBranchId : currentBranchId;
+    
     // 1. Kiểm tra xem đã có ca nào đang mở ở cơ sở này chưa
     try {
-      if (currentBranchId) {
+      if ((userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') && (!branchIdToUse || branchIdToUse === 'all')) {
+         toast.error('Vui lòng chọn 1 cơ sở cụ thể để mở ca!');
+         return;
+      }
+      
+      if (branchIdToUse) {
         const checkOpenQ = query(
           collection(db, 'shift_reports'),
-          where('branchId', '==', currentBranchId),
+          where('branchId', '==', branchIdToUse),
           where('status', '==', 'OPEN')
         );
         const checkSnap = await getDocs(checkOpenQ);
@@ -272,7 +304,26 @@ const ShiftHandovers = () => {
       console.error('Lỗi kiểm tra ca mở:', error);
     }
 
-    // Kiểm tra xem đã chấm công chưa
+    // 2. Kiểm tra xem cơ sở có máy order chưa
+    if (branchIdToUse) {
+      try {
+        const accQuery = query(collection(db, 'users'), where('role', '==', 'POS'));
+        const accSnap = await getDocs(accQuery);
+        const hasPos = accSnap.docs.some(doc => {
+           const d = doc.data();
+           return d.branchId === branchIdToUse || !d.branchId;
+        });
+        
+        if (!hasPos) {
+           toast.error('Cơ sở này chưa có Máy Order. Vui lòng vào Quản lý tài khoản để tạo tài khoản Máy Order cho cơ sở này trước!');
+           return;
+        }
+      } catch (err) {
+        console.error('Lỗi kiểm tra máy order:', err);
+      }
+    }
+
+    // 3. Kiểm tra xem đã chấm công chưa
     if (userRole === 'CASHIER' || userRole === 'EMPLOYEE') {
       const empId = localStorage.getItem('employeeId');
       if (!empId) {
@@ -309,12 +360,14 @@ const ShiftHandovers = () => {
          toast.error('Lỗi khi kiểm tra chấm công.');
          return;
       }
-    } else if (userRole === 'POS') {
+    } else if (userRole === 'POS' || userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') {
       try {
         const todayStr = new Date().toLocaleDateString('en-CA');
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
         const yesterdayStr = yesterday.toLocaleDateString('en-CA');
+        
+        const branchIdToUse = (userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') ? filterBranchId : currentBranchId;
         
         const attQuery = query(
           collection(db, 'attendance'),
@@ -324,12 +377,11 @@ const ShiftHandovers = () => {
         const snap = await getDocs(attQuery);
         
         let activeEmps: {id: string, name: string, email: string, isCashier: boolean}[] = [];
-        let defaultEmpId = '';
         
         const checkedInIds = snap.docs
           .map(d => {
              const data = d.data();
-             return (data.checkIn && !data.checkOut && (!currentBranchId || data.branchId === currentBranchId)) ? data.employeeId : null;
+             return (data.checkIn && !data.checkOut && (!branchIdToUse || data.branchId === branchIdToUse)) ? data.employeeId : null;
           })
           .filter(Boolean);
 
@@ -347,19 +399,28 @@ const ShiftHandovers = () => {
            }
         }
 
+        if (userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') {
+           // Cho admin luôn tự thấy mình trong danh sách để có thể tự mở ca cho mình
+           activeEmps.push({
+               id: currentEmployeeId || 'admin_id',
+               name: userRole === 'SUPER_ADMIN' ? 'Quản trị viên (Super Admin)' : 'Quản lý (Branch Admin)',
+               email: currentUserEmail,
+               isCashier: true
+           });
+        }
+
         if (activeEmps.length === 0) {
            toast.error("Không có nhân viên nào đang check-in. Vui lòng chấm công trước khi mở ca!");
            return;
         }
 
         const cashiersOnly = activeEmps.filter(e => e.isCashier);
+        let defaultEmpId = '';
         if (cashiersOnly.length > 0) {
-           activeEmps = cashiersOnly;
-        }
-
-        const cashierEmp = activeEmps.find(e => e.isCashier);
-        if (cashierEmp) {
-           defaultEmpId = cashierEmp.id;
+           defaultEmpId = cashiersOnly[0].id;
+           if (cashiersOnly.length < activeEmps.length) {
+              activeEmps = cashiersOnly;
+           }
         } else {
            defaultEmpId = activeEmps[0].id;
         }
@@ -367,7 +428,7 @@ const ShiftHandovers = () => {
         setPosActiveEmployees(activeEmps);
         setSelectedPosEmployeeId(defaultEmpId);
       } catch (err) {
-        console.error('Lỗi kiểm tra POS:', err);
+        console.error('Lỗi kiểm tra nhân viên active:', err);
         toast.error('Lỗi lấy danh sách thu ngân.');
         return;
       }
@@ -377,10 +438,11 @@ const ShiftHandovers = () => {
     let autoStartCash = 0;
     let autoStartTransfer = 0;
     try {
-      if (currentBranchId) {
+      const branchIdToUse = (userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') ? filterBranchId : currentBranchId;
+      if (branchIdToUse) {
         const prevShiftQ = query(
           collection(db, 'shift_reports'),
-          where('branchId', '==', currentBranchId),
+          where('branchId', '==', branchIdToUse),
           where('status', '==', 'CLOSED')
         );
         const prevSnap = await getDocs(prevShiftQ);
@@ -442,44 +504,51 @@ const ShiftHandovers = () => {
 
     try {
       if (modalMode === 'OPEN') {
-        if (!currentBranchId) {
+        const branchIdToUse = (userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') ? filterBranchId : currentBranchId;
+        if (!branchIdToUse || branchIdToUse === 'all') {
           toast.error('Lỗi: Không xác định được cơ sở');
           return;
         }
         let cashierDisplayName = currentUserEmail;
         let finalCashierEmail = currentUserEmail;
 
-        if (userRole === 'POS') {
+        if (userRole === 'POS' || userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') {
           const selectedEmp = posActiveEmployees.find(e => e.id === selectedPosEmployeeId);
           if (!selectedEmp) {
             toast.error('Vui lòng chọn nhân viên mở ca!');
             return;
           }
-          setShowPosPasswordDialog(true);
-          return; // Stop here, the password dialog will handle the rest
-        }
-
-        if (currentEmployeeId) {
-          const empDoc = await getDoc(doc(db, 'employees', currentEmployeeId));
-          if (empDoc.exists()) {
-            const empData = empDoc.data();
-            const code = empData.employeeCode || empDoc.id;
-            const name = empData.fullName || empData.name || '';
-            cashierDisplayName = `${code} - ${name}`;
+          
+          if (userRole === 'POS') {
+            setShowPosPasswordDialog(true);
+            return; // Stop here, the password dialog will handle the rest
+          } else {
+            cashierDisplayName = selectedEmp.name;
+            finalCashierEmail = selectedEmp.email;
           }
         } else {
-           const userSnap = await getDocs(query(collection(db, 'users'), where('email', '==', currentUserEmail)));
-           cashierDisplayName = userSnap.empty ? currentUserEmail : (userSnap.docs[0].data().fullName || currentUserEmail);
+          if (currentEmployeeId) {
+            const empDoc = await getDoc(doc(db, 'employees', currentEmployeeId));
+            if (empDoc.exists()) {
+              const empData = empDoc.data();
+              const code = empData.employeeCode || empDoc.id;
+              const name = empData.fullName || empData.name || '';
+              cashierDisplayName = `${code} - ${name}`;
+            }
+          } else {
+             const userSnap = await getDocs(query(collection(db, 'users'), where('email', '==', currentUserEmail)));
+             cashierDisplayName = userSnap.empty ? currentUserEmail : (userSnap.docs[0].data().fullName || currentUserEmail);
+          }
         }
 
         await addDoc(collection(db, 'shift_reports'), {
-          branchId: currentBranchId,
+          branchId: branchIdToUse,
           cashierEmail: finalCashierEmail,
           cashierName: cashierDisplayName,
           startTime: new Date(),
           endTime: null,
-          startCash,
-          startTransfer,
+          startCash: Number(startCash) || 0,
+          startTransfer: Number(startTransfer) || 0,
           endCash: null,
           endTransfer: null,
           revenueCash: null,
@@ -487,6 +556,19 @@ const ShiftHandovers = () => {
           status: 'OPEN',
           notes
         });
+        
+        const notifyId = (userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') ? selectedPosEmployeeId : currentEmployeeId;
+        if (notifyId) {
+          await addDoc(collection(db, 'notifications'), {
+            employeeId: notifyId,
+            title: 'Mở ca làm việc (Máy POS)',
+            message: `Bạn đã mở thành công một ca làm việc mới trên máy Order/Thu ngân.`,
+            type: 'SYSTEM',
+            read: false,
+            createdAt: new Date()
+          });
+        }
+        
         toast.success('Mở ca thành công!');
         fetchData(true);
         closeModal();
@@ -504,8 +586,8 @@ const ShiftHandovers = () => {
         
         await updateDoc(doc(db, 'shift_reports', activeShift.id), {
           endTime: now,
-          endCash,
-          endTransfer,
+          endCash: Number(endCash) || 0,
+          endTransfer: Number(endTransfer) || 0,
           revenueCash: rev.revCash,
           revenueTransfer: rev.revTrans,
           status: 'CLOSED',
@@ -518,17 +600,22 @@ const ShiftHandovers = () => {
       } else if (modalMode === 'EDIT' && editingShiftId && activeShift) {
         const changes: string[] = [];
         
-        if (activeShift.startCash !== startCash) {
-          changes.push(`Tiền mặt đầu ca: ${activeShift.startCash} -> ${startCash}`);
+        const numStartCash = Number(startCash) || 0;
+        const numStartTransfer = Number(startTransfer) || 0;
+        const numEndCash = Number(endCash) || 0;
+        const numEndTransfer = Number(endTransfer) || 0;
+        
+        if (activeShift.startCash !== numStartCash) {
+          changes.push(`Tiền mặt đầu ca: ${activeShift.startCash} -> ${numStartCash}`);
         }
-        if (activeShift.startTransfer !== startTransfer) {
-          changes.push(`Tiền CK đầu ca: ${activeShift.startTransfer} -> ${startTransfer}`);
+        if (activeShift.startTransfer !== numStartTransfer) {
+          changes.push(`Tiền CK đầu ca: ${activeShift.startTransfer} -> ${numStartTransfer}`);
         }
-        if (activeShift.endCash !== endCash) {
-          changes.push(`Tiền mặt cuối ca: ${activeShift.endCash} -> ${endCash}`);
+        if (activeShift.endCash !== numEndCash) {
+          changes.push(`Tiền mặt cuối ca: ${activeShift.endCash} -> ${numEndCash}`);
         }
-        if (activeShift.endTransfer !== endTransfer) {
-          changes.push(`Tiền CK cuối ca: ${activeShift.endTransfer} -> ${endTransfer}`);
+        if (activeShift.endTransfer !== numEndTransfer) {
+          changes.push(`Tiền CK cuối ca: ${activeShift.endTransfer} -> ${numEndTransfer}`);
         }
         if (activeShift.notes !== notes) {
           changes.push(`Ghi chú thay đổi`);
@@ -560,10 +647,10 @@ const ShiftHandovers = () => {
         }
 
         await updateDoc(doc(db, 'shift_reports', editingShiftId), {
-          startCash,
-          startTransfer,
-          endCash,
-          endTransfer,
+          startCash: numStartCash,
+          startTransfer: numStartTransfer,
+          endCash: numEndCash,
+          endTransfer: numEndTransfer,
           notes,
           editHistory
         });
@@ -631,6 +718,17 @@ const ShiftHandovers = () => {
           notes
         });
         
+        if (selectedPosEmployeeId) {
+          await addDoc(collection(db, 'notifications'), {
+            employeeId: selectedPosEmployeeId,
+            title: 'Mở ca làm việc (Máy POS)',
+            message: `Bạn đã mở thành công một ca làm việc mới trên máy Order/Thu ngân.`,
+            type: 'SYSTEM',
+            read: false,
+            createdAt: new Date()
+          });
+        }
+        
         toast.success('Mở ca thành công!');
       } else if (modalMode === 'CLOSE') {
         if (!activeShift) return;
@@ -667,12 +765,22 @@ const ShiftHandovers = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa báo cáo ca này?')) {
+    const result = await Swal.fire({
+      title: 'Xóa báo cáo này?',
+      text: 'Bạn có chắc chắn muốn xóa báo cáo ca này không?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Xóa',
+      cancelButtonText: 'Hủy'
+    });
+
+    if (result.isConfirmed) {
       try {
         await deleteDoc(doc(db, 'shift_reports', id));
         toast.success('Đã xóa báo cáo');
         fetchData(true);
       } catch (err) {
+        console.error("Lỗi khi xóa", err);
         toast.error('Lỗi khi xóa');
       }
     }
@@ -711,7 +819,7 @@ const ShiftHandovers = () => {
             className="px-4 py-2 border border-gray-300 rounded-lg outline-none focus:border-blue-500"
           />
 
-          {(userRole === 'CASHIER' || userRole === 'POS') && (
+          {(userRole === 'CASHIER' || userRole === 'POS' || userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') && (
             activeShift ? (
               <button 
                 onClick={handlePrepareCloseShift}
@@ -733,21 +841,25 @@ const ShiftHandovers = () => {
         </div>
       </div>
 
-      {(userRole === 'CASHIER' || userRole === 'POS') && activeShift && (
-        <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-6 shadow-md text-white">
-          <div className="flex justify-between items-start">
+      {(userRole === 'CASHIER' || userRole === 'POS' || userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') && activeShift && (
+        <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-4 md:p-6 shadow-md text-white">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
               <h3 className="text-lg font-bold flex items-center mb-1">
                 <span className="w-2 h-2 rounded-full bg-green-400 mr-2 animate-pulse"></span>
-                Bạn đang trong ca làm việc
+                {userRole === 'POS' ? (
+                  `Ca làm việc hiện tại: Thu ngân - ${activeShift.cashierName || 'Không rõ'}`
+                ) : (
+                  'Bạn đang trong ca làm việc'
+                )}
               </h3>
               <p className="text-blue-100 text-sm">
                 Bắt đầu lúc: {activeShift.startTime.toLocaleTimeString('vi-VN')} ({activeShift.startTime.toLocaleDateString('vi-VN')})
               </p>
             </div>
-            <div className="text-right">
-              <p className="text-blue-100 text-sm mb-1">Tiền nhận đầu ca</p>
-              <div className="flex items-center justify-end gap-4 text-sm font-medium">
+            <div className="w-full md:w-auto md:text-right">
+              <p className="text-blue-100 text-sm mb-2 md:mb-1">Tiền nhận đầu ca</p>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-start md:justify-end gap-2 sm:gap-4 text-sm font-medium">
                 <span className="flex items-center bg-white/20 px-3 py-1.5 rounded-lg">
                   <Wallet size={16} className="mr-2" />
                   Tiền mặt: {formatMoney(activeShift.startCash)}
@@ -767,20 +879,20 @@ const ShiftHandovers = () => {
         <div className="p-4 bg-gray-50 border-b border-gray-100">
           <h3 className="font-bold text-gray-700">Lịch sử Bàn giao ca</h3>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse whitespace-nowrap">
+        <div className="overflow-x-auto whitespace-nowrap">
+          <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="p-4 font-semibold text-gray-600 text-sm text-center w-12">STT</th>
-                <th className="p-4 font-semibold text-gray-600 text-sm">Thời gian</th>
-                <th className="p-4 font-semibold text-gray-600 text-sm">Cơ sở / Thu ngân</th>
-                <th className="p-4 font-semibold text-gray-600 text-sm">Tiền đầu ca (Mặt / CK)</th>
-                <th className="p-4 font-semibold text-gray-600 text-sm">Doanh thu trong ca (Mặt / CK)</th>
-                <th className="p-4 font-semibold text-gray-600 text-sm">Thực tế cuối ca (Mặt / CK)</th>
-                <th className="p-4 font-semibold text-gray-600 text-sm">Chênh lệch (Mặt / CK)</th>
-                <th className="p-4 font-semibold text-gray-600 text-sm text-center">Trạng thái</th>
+                <th className="p-3 font-semibold text-gray-600 text-sm text-center w-10">STT</th>
+                <th className="p-3 font-semibold text-gray-600 text-sm">Thời gian</th>
+                <th className="p-3 font-semibold text-gray-600 text-sm">Cơ sở /<br/>Thu ngân</th>
+                <th className="p-3 font-semibold text-gray-600 text-sm">Tiền đầu ca<br/><span className="text-xs font-normal text-gray-400">(Mặt / CK)</span></th>
+                <th className="p-3 font-semibold text-gray-600 text-sm">Doanh thu<br/><span className="text-xs font-normal text-gray-400">(Mặt / CK)</span></th>
+                <th className="p-3 font-semibold text-gray-600 text-sm">Thực tế cuối<br/><span className="text-xs font-normal text-gray-400">(Mặt / CK)</span></th>
+                <th className="p-3 font-semibold text-gray-600 text-sm">Chênh lệch<br/><span className="text-xs font-normal text-gray-400">(Mặt / CK)</span></th>
+                <th className="p-3 font-semibold text-gray-600 text-sm text-center">Trạng thái</th>
                 {(userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') && (
-                  <th className="p-4"></th>
+                  <th className="p-3"></th>
                 )}
               </tr>
             </thead>
@@ -874,7 +986,7 @@ const ShiftHandovers = () => {
 
       {/* Modal Mở/Đóng Ca */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
             <div className={`p-4 border-b flex justify-between items-center text-white ${modalMode === 'OPEN' ? 'bg-blue-600' : modalMode === 'EDIT' ? 'bg-orange-500' : 'bg-green-600'}`}>
               <h3 className="font-bold text-lg flex items-center">
@@ -888,9 +1000,9 @@ const ShiftHandovers = () => {
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
               
-              {modalMode === 'OPEN' && userRole === 'POS' && posActiveEmployees.length > 0 && (
+              {modalMode === 'OPEN' && (userRole === 'POS' || userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') && posActiveEmployees.length > 0 && (
                 <div className="mb-4 bg-blue-50 p-4 rounded-xl border border-blue-100">
-                  <label className="block text-sm font-bold text-blue-900 mb-2">Bạn là ai? <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-bold text-blue-900 mb-2">{userRole === 'POS' ? 'Bạn là ai?' : 'Chọn người nhận ca'} <span className="text-red-500">*</span></label>
                   <select
                     className="w-full px-4 py-3 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-gray-800 font-medium"
                     value={selectedPosEmployeeId}
@@ -900,7 +1012,7 @@ const ShiftHandovers = () => {
                        <option key={emp.id} value={emp.id}>{emp.name}</option>
                     ))}
                   </select>
-                  <p className="text-xs text-blue-700 mt-2 italic">Chỉ hiển thị các nhân viên đang check-in trong ca (Ưu tiên thu ngân).</p>
+                  <p className="text-xs text-blue-700 mt-2 italic">{userRole === 'POS' ? 'Chỉ hiển thị các nhân viên đang check-in trong ca (Ưu tiên thu ngân).' : 'Nếu không có ai check-in, ca sẽ mặc định gắn cho bạn.'}</p>
                 </div>
               )}
 
@@ -913,8 +1025,8 @@ const ShiftHandovers = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Số tiền mặt đầu ca (VNĐ)</label>
                     <input 
                       type="text" required
-                      value={startCash.toLocaleString('vi-VN')}
-                      onChange={(e) => setStartCash(Number(e.target.value.replace(/[^0-9]/g, '')))}
+                      value={typeof startCash === 'number' ? startCash.toLocaleString('vi-VN') : startCash}
+                      onChange={(e) => handleMoneyInput(e.target.value, setStartCash)}
                       className="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg font-bold text-gray-800"
                     />
                   </div>
@@ -922,8 +1034,8 @@ const ShiftHandovers = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Số dư Tài khoản nhận (nếu có theo dõi)</label>
                     <input 
                       type="text" 
-                      value={startTransfer.toLocaleString('vi-VN')}
-                      onChange={(e) => setStartTransfer(Number(e.target.value.replace(/[^0-9]/g, '')))}
+                      value={typeof startTransfer === 'number' ? startTransfer.toLocaleString('vi-VN') : startTransfer}
+                      onChange={(e) => handleMoneyInput(e.target.value, setStartTransfer)}
                       className="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg font-bold text-gray-800"
                     />
                   </div>
@@ -933,8 +1045,8 @@ const ShiftHandovers = () => {
                         <label className="block text-sm font-medium text-gray-700 mb-1 mt-4">Tiền mặt THỰC TẾ cuối ca</label>
                         <input 
                           type="text" 
-                          value={endCash.toLocaleString('vi-VN')}
-                          onChange={(e) => setEndCash(Number(e.target.value.replace(/[^0-9]/g, '')))}
+                          value={typeof endCash === 'number' ? endCash.toLocaleString('vi-VN') : endCash}
+                          onChange={(e) => handleMoneyInput(e.target.value, setEndCash)}
                           className="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-lg font-bold text-gray-800"
                         />
                       </div>
@@ -942,8 +1054,8 @@ const ShiftHandovers = () => {
                         <label className="block text-sm font-medium text-gray-700 mb-1">Tiền tài khoản cuối ca</label>
                         <input 
                           type="text" 
-                          value={endTransfer.toLocaleString('vi-VN')}
-                          onChange={(e) => setEndTransfer(Number(e.target.value.replace(/[^0-9]/g, '')))}
+                          value={typeof endTransfer === 'number' ? endTransfer.toLocaleString('vi-VN') : endTransfer}
+                          onChange={(e) => handleMoneyInput(e.target.value, setEndTransfer)}
                           className="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-lg font-bold text-gray-800"
                         />
                       </div>
@@ -957,22 +1069,34 @@ const ShiftHandovers = () => {
                       <p className="text-xs text-gray-500 mb-1">Tiền mặt đầu ca</p>
                       <p className="font-bold text-gray-800">{formatMoney(activeShift?.startCash || 0)}</p>
                     </div>
-                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
+                    <div 
+                      className={`bg-gray-50 p-3 rounded-xl border border-gray-200 ${(userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN' || userRole === 'POS') ? 'cursor-pointer hover:bg-gray-100' : ''}`}
+                      onClick={() => {
+                        if (userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') navigate('/dashboard/revenue?paymentMethod=CASH');
+                        else if (userRole === 'POS') navigate('/dashboard/orders?paymentMethod=CASH');
+                      }}
+                    >
                       <p className="text-xs text-gray-500 mb-1">Doanh thu tiền mặt (tạm tính)</p>
                       <p className="font-bold text-green-600">+{formatMoney(tempRevenueCash)}</p>
                     </div>
-                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
+                    <div 
+                      className={`bg-gray-50 p-3 rounded-xl border border-gray-200 ${(userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN' || userRole === 'POS') ? 'cursor-pointer hover:bg-gray-100' : ''}`}
+                      onClick={() => {
+                        if (userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') navigate('/dashboard/revenue?paymentMethod=TRANSFER');
+                        else if (userRole === 'POS') navigate('/dashboard/orders?paymentMethod=TRANSFER');
+                      }}
+                    >
                       <p className="text-xs text-gray-500 mb-1">Doanh thu chuyển khoản (tạm tính)</p>
                       <p className="font-bold text-green-600">+{formatMoney(tempRevenueTransfer)}</p>
                     </div>
                   </div>
 
-                  <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-200 grid grid-cols-2 gap-4 mb-6">
+                  <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-200 grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                     <div className="text-center">
                       <p className="text-xs text-yellow-800 mb-1">Tiền mặt lý thuyết</p>
                       <p className="text-lg font-bold text-yellow-700">{formatMoney((activeShift?.startCash || 0) + tempRevenueCash)}</p>
                     </div>
-                    <div className="text-center border-l border-yellow-200">
+                    <div className="text-center sm:border-l sm:border-yellow-200 sm:border-t-0 border-t border-yellow-200 pt-4 sm:pt-0">
                       <p className="text-xs text-yellow-800 mb-1">Tiền tài khoản lý thuyết</p>
                       <p className="text-lg font-bold text-yellow-700">{formatMoney((activeShift?.startTransfer || 0) + tempRevenueTransfer)}</p>
                     </div>
@@ -982,15 +1106,15 @@ const ShiftHandovers = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Tiền mặt THỰC TẾ cuối ca {modalMode === 'CLOSE' && <span className="text-red-500">*</span>}</label>
                     <input 
                       type="text" required
-                      value={endCash.toLocaleString('vi-VN')}
-                      onChange={(e) => setEndCash(Number(e.target.value.replace(/[^0-9]/g, '')))}
+                      value={typeof endCash === 'number' ? endCash.toLocaleString('vi-VN') : endCash}
+                      onChange={(e) => handleMoneyInput(e.target.value, setEndCash)}
                       className="w-full px-4 py-2 border-2 border-green-500 rounded-xl outline-none focus:ring-4 focus:ring-green-100 text-lg font-bold text-gray-800 text-center"
                     />
                     
                     {/* Hiển thị chênh lệch Tiền mặt */}
                     {(() => {
                       const theoretical = (activeShift?.startCash || 0) + tempRevenueCash;
-                      const variance = endCash - theoretical;
+                      const variance = (Number(endCash) || 0) - theoretical;
                       if (variance === 0) return <p className="text-xs text-green-600 mt-1 font-medium text-center">Khớp hoàn toàn!</p>;
                       return <p className={`text-xs mt-1 font-bold text-center ${variance > 0 ? 'text-blue-600' : 'text-red-600'}`}>
                         {variance > 0 ? 'THỪA' : 'THIẾU'} {formatMoney(Math.abs(variance))}
@@ -1002,19 +1126,47 @@ const ShiftHandovers = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Tiền tài khoản THỰC TẾ cuối ca</label>
                     <input 
                       type="text" 
-                      value={endTransfer.toLocaleString('vi-VN')}
-                      onChange={(e) => setEndTransfer(Number(e.target.value.replace(/[^0-9]/g, '')))}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-xl outline-none focus:border-green-500 text-lg font-bold text-gray-800 text-center"
+                      value={typeof endTransfer === 'number' ? endTransfer.toLocaleString('vi-VN') : endTransfer}
+                      onChange={(e) => handleMoneyInput(e.target.value, setEndTransfer)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-lg font-bold text-gray-800 text-center"
                     />
                     
                     {/* Hiển thị chênh lệch Chuyển khoản */}
                     {(() => {
                       const theoretical = (activeShift?.startTransfer || 0) + tempRevenueTransfer;
-                      const variance = endTransfer - theoretical;
+                      const variance = (Number(endTransfer) || 0) - theoretical;
                       if (variance === 0) return <p className="text-xs text-green-600 mt-1 font-medium text-center">Khớp hoàn toàn!</p>;
                       return <p className={`text-xs mt-1 font-bold text-center ${variance > 0 ? 'text-blue-600' : 'text-red-600'}`}>
                         {variance > 0 ? 'THỪA' : 'THIẾU'} {formatMoney(Math.abs(variance))}
                       </p>;
+                    })()}
+                  </div>
+
+                  {/* Tổng kết Thực tế */}
+                  <div className="bg-blue-50 p-4 rounded-xl border border-blue-200 mt-4 text-center shadow-inner">
+                    <p className="text-sm font-medium text-blue-800 mb-1">TỔNG TIỀN THỰC TẾ (MẶT + CK)</p>
+                    <p className="text-2xl font-black text-blue-700">{formatMoney((Number(endCash) || 0) + (Number(endTransfer) || 0))}</p>
+                    {(() => {
+                      const theoCash = (activeShift?.startCash || 0) + tempRevenueCash;
+                      const theoTransfer = (activeShift?.startTransfer || 0) + tempRevenueTransfer;
+                      const totalTheo = theoCash + theoTransfer;
+                      const totalVariance = ((Number(endCash) || 0) + (Number(endTransfer) || 0)) - totalTheo;
+                      
+                      return (
+                        <div className="mt-3 pt-3 border-t border-blue-200/50 text-xs font-medium flex justify-between px-2">
+                          <p className="text-blue-700/70">Tổng lý thuyết:<br/><span className="text-sm">{formatMoney(totalTheo)}</span></p>
+                          <div className="text-right">
+                            <p className="text-blue-700/70 mb-0.5">Tổng chênh lệch:</p>
+                            {totalVariance === 0 ? (
+                              <p className="text-green-600 font-bold text-sm">Khớp hoàn toàn</p>
+                            ) : (
+                              <p className={`font-bold text-sm ${totalVariance > 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                                {totalVariance > 0 ? 'THỪA' : 'THIẾU'} {formatMoney(Math.abs(totalVariance))}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
                     })()}
                   </div>
                 </>
@@ -1052,7 +1204,7 @@ const ShiftHandovers = () => {
 
       {/* Password Verification Dialog for POS */}
       {showPosPasswordDialog && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden flex flex-col">
             <div className="p-4 border-b bg-blue-600 text-white flex justify-between items-center">
               <h3 className="font-bold">Xác nhận tài khoản</h3>
@@ -1093,7 +1245,7 @@ const ShiftHandovers = () => {
 
       {/* Modal Lịch sử chỉnh sửa */}
       {historyShift && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-4 border-b flex justify-between items-center bg-gray-50">
               <h3 className="font-bold text-lg text-gray-800">Lịch sử chỉnh sửa</h3>

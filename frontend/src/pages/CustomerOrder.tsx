@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, getDocs, query, where, doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { ShoppingCart, Trash2, Plus, Minus, Store, X, LayoutDashboard, Receipt } from 'lucide-react';
+import { ShoppingCart, Trash2, Plus, Minus, Store, X, LayoutDashboard, Receipt, QrCode, ClipboardCheck, LogOut, Lock, Edit2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
@@ -14,11 +14,14 @@ interface MenuItem {
   isAvailable: boolean;
   description?: string;
   branchId?: string | null;
+  hasSizes?: boolean;
+  sizes?: { name: string; price: number }[];
 }
 
 interface CartItem extends MenuItem {
   quantity: number;
   cartItemId: string;
+  selectedSize?: string;
 }
 
 const CustomerOrder: React.FC = () => {
@@ -35,6 +38,23 @@ const CustomerOrder: React.FC = () => {
   
   const [showSidebar, setShowSidebar] = useState(false);
   const [loading, setLoading] = useState(true);
+  
+  const [showExitPasswordModal, setShowExitPasswordModal] = useState(false);
+  const [exitPasswordInput, setExitPasswordInput] = useState('');
+  const [requiredExitPassword, setRequiredExitPassword] = useState('');
+
+  const [selectedItemForSize, setSelectedItemForSize] = useState<MenuItem | null>(null);
+  const [showSizeModal, setShowSizeModal] = useState(false);
+  const [editingCartItemId, setEditingCartItemId] = useState<string | null>(null);
+
+  const [storeBankId, setStoreBankId] = useState<string | null>(null);
+  const [storeBankAccount, setStoreBankAccount] = useState<string | null>(null);
+  const [storeBankAccountName, setStoreBankAccountName] = useState<string | null>(null);
+
+  const [showSetPasswordModal, setShowSetPasswordModal] = useState(false);
+  const [newExitPassword, setNewExitPassword] = useState('');
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
+  
   const navigate = useNavigate();
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -104,7 +124,36 @@ const CustomerOrder: React.FC = () => {
         setLoading(false);
       }
     };
+
     fetchMenu();
+
+    const fetchSettings = async () => {
+      try {
+        const docSnap = await getDoc(doc(db, 'settings', 'general'));
+        if (docSnap.exists() && docSnap.data().customerOrderExitPassword) {
+          setRequiredExitPassword(docSnap.data().customerOrderExitPassword);
+          setNewExitPassword(docSnap.data().customerOrderExitPassword);
+        }
+      } catch (e) {
+        console.error('Error fetching settings:', e);
+      }
+
+      const branchId = localStorage.getItem('branchId');
+      if (branchId) {
+        try {
+          const branchDoc = await getDoc(doc(db, 'branches', branchId));
+          if (branchDoc.exists()) {
+            const data = branchDoc.data();
+            setStoreBankId(data.bankId || null);
+            setStoreBankAccount(data.bankAccount || null);
+            setStoreBankAccountName(data.bankAccountName || null);
+          }
+        } catch (e) {
+          console.error("Error fetching branch info", e);
+        }
+      }
+    };
+    fetchSettings();
   }, []);
 
   const updatePosState = async (updates: any) => {
@@ -126,13 +175,39 @@ const CustomerOrder: React.FC = () => {
     }, 150);
   };
 
-  const addToCart = (item: MenuItem) => {
+  const addToCart = (item: MenuItem, selectedSize?: string, customPrice?: number) => {
     const newCart = [...cart];
-    const existing = newCart.find(i => i.id === item.id);
+    const existing = newCart.find(i => i.id === item.id && i.selectedSize === selectedSize);
     if (existing) {
       existing.quantity += 1;
     } else {
-      newCart.push({ ...item, quantity: 1, cartItemId: Date.now().toString() });
+      const newItem: any = { 
+        ...item, 
+        quantity: 1, 
+        cartItemId: Date.now().toString() + Math.random().toString(36).substring(2),
+        price: customPrice !== undefined ? customPrice : item.price
+      };
+      if (selectedSize) newItem.selectedSize = selectedSize;
+      newCart.push(newItem);
+    }
+    updatePosState({ cart: newCart });
+  };
+
+  const updateCartItemSize = (cartItemId: string, newSize: string, newPrice: number) => {
+    const newCart = [...cart];
+    const targetIndex = newCart.findIndex(i => i.cartItemId === cartItemId);
+    if (targetIndex === -1) return;
+    
+    const target = { ...newCart[targetIndex] };
+    newCart.splice(targetIndex, 1);
+    
+    const existingIndex = newCart.findIndex(i => i.id === target.id && i.selectedSize === newSize);
+    if (existingIndex !== -1) {
+      newCart[existingIndex] = { ...newCart[existingIndex], quantity: newCart[existingIndex].quantity + target.quantity };
+    } else {
+      target.selectedSize = newSize;
+      target.price = newPrice;
+      newCart.push(target);
     }
     updatePosState({ cart: newCart });
   };
@@ -167,12 +242,18 @@ const CustomerOrder: React.FC = () => {
       <div className="flex-1 flex flex-col p-3 lg:p-6 h-1/2 lg:h-full pointer-events-auto">
         <div className="flex items-center gap-4 mb-6">
           <button 
-            onDoubleClick={() => setShowSidebar(true)}
+            onDoubleClick={() => {
+              if (requiredExitPassword) {
+                setShowExitPasswordModal(true);
+              } else {
+                setShowSidebar(true);
+              }
+            }}
             className="w-12 h-12 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-lg hover:bg-blue-700 transition-colors cursor-pointer"
           >
             <Store size={28} />
           </button>
-          <div>
+          <div className="flex-1">
             <h1 className="text-2xl font-black text-gray-800 tracking-tight">Xin chào Quý khách!</h1>
             <p className="text-gray-500 font-medium">Vui lòng chọn món ăn bên dưới</p>
           </div>
@@ -205,7 +286,14 @@ const CustomerOrder: React.FC = () => {
             {filteredMenu.map(item => (
               <div
                 key={item.id}
-                onClick={() => addToCart(item)}
+                onClick={() => {
+                  if (item.hasSizes && item.sizes && item.sizes.length > 0) {
+                    setSelectedItemForSize(item);
+                    setShowSizeModal(true);
+                  } else {
+                    addToCart(item);
+                  }
+                }}
                 className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer hover:shadow-xl transition-all hover:-translate-y-2 group active:scale-95 flex flex-col h-full"
               >
                 <div className="h-40 sm:h-48 bg-gray-100 relative overflow-hidden shrink-0">
@@ -262,7 +350,26 @@ const CustomerOrder: React.FC = () => {
             cart.map(item => (
               <div key={item.cartItemId} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col gap-3 group relative overflow-hidden hover:border-blue-200 transition-colors">
                 <div className="flex justify-between items-start pr-8">
-                  <h4 className="font-bold text-gray-800 text-lg leading-tight">{item.name}</h4>
+                  <h4 className="font-bold text-gray-800 text-lg leading-tight flex items-center flex-wrap">
+                    <span className="mr-1">{item.name}</span>
+                    {item.hasSizes && item.sizes && item.sizes.length > 0 ? (
+                      <span 
+                        className="inline-flex items-center text-blue-600 cursor-pointer hover:text-blue-800 transition-colors group/edit"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedItemForSize(item);
+                          setEditingCartItemId(item.cartItemId);
+                          setShowSizeModal(true);
+                        }}
+                        title="Đổi kích cỡ"
+                      >
+                        {item.selectedSize ? `(${item.selectedSize})` : ''}
+                        <Edit2 size={16} className="ml-1 opacity-50 group-hover/edit:opacity-100" />
+                      </span>
+                    ) : (
+                      item.selectedSize ? <span className="text-gray-600">({item.selectedSize})</span> : null
+                    )}
+                  </h4>
                 </div>
 
                 <div className="flex justify-between items-center mt-1">
@@ -309,24 +416,34 @@ const CustomerOrder: React.FC = () => {
 
       {/* Sync Payment Modal directly from POS State */}
       {showPaymentModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-[2.5rem] shadow-2xl max-w-lg w-full p-8 flex flex-col items-center animate-slide-up relative">
             
             {paymentMethod === 'TRANSFER' ? (
-              <div className="flex flex-col items-center w-full">
-                <h2 className="text-2xl font-black text-blue-600 mb-6">Quét mã QR để thanh toán</h2>
-                <div className="w-64 h-64 bg-gray-100 p-3 rounded-2xl border-4 border-blue-100 flex items-center justify-center relative overflow-hidden bg-white mb-6">
-                  <img 
-                    src={`https://img.vietqr.io/image/MB-0372578549-compact.png?amount=${totalAmount}&addInfo=Thanh toan don hang ${pendingOrderCode || ''}`} 
-                    alt="QR Code Thanh Toán" 
-                    className="w-full h-full object-contain mix-blend-multiply" 
-                  />
+              <div className="flex flex-col items-center justify-center animate-fade-in space-y-2">
+                  {storeBankId && storeBankAccount ? (
+                    <>
+                      <div className="w-64 h-64 bg-white p-2 rounded-2xl border-2 border-dashed border-gray-300 flex items-center justify-center relative overflow-hidden shadow-sm">
+                        <img
+                          src={`https://img.vietqr.io/image/${storeBankId}-${storeBankAccount}-compact2.png?amount=${totalAmount}&addInfo=Thanh toan don hang ${pendingOrderCode || ''}&accountName=${storeBankAccountName || ''}`}
+                          alt="QR Code Thanh Toán"
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-gray-800 font-bold text-lg uppercase">{storeBankId} - {storeBankAccount}</p>
+                        {storeBankAccountName && <p className="text-blue-600 font-bold text-sm uppercase">{storeBankAccountName}</p>}
+                        <p className="text-gray-500 font-medium text-sm mt-2">Quét mã QR để thanh toán chính xác<br />số tiền <strong className="text-black">{new Intl.NumberFormat('vi-VN').format(totalAmount)}đ</strong></p>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center py-10">
+                      <QrCode size={48} className="text-gray-300 mx-auto mb-4" />
+                      <p className="text-gray-500 font-medium">Chưa cấu hình tài khoản ngân hàng<br/>cho cơ sở này.</p>
+                      <p className="text-xs text-gray-400 mt-2">Vui lòng báo Quản lý vào mục Cơ sở để thiết lập.</p>
+                    </div>
+                  )}
                 </div>
-                <div className="text-center">
-                  <p className="text-gray-800 font-bold text-xl mb-1">MB Bank - 0372578549</p>
-                  <p className="text-gray-500 font-medium">Số tiền: <span className="text-blue-600 font-black">{new Intl.NumberFormat('vi-VN').format(totalAmount)}đ</span></p>
-                </div>
-              </div>
             ) : (
               <div className="flex flex-col items-center w-full">
                 <h2 className="text-2xl font-black text-gray-800 mb-8">Thanh toán bằng Tiền mặt</h2>
@@ -371,8 +488,8 @@ const CustomerOrder: React.FC = () => {
           <div className="fixed inset-y-0 left-0 w-64 bg-white shadow-2xl z-50 flex flex-col border-r border-gray-200 animate-slide-right">
             
             <div className="h-20 flex flex-col items-center justify-center border-b border-gray-200 relative">
-              <h1 className="text-2xl font-bold text-blue-600">Chấm Công Pro</h1>
-              <span className="text-xs font-medium text-gray-500 uppercase tracking-widest mt-1">POS Khách</span>
+              <h1 className="text-2xl font-bold text-blue-600">Tiệm Nhà Bơ</h1>
+              <span className="text-xs font-medium text-gray-500 uppercase tracking-widest mt-1">MÁY ORDER</span>
               
               <button onClick={() => setShowSidebar(false)} className="absolute right-2 top-2 p-1.5 hover:bg-gray-100 rounded-full text-gray-400 transition-colors">
                 <X size={18} />
@@ -382,7 +499,12 @@ const CustomerOrder: React.FC = () => {
             <div className="flex-1 overflow-y-auto py-4">
               <nav className="space-y-1 px-2">
                 <div 
-                  onClick={() => navigate('/pos')}
+                  onClick={() => {
+                    navigate('/pos');
+                    if (!document.fullscreenElement) {
+                      document.documentElement.requestFullscreen().catch(() => {});
+                    }
+                  }}
                   className="flex items-center py-3 px-4 text-sm font-medium rounded-lg transition-colors relative text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer mt-1"
                 >
                   <span className="mr-3 relative text-gray-400"><ShoppingCart size={20} /></span>
@@ -395,26 +517,231 @@ const CustomerOrder: React.FC = () => {
                 </div>
                 
                 <div 
-                  onClick={() => navigate('/dashboard/orders')}
+                  onClick={() => {
+                    navigate('/dashboard/orders');
+                    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+                  }}
                   className="flex items-center py-3 px-4 text-sm font-medium rounded-lg transition-colors relative text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer mt-1"
                 >
                   <span className="mr-3 relative text-gray-400"><Receipt size={20} /></span>
                   <span className="flex-1">Lịch sử Hóa đơn</span>
                 </div>
 
+                <div 
+                  onClick={() => {
+                    navigate('/dashboard/tables');
+                    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+                  }}
+                  className="flex items-center py-3 px-4 text-sm font-medium rounded-lg transition-colors relative text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer mt-1"
+                >
+                  <span className="mr-3 relative text-gray-400"><QrCode size={20} /></span>
+                  <span className="flex-1">Quản lý Bàn / QR</span>
+                </div>
+
+                <div 
+                  onClick={() => {
+                    navigate('/dashboard/shift-handovers');
+                    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+                  }}
+                  className="flex items-center py-3 px-4 text-sm font-medium rounded-lg transition-colors relative text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer mt-1"
+                >
+                  <span className="mr-3 relative text-gray-400"><ClipboardCheck size={20} /></span>
+                  <span className="flex-1">Bàn giao ca</span>
+                </div>
+
                 {localStorage.getItem('userRole') !== 'POS' && (
                   <div 
-                    onClick={() => navigate('/dashboard')}
+                    onClick={() => {
+                      navigate('/dashboard');
+                      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+                    }}
                     className="flex items-center py-3 px-4 text-sm font-medium rounded-lg transition-colors relative text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer mt-1"
                   >
                     <span className="mr-3 relative text-gray-400"><LayoutDashboard size={20} /></span>
                     <span className="flex-1">Quay lại Dashboard</span>
                   </div>
                 )}
+                
+                {localStorage.getItem('userRole') === 'POS' && (
+                  <div 
+                    onClick={() => {
+                      setShowSidebar(false);
+                      setShowSetPasswordModal(true);
+                    }}
+                    className="flex items-center py-3 px-4 text-sm font-medium rounded-lg transition-colors relative text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer mt-1 border-t border-gray-100"
+                  >
+                    <span className="mr-3 relative text-gray-400"><Lock size={20} /></span>
+                    <span className="flex-1">Cài mật khẩu Màn hình Khách</span>
+                  </div>
+                )}
               </nav>
             </div>
+
+            <div className="p-4 border-t border-gray-200">
+              <button
+                onClick={() => navigate('/pos')}
+                className="flex items-center w-full py-2 px-4 text-sm font-medium text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                title="Về màn hình POS để Đăng xuất"
+              >
+                <LogOut size={20} className="mr-3" />
+                <span>Đăng xuất</span>
+              </button>
+            </div>
+
           </div>
         </>
+      )}
+
+      {/* Exit Password Modal */}
+      {showExitPasswordModal && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-scale-up">
+            <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+              <h3 className="text-lg font-bold text-gray-800">Nhập mật khẩu</h3>
+              <button onClick={() => {
+                setShowExitPasswordModal(false);
+                setExitPasswordInput('');
+              }} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <p className="text-sm text-gray-600 mb-4">Vui lòng nhập mật khẩu để mở khóa menu điều khiển.</p>
+              
+              <input
+                type="password"
+                className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 transition-all font-medium mb-6 text-center text-xl tracking-[0.3em]"
+                placeholder="••••••"
+                value={exitPasswordInput}
+                onChange={e => setExitPasswordInput(e.target.value)}
+                autoFocus
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    if (exitPasswordInput === requiredExitPassword) {
+                      setShowExitPasswordModal(false);
+                      setExitPasswordInput('');
+                      setShowSidebar(true);
+                    } else {
+                      toast.error('Mật khẩu không chính xác!');
+                      setExitPasswordInput('');
+                    }
+                  }
+                }}
+              />
+              
+              <button
+                onClick={() => {
+                  if (exitPasswordInput === requiredExitPassword) {
+                    setShowExitPasswordModal(false);
+                    setExitPasswordInput('');
+                    setShowSidebar(true);
+                  } else {
+                    toast.error('Mật khẩu không chính xác!');
+                    setExitPasswordInput('');
+                  }
+                }}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-3 font-bold transition-all shadow-lg shadow-blue-600/30 active:scale-[0.98]"
+              >
+                Xác nhận
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cài đặt mật khẩu Màn hình khách */}
+      {showSetPasswordModal && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-sm w-full p-6 animate-scale-up">
+            <h3 className="text-lg font-bold text-gray-800 mb-4">Mật khẩu Màn hình Khách</h3>
+            <p className="text-sm text-gray-600 mb-4">Thiết lập mật khẩu để mở khóa menu ẩn ở màn hình Khách Order (Để trống nếu không cần).</p>
+            <input
+              type="text"
+              placeholder="Nhập mật khẩu..."
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none mb-6 text-center text-lg tracking-widest"
+              value={newExitPassword}
+              onChange={(e) => setNewExitPassword(e.target.value)}
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowSetPasswordModal(false)}
+                className="flex-1 py-2 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={async () => {
+                  setIsSavingPassword(true);
+                  try {
+                    await setDoc(doc(db, 'settings', 'general'), {
+                      customerOrderExitPassword: newExitPassword
+                    }, { merge: true });
+                    toast.success('Lưu mật khẩu thành công!');
+                    setRequiredExitPassword(newExitPassword);
+                    setShowSetPasswordModal(false);
+                  } catch (error) {
+                    toast.error('Lỗi khi lưu mật khẩu');
+                  } finally {
+                    setIsSavingPassword(false);
+                  }
+                }}
+                disabled={isSavingPassword}
+                className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
+              >
+                {isSavingPassword ? 'Đang lưu...' : 'Lưu lại'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Chọn Size Modal */}
+      {showSizeModal && selectedItemForSize && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl animate-scale-up relative">
+            <button 
+              onClick={() => { 
+                setShowSizeModal(false); 
+                setSelectedItemForSize(null); 
+                setEditingCartItemId(null);
+              }}
+              className="absolute top-4 right-4 p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 rounded-full transition-colors"
+            >
+              <X size={20} />
+            </button>
+            
+            <h3 className="text-xl font-bold text-gray-800 mb-1">
+              {editingCartItemId ? 'Đổi kích cỡ' : 'Chọn kích cỡ'}
+            </h3>
+            <p className="text-sm text-gray-500 mb-5">{selectedItemForSize.name}</p>
+            
+            <div className="space-y-3 mb-6">
+              {selectedItemForSize.sizes?.map((sz, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => {
+                    if (editingCartItemId) {
+                      updateCartItemSize(editingCartItemId, sz.name, sz.price);
+                    } else {
+                      addToCart(selectedItemForSize, sz.name, sz.price);
+                    }
+                    setShowSizeModal(false);
+                    setSelectedItemForSize(null);
+                    setEditingCartItemId(null);
+                  }}
+                  className="w-full flex items-center justify-between p-4 rounded-2xl border-2 border-gray-100 hover:border-blue-500 hover:bg-blue-50 transition-all group text-left shadow-sm active:scale-[0.98]"
+                >
+                  <span className="font-bold text-gray-700 group-hover:text-blue-700">{sz.name}</span>
+                  <span className="font-black text-blue-600">
+                    {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(sz.price)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
 
       <style>{`

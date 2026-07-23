@@ -3,7 +3,7 @@ import { collection, getDocs, getDoc, addDoc, serverTimestamp, query, where, doc
 import { db, auth } from '../config/firebase';
 import { EmailAuthProvider, reauthenticateWithCredential, signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingCart, Trash2, Plus, Minus, Receipt, CheckCircle, Printer, LogOut, Lock, X, Grip, LayoutDashboard, Store, Coffee, QrCode, ClipboardCheck, MonitorSmartphone, MonitorOff } from 'lucide-react';
+import { ShoppingCart, Trash2, Plus, Minus, Receipt, CheckCircle, Printer, LogOut, Lock, X, Grip, LayoutDashboard, Store, Coffee, QrCode, ClipboardCheck, MonitorSmartphone, MonitorOff, Edit2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface MenuItem {
@@ -16,12 +16,15 @@ interface MenuItem {
   description?: string;
   subCategory?: string;
   branchId?: string | null;
+  hasSizes?: boolean;
+  sizes?: { name: string; price: number }[];
 }
 
 interface CartItem extends MenuItem {
   quantity: number;
   cartItemId: string;
   isServed?: boolean;
+  selectedSize?: string;
 }
 
 interface ActiveTableOrder {
@@ -47,6 +50,9 @@ const POS: React.FC = () => {
   const [storeName, setStoreName] = useState<string>('Bơ Food');
   const [storeAddress, setStoreAddress] = useState<string | null>(null);
   const [storePhone, setStorePhone] = useState<string | null>(null);
+  const [storeBankId, setStoreBankId] = useState<string | null>(null);
+  const [storeBankAccount, setStoreBankAccount] = useState<string | null>(null);
+  const [storeBankAccountName, setStoreBankAccountName] = useState<string | null>(null);
   const [cashierName, setCashierName] = useState<string | null>(null);
 
   // Payment Modal State
@@ -55,10 +61,19 @@ const POS: React.FC = () => {
   const [amountTendered, setAmountTendered] = useState<string>('');
 
   const [showSidebar, setShowSidebar] = useState(false);
+  const [showMobileCart, setShowMobileCart] = useState(false);
+
+  const [selectedItemForSize, setSelectedItemForSize] = useState<MenuItem | null>(null);
+  const [showSizeModal, setShowSizeModal] = useState(false);
+  const [editingCartItemId, setEditingCartItemId] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [logoutPassword, setLogoutPassword] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const [showSetPasswordModal, setShowSetPasswordModal] = useState(false);
+  const [newExitPassword, setNewExitPassword] = useState('');
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
 
   const [activeTableOrders, setActiveTableOrders] = useState<ActiveTableOrder[]>([]);
   const [showTableOrdersModal, setShowTableOrdersModal] = useState(false);
@@ -71,6 +86,7 @@ const POS: React.FC = () => {
   const navigate = useNavigate();
 
   const [isSyncToCustomerEnabled, setIsSyncToCustomerEnabled] = useState(true);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollTimeoutRef = useRef<any>(null);
   const isSyncingScroll = useRef(false);
@@ -79,6 +95,20 @@ const POS: React.FC = () => {
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 60000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const docSnap = await getDoc(doc(db, 'settings', 'general'));
+        if (docSnap.exists() && docSnap.data().customerOrderExitPassword) {
+          setNewExitPassword(docSnap.data().customerOrderExitPassword);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    fetchSettings();
   }, []);
 
   const activeOrdersRef = React.useRef<ActiveTableOrder[]>([]);
@@ -164,14 +194,14 @@ const POS: React.FC = () => {
         setCurrentTableName(data.currentTableName || null);
         setPendingOrderCode(data.pendingOrderCode || null);
         if (data.activeCategory) {
-           setActiveCategory(data.activeCategory);
+          setActiveCategory(data.activeCategory);
         }
         if (data.scrollPosition !== undefined && scrollRef.current) {
-           if (Math.abs(scrollRef.current.scrollTop - data.scrollPosition) > 5) {
-             isSyncingScroll.current = true;
-             scrollRef.current.scrollTop = data.scrollPosition;
-             setTimeout(() => { isSyncingScroll.current = false; }, 50);
-           }
+          if (Math.abs(scrollRef.current.scrollTop - data.scrollPosition) > 5) {
+            isSyncingScroll.current = true;
+            scrollRef.current.scrollTop = data.scrollPosition;
+            setTimeout(() => { isSyncingScroll.current = false; }, 50);
+          }
         }
       }
     });
@@ -263,12 +293,12 @@ const POS: React.FC = () => {
         const openShifts = shiftSnap.docs.map(d => d.data());
         // Lấy ca mở gần nhất nếu có nhiều ca (thường chỉ có 1)
         openShifts.sort((a, b) => {
-           const timeA = a.startTime?.toMillis ? a.startTime.toMillis() : 0;
-           const timeB = b.startTime?.toMillis ? b.startTime.toMillis() : 0;
-           return timeB - timeA;
+          const timeA = a.startTime?.toMillis ? a.startTime.toMillis() : 0;
+          const timeB = b.startTime?.toMillis ? b.startTime.toMillis() : 0;
+          return timeB - timeA;
         });
         if (openShifts[0].cashierName) {
-           return openShifts[0].cashierName;
+          return openShifts[0].cashierName;
         }
       }
 
@@ -277,7 +307,7 @@ const POS: React.FC = () => {
       const todayStr = new Date().toLocaleDateString('en-CA');
       const attQ = query(collection(db, 'attendance'), where('date', '==', todayStr), where('branchId', '==', branchIdStr));
       const attSnap = await getDocs(attQ);
-      
+
       const checkedInEmployeeIds = attSnap.docs
         .map(d => (d.data().checkIn && !d.data().checkOut) ? d.data().employeeId : null)
         .filter(Boolean);
@@ -285,19 +315,19 @@ const POS: React.FC = () => {
       if (checkedInEmployeeIds.length > 0) {
         const activeCashiers: string[] = [];
         for (const id of checkedInEmployeeIds) {
-           const empDoc = await getDoc(doc(db, 'employees', id as string));
-           if (empDoc.exists()) {
-              const pos = (empDoc.data().position || '').toLowerCase();
-              // Lọc những ai là thu ngân / quản lý
-              if (pos.includes('thu ngân') || pos.includes('cashier') || pos.includes('quản lý') || pos.includes('manager')) {
-                const code = empDoc.data().employeeCode || empDoc.id;
-                const name = empDoc.data().fullName || empDoc.data().name || '';
-                activeCashiers.push(`${code} - ${name}`);
-              }
-           }
+          const empDoc = await getDoc(doc(db, 'employees', id as string));
+          if (empDoc.exists()) {
+            const pos = (empDoc.data().position || '').toLowerCase();
+            // Lọc những ai là thu ngân / quản lý
+            if (pos.includes('thu ngân') || pos.includes('cashier') || pos.includes('quản lý') || pos.includes('manager')) {
+              const code = empDoc.data().employeeCode || empDoc.id;
+              const name = empDoc.data().fullName || empDoc.data().name || '';
+              activeCashiers.push(`${code} - ${name}`);
+            }
+          }
         }
         if (activeCashiers.length > 0) return activeCashiers.join(' & ');
-        
+
         // Nếu không có ai có chức danh thu ngân/quản lý, lấy tạm người đầu tiên đang check-in
         const firstEmpDoc = await getDoc(doc(db, 'employees', checkedInEmployeeIds[0] as string));
         if (firstEmpDoc.exists()) {
@@ -306,7 +336,7 @@ const POS: React.FC = () => {
           return `${code} - ${name}`;
         }
       }
-      
+
       // 3. Nếu không có thu ngân check in, ghi null
       return null;
     } catch (e) {
@@ -334,9 +364,13 @@ const POS: React.FC = () => {
           try {
             const branchDoc = await getDoc(doc(db, 'branches', branchId));
             if (branchDoc.exists()) {
-              setStoreName(branchDoc.data().name);
-              setStoreAddress(branchDoc.data().address || null);
-              setStorePhone(branchDoc.data().phone || null);
+              const data = branchDoc.data();
+              setStoreName(data.name);
+              setStoreAddress(data.address || null);
+              setStorePhone(data.phone || null);
+              setStoreBankId(data.bankId || null);
+              setStoreBankAccount(data.bankAccount || null);
+              setStoreBankAccountName(data.bankAccountName || null);
             }
             const activeName = await getActiveCashierName(branchId);
             setCashierName(activeName);
@@ -354,13 +388,39 @@ const POS: React.FC = () => {
     fetchMenu();
   }, []);
 
-  const addToCart = (item: MenuItem) => {
+  const addToCart = (item: MenuItem, selectedSize?: string, customPrice?: number) => {
     const newCart = [...cart];
-    const existing = newCart.find(i => i.id === item.id);
+    const existing = newCart.find(i => i.id === item.id && i.selectedSize === selectedSize);
     if (existing) {
       existing.quantity += 1;
     } else {
-      newCart.push({ ...item, quantity: 1, cartItemId: Date.now().toString() });
+      const newItem: any = {
+        ...item,
+        quantity: 1,
+        cartItemId: Date.now().toString() + Math.random().toString(36).substring(2),
+        price: customPrice !== undefined ? customPrice : item.price
+      };
+      if (selectedSize) newItem.selectedSize = selectedSize;
+      newCart.push(newItem);
+    }
+    updatePosState({ cart: newCart });
+  };
+
+  const updateCartItemSize = (cartItemId: string, newSize: string, newPrice: number) => {
+    const newCart = [...cart];
+    const targetIndex = newCart.findIndex(i => i.cartItemId === cartItemId);
+    if (targetIndex === -1) return;
+
+    const target = { ...newCart[targetIndex] };
+    newCart.splice(targetIndex, 1);
+
+    const existingIndex = newCart.findIndex(i => i.id === target.id && i.selectedSize === newSize);
+    if (existingIndex !== -1) {
+      newCart[existingIndex] = { ...newCart[existingIndex], quantity: newCart[existingIndex].quantity + target.quantity };
+    } else {
+      target.selectedSize = newSize;
+      target.price = newPrice;
+      newCart.push(target);
     }
     updatePosState({ cart: newCart });
   };
@@ -584,9 +644,9 @@ const POS: React.FC = () => {
   const unservedTablesCount = activeTableOrders.filter(order => order.items.some(item => !item.isServed)).length;
 
   return (
-    <div className="flex flex-col lg:flex-row w-screen h-[100dvh] overflow-hidden bg-gray-100">
+    <div className="flex flex-col lg:flex-row w-screen h-[100dvh] overflow-hidden bg-gray-100 relative">
       {/* Cột trái: Menu */}
-      <div className="flex-1 flex flex-col p-2 lg:p-4 h-1/2 lg:h-full">
+      <div className="flex-1 flex flex-col p-2 lg:p-4 h-full">
         <div className="mb-4 overflow-x-auto whitespace-nowrap pb-2 flex items-center gap-2 custom-scrollbar">
           <button
             onClick={() => setShowSidebar(true)}
@@ -638,7 +698,7 @@ const POS: React.FC = () => {
           ))}
         </div>
 
-        <div 
+        <div
           ref={scrollRef}
           onScroll={handleScroll}
           className="flex-1 overflow-y-auto pr-2 pb-16"
@@ -647,7 +707,14 @@ const POS: React.FC = () => {
             {filteredMenu.map(item => (
               <div
                 key={item.id}
-                onClick={() => addToCart(item)}
+                onClick={() => {
+                  if (item.hasSizes && item.sizes && item.sizes.length > 0) {
+                    setSelectedItemForSize(item);
+                    setShowSizeModal(true);
+                  } else {
+                    addToCart(item);
+                  }
+                }}
                 className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer hover:shadow-md transition-all hover:-translate-y-1 group active:scale-95"
               >
                 <div className="h-32 bg-gray-100 relative overflow-hidden">
@@ -677,8 +744,23 @@ const POS: React.FC = () => {
         </div>
       </div>
 
+      {/* Nút nổi Giỏ hàng trên Mobile */}
+      <div className="lg:hidden fixed bottom-4 right-4 z-40">
+        <button
+          onClick={() => setShowMobileCart(true)}
+          className="bg-blue-600 text-white p-4 rounded-full shadow-2xl flex items-center justify-center relative hover:bg-blue-700 transition-colors"
+        >
+          <ShoppingCart size={24} />
+          {cart.length > 0 && (
+            <span className="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold border-2 border-white">
+              {cart.reduce((a, b) => a + b.quantity, 0)}
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* Cột phải: Giỏ hàng */}
-      <div className="w-full lg:w-96 h-1/2 lg:h-full bg-white shadow-xl flex flex-col border-t lg:border-t-0 lg:border-l border-gray-200 z-10 rounded-t-2xl lg:rounded-t-none">
+      <div className={`fixed inset-0 lg:static w-full lg:w-96 h-full bg-white shadow-xl flex-col border-t lg:border-t-0 lg:border-l border-gray-200 z-50 lg:z-10 transition-transform duration-300 ${showMobileCart ? 'translate-y-0 flex' : 'translate-y-full lg:translate-y-0 hidden lg:flex'}`}>
         <div className="p-4 lg:p-5 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2 text-gray-800">
             <ShoppingCart size={24} className="text-blue-600" />
@@ -692,12 +774,15 @@ const POS: React.FC = () => {
                 title="Xóa tất cả"
               >
                 <Trash2 size={16} />
-                <span className="text-xs font-bold">Xóa hết</span>
+                <span className="text-xs font-bold hidden sm:inline">Xóa hết</span>
               </button>
             )}
-            <span className="bg-blue-100 text-blue-700 font-bold px-3 py-1 rounded-full text-sm">
-              {cart.reduce((a, b) => a + b.quantity, 0)} món
-            </span>
+            <button
+              onClick={() => setShowMobileCart(false)}
+              className="lg:hidden text-gray-500 hover:bg-gray-200 p-1.5 rounded-lg ml-2"
+            >
+              <X size={24} />
+            </button>
           </div>
         </div>
 
@@ -731,7 +816,26 @@ const POS: React.FC = () => {
             cart.map(item => (
               <div key={item.cartItemId} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col gap-3 group relative overflow-hidden">
                 <div className="flex justify-between items-start pr-6">
-                  <h4 className="font-bold text-gray-800 leading-tight">{item.name}</h4>
+                  <h4 className="font-bold text-gray-800 leading-tight flex items-center flex-wrap">
+                    <span className="mr-1">{item.name}</span>
+                    {item.hasSizes && item.sizes && item.sizes.length > 0 ? (
+                      <span 
+                        className="inline-flex items-center text-blue-600 cursor-pointer hover:text-blue-800 transition-colors group/edit"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedItemForSize(item);
+                          setEditingCartItemId(item.cartItemId);
+                          setShowSizeModal(true);
+                        }}
+                        title="Đổi kích cỡ"
+                      >
+                        {item.selectedSize ? `(${item.selectedSize})` : ''}
+                        <Edit2 size={14} className="ml-1 opacity-50 group-hover/edit:opacity-100" />
+                      </span>
+                    ) : (
+                      item.selectedSize ? <span className="text-gray-600">({item.selectedSize})</span> : null
+                    )}
+                  </h4>
                   <div className="font-bold text-blue-600 shrink-0">
                     {new Intl.NumberFormat('vi-VN').format(item.price)}
                   </div>
@@ -830,7 +934,7 @@ const POS: React.FC = () => {
 
       {/* Modal Chọn phương thức thanh toán */}
       {showPaymentModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
               <h3 className="font-bold text-xl text-gray-800">Thanh toán đơn hàng</h3>
@@ -926,17 +1030,28 @@ const POS: React.FC = () => {
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center animate-fade-in space-y-2">
-                  <div className="w-48 h-48 bg-gray-100 p-2 rounded-2xl border-2 border-dashed border-gray-300 flex items-center justify-center relative overflow-hidden bg-white">
-                    <img
-                      src={`https://img.vietqr.io/image/MB-0372578549-compact.png?amount=${totalAmount}&addInfo=Thanh toan don hang ${pendingOrderCode || ''}`}
-                      alt="QR Code Thanh Toán"
-                      className="w-full h-full object-contain mix-blend-multiply"
-                    />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-gray-800 font-bold text-lg">MB Bank - 0372578549</p>
-                    <p className="text-gray-500 font-medium text-sm">Quét mã QR để thanh toán chính xác<br />số tiền {new Intl.NumberFormat('vi-VN').format(totalAmount)}đ</p>
-                  </div>
+                  {storeBankId && storeBankAccount ? (
+                    <>
+                      <div className="w-64 h-64 bg-white p-2 rounded-2xl border-2 border-dashed border-gray-300 flex items-center justify-center relative overflow-hidden shadow-sm">
+                        <img
+                          src={`https://img.vietqr.io/image/${storeBankId}-${storeBankAccount}-compact2.png?amount=${totalAmount}&addInfo=Thanh toan don hang ${pendingOrderCode || ''}&accountName=${storeBankAccountName || ''}`}
+                          alt="QR Code Thanh Toán"
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-gray-800 font-bold text-lg uppercase">{storeBankId} - {storeBankAccount}</p>
+                        {storeBankAccountName && <p className="text-blue-600 font-bold text-sm uppercase">{storeBankAccountName}</p>}
+                        <p className="text-gray-500 font-medium text-sm mt-2">Quét mã QR để thanh toán chính xác<br />số tiền <strong className="text-black">{new Intl.NumberFormat('vi-VN').format(totalAmount)}đ</strong></p>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center py-10">
+                      <QrCode size={48} className="text-gray-300 mx-auto mb-4" />
+                      <p className="text-gray-500 font-medium">Chưa cấu hình tài khoản ngân hàng<br />cho cơ sở này.</p>
+                      <p className="text-xs text-gray-400 mt-2">Vui lòng báo Quản lý vào mục Cơ sở để thiết lập.</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -970,7 +1085,7 @@ const POS: React.FC = () => {
 
       {/* Modal Xuất Bill */}
       {billModalData && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-w-md w-full max-h-[90vh]">
             <div className="p-6 bg-green-500 text-white flex flex-col items-center justify-center pb-8 rounded-b-[40px] shadow-sm z-10 relative">
               <button
@@ -1012,7 +1127,9 @@ const POS: React.FC = () => {
                   <tbody>
                     {billModalData.items.map((item: any, idx: number) => (
                       <tr key={idx} className="border-b border-dashed border-gray-100">
-                        <td className="py-2 pr-2 font-medium">{item.name}</td>
+                        <td className="py-2 pr-2 font-medium">
+                          {item.name} {item.selectedSize ? `(${item.selectedSize})` : ''}
+                        </td>
                         <td className="py-2 text-center">{item.quantity}</td>
                         <td className="py-2 text-right">{new Intl.NumberFormat('vi-VN').format(item.price)}</td>
                       </tr>
@@ -1051,9 +1168,22 @@ const POS: React.FC = () => {
                   </div>
                 )}
 
-                <div className="text-center mt-4 text-xs text-gray-500">
-                  <p>Cảm ơn quý khách đã ủng hộ!</p>
-                  <p>Hẹn gặp lại</p>
+                <div className="mt-4 pt-4 border-t border-dashed border-gray-300 flex justify-between items-center">
+                  <div className="text-center text-xs text-gray-500 italic flex-1 mr-2">
+                    <p>Cảm ơn quý khách đã ủng hộ!</p>
+                    <p>Hẹn gặp lại</p>
+                  </div>
+
+                  {storeBankId && storeBankAccount && (
+                    <div className="flex flex-col items-center justify-center">
+                      <img
+                        src={`https://img.vietqr.io/image/${storeBankId}-${storeBankAccount}-qr_only.png?amount=${billModalData.totalAmount}&addInfo=Thanh toan don ${billModalData.orderCode || billModalData.orderId.slice(-6).toUpperCase()}&accountName=${storeBankAccountName || ''}`}
+                        alt="Mã QR Thanh Toán"
+                        className="w-16 h-16 object-contain"
+                      />
+                      <p className="text-[9px] mt-1 text-gray-500 text-center uppercase font-medium">Quét thanh toán</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1078,7 +1208,7 @@ const POS: React.FC = () => {
 
       {/* Modal Xác nhận Xóa giỏ hàng */}
       {showClearConfirm && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-slide-up">
             <div className="flex justify-center mb-4">
               <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
@@ -1114,7 +1244,7 @@ const POS: React.FC = () => {
 
       {/* Modal Danh sách bàn đang gọi món */}
       {showTableOrdersModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[85vh]">
             <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
               <h3 className="font-bold text-xl text-gray-800 flex items-center gap-2">
@@ -1216,7 +1346,7 @@ const POS: React.FC = () => {
                               />
                               <div className="flex flex-col">
                                 <span className={`${item.isServed ? 'line-through text-gray-400' : 'font-medium text-gray-800'}`}>
-                                  {item.quantity}x {item.name}
+                                  {item.quantity}x {item.name} {item.selectedSize ? `(${item.selectedSize})` : ''}
                                 </span>
                                 <span className="text-[10px] font-bold text-gray-400">
                                   {(() => {
@@ -1267,7 +1397,7 @@ const POS: React.FC = () => {
 
       {/* Modal Xác nhận Xóa món */}
       {itemToDelete && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-slide-up">
             <div className="flex justify-center mb-4 text-red-500 bg-red-50 w-16 h-16 rounded-full items-center mx-auto">
               <Trash2 size={32} />
@@ -1319,7 +1449,7 @@ const POS: React.FC = () => {
 
       {/* Modal Xác nhận Đăng xuất */}
       {showLogoutModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6">
             <div className="flex justify-center mb-4 text-red-500">
               <Lock size={48} />
@@ -1364,8 +1494,8 @@ const POS: React.FC = () => {
           <div className="fixed inset-y-0 left-0 w-64 bg-white shadow-2xl z-50 flex flex-col border-r border-gray-200 animate-slide-right">
 
             <div className="h-20 flex flex-col items-center justify-center border-b border-gray-200 relative">
-              <h1 className="text-2xl font-bold text-blue-600">Chấm Công Pro</h1>
-              <span className="text-xs font-medium text-gray-500 uppercase tracking-widest mt-1">POS</span>
+              <h1 className="text-2xl font-bold text-blue-600">Tiệm Nhà Bơ</h1>
+              <span className="text-xs font-medium text-gray-500 uppercase tracking-widest mt-1">MÁY ORDER</span>
 
               <button onClick={() => setShowSidebar(false)} className="absolute right-2 top-2 p-1.5 hover:bg-gray-100 rounded-full text-gray-400 transition-colors">
                 <X size={18} />
@@ -1380,7 +1510,12 @@ const POS: React.FC = () => {
                 </div>
 
                 <div
-                  onClick={() => navigate('/customer-order')}
+                  onClick={() => {
+                    navigate('/customer-order');
+                    if (!document.fullscreenElement) {
+                      document.documentElement.requestFullscreen().catch(() => { });
+                    }
+                  }}
                   className="flex items-center py-3 px-4 text-sm font-medium rounded-lg transition-colors relative text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer mt-1"
                 >
                   <span className="mr-3 relative text-gray-400"><Store size={20} /></span>
@@ -1388,7 +1523,10 @@ const POS: React.FC = () => {
                 </div>
 
                 <div
-                  onClick={() => navigate('/dashboard/orders')}
+                  onClick={() => {
+                    navigate('/dashboard/orders');
+                    if (document.fullscreenElement) document.exitFullscreen().catch(() => { });
+                  }}
                   className="flex items-center py-3 px-4 text-sm font-medium rounded-lg transition-colors relative text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer mt-1"
                 >
                   <span className="mr-3 relative text-gray-400"><Receipt size={20} /></span>
@@ -1396,7 +1534,10 @@ const POS: React.FC = () => {
                 </div>
 
                 <div
-                  onClick={() => navigate('/dashboard/tables')}
+                  onClick={() => {
+                    navigate('/dashboard/tables');
+                    if (document.fullscreenElement) document.exitFullscreen().catch(() => { });
+                  }}
                   className="flex items-center py-3 px-4 text-sm font-medium rounded-lg transition-colors relative text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer mt-1"
                 >
                   <span className="mr-3 relative text-gray-400"><QrCode size={20} /></span>
@@ -1404,7 +1545,10 @@ const POS: React.FC = () => {
                 </div>
 
                 <div
-                  onClick={() => navigate('/dashboard/shift-handovers')}
+                  onClick={() => {
+                    navigate('/dashboard/shift-handovers');
+                    if (document.fullscreenElement) document.exitFullscreen().catch(() => { });
+                  }}
                   className="flex items-center py-3 px-4 text-sm font-medium rounded-lg transition-colors relative text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer mt-1"
                 >
                   <span className="mr-3 relative text-gray-400"><ClipboardCheck size={20} /></span>
@@ -1413,11 +1557,27 @@ const POS: React.FC = () => {
 
                 {localStorage.getItem('userRole') !== 'POS' && (
                   <div
-                    onClick={() => navigate('/dashboard')}
+                    onClick={() => {
+                      navigate('/dashboard');
+                      if (document.fullscreenElement) document.exitFullscreen().catch(() => { });
+                    }}
                     className="flex items-center py-3 px-4 text-sm font-medium rounded-lg transition-colors relative text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer mt-1"
                   >
                     <span className="mr-3 relative text-gray-400"><LayoutDashboard size={20} /></span>
                     <span className="flex-1">Quay lại Dashboard</span>
+                  </div>
+                )}
+
+                {localStorage.getItem('userRole') === 'POS' && (
+                  <div
+                    onClick={() => {
+                      setShowSidebar(false);
+                      setShowSetPasswordModal(true);
+                    }}
+                    className="flex items-center py-3 px-4 text-sm font-medium rounded-lg transition-colors relative text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer mt-1 border-t border-gray-100"
+                  >
+                    <span className="mr-3 relative text-gray-400"><Lock size={20} /></span>
+                    <span className="flex-1">Cài mật khẩu Màn hình Khách</span>
                   </div>
                 )}
               </nav>
@@ -1435,6 +1595,99 @@ const POS: React.FC = () => {
 
           </div>
         </>
+      )}
+
+      {/* Cài đặt mật khẩu Màn hình khách */}
+      {showSetPasswordModal && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-sm w-full p-6 animate-scale-up">
+            <h3 className="text-lg font-bold text-gray-800 mb-4">Mật khẩu Màn hình Khách</h3>
+            <p className="text-sm text-gray-600 mb-4">Thiết lập mật khẩu để mở khóa menu ẩn ở màn hình Khách Order (Để trống nếu không cần).</p>
+            <input
+              type="text"
+              placeholder="Nhập mật khẩu..."
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none mb-6 text-center text-lg tracking-widest"
+              value={newExitPassword}
+              onChange={(e) => setNewExitPassword(e.target.value)}
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowSetPasswordModal(false)}
+                className="flex-1 py-2 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={async () => {
+                  setIsSavingPassword(true);
+                  try {
+                    await setDoc(doc(db, 'settings', 'general'), {
+                      customerOrderExitPassword: newExitPassword
+                    }, { merge: true });
+                    toast.success('Lưu mật khẩu thành công!');
+                    setShowSetPasswordModal(false);
+                  } catch (error) {
+                    toast.error('Lỗi khi lưu mật khẩu');
+                  } finally {
+                    setIsSavingPassword(false);
+                  }
+                }}
+                disabled={isSavingPassword}
+                className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
+              >
+                {isSavingPassword ? 'Đang lưu...' : 'Lưu lại'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Chọn Size Modal */}
+      {showSizeModal && selectedItemForSize && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl animate-scale-up relative">
+            <button
+              onClick={() => {
+                setShowSizeModal(false);
+                setSelectedItemForSize(null);
+                setEditingCartItemId(null);
+              }}
+              className="absolute top-4 right-4 p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 rounded-full transition-colors"
+            >
+              <X size={20} />
+            </button>
+
+            <h3 className="text-xl font-bold text-gray-800 mb-1">
+              {editingCartItemId ? 'Đổi kích cỡ' : 'Chọn kích cỡ'}
+            </h3>
+            <p className="text-sm text-gray-500 mb-5">{selectedItemForSize.name}</p>
+
+            <div className="space-y-3 mb-6">
+              {selectedItemForSize.sizes?.map((sz, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => {
+                    if (editingCartItemId) {
+                      updateCartItemSize(editingCartItemId, sz.name, sz.price);
+                    } else {
+                      addToCart(selectedItemForSize, sz.name, sz.price);
+                    }
+                    setShowSizeModal(false);
+                    setSelectedItemForSize(null);
+                    setEditingCartItemId(null);
+                  }}
+                  className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-colors group text-left"
+                >
+                  <span className="font-semibold text-gray-700 group-hover:text-blue-700">{sz.name}</span>
+                  <span className="font-bold text-blue-600">
+                    {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(sz.price)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Ẩn vùng in CSS */}

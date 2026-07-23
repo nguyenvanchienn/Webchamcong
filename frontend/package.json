@@ -19,11 +19,13 @@
     "react-dom": "^19.2.7",
     "react-hot-toast": "^2.6.0",
     "react-router-dom": "^7.18.1",
+    "recharts": "^3.10.0",
     "sweetalert2": "^11.26.25",
     "sweetalert2-react-content": "^5.1.2",
     "tailwind-merge": "^3.6.0",
     "tesseract.js": "^7.0.0",
     "xlsx": "^0.18.5",
+    "xlsx-js-style": "^1.2.0",
     "zustand": "^5.0.14"
   },
   "devDependencies": {

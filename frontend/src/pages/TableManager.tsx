@@ -276,13 +276,13 @@ const TableManager: React.FC = () => {
   if (loading && branches.length === 0) return <div className="p-8 text-center text-gray-500">Đang tải dữ liệu...</div>;
 
   return (
-    <div className="p-6 h-full flex flex-col bg-gray-50">
-      <div className="flex justify-between items-center mb-6">
+    <div className="p-4 md:p-6 h-full flex flex-col bg-gray-50">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Quản lý Bàn & Mã QR</h1>
           <p className="text-gray-500 mt-1">Tạo bàn và in mã QR để khách quét gọi món tại bàn</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 w-full sm:w-auto">
           {userRole === 'SUPER_ADMIN' && (
             <select
               value={selectedBranch}
@@ -298,7 +298,7 @@ const TableManager: React.FC = () => {
           <button
             onClick={() => setIsModalOpen(true)}
             disabled={!selectedBranch}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm disabled:opacity-50"
+            className="flex justify-center items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm disabled:opacity-50"
           >
             <Plus size={20} />
             <span>Thêm Bàn</span>
@@ -306,19 +306,19 @@ const TableManager: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-6">
         {tables.map(table => (
-          <div key={table.id} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex flex-col items-center group hover:shadow-md transition-shadow">
+          <div key={table.id} className="bg-white rounded-2xl p-3 md:p-5 shadow-sm border border-gray-100 flex flex-col items-center group hover:shadow-md transition-shadow">
             <h3 className="text-xl font-bold text-gray-800 mb-1">{table.name}</h3>
             {selectedBranch === 'all' && (
-              <p className="text-xs text-blue-600 font-semibold bg-blue-50 px-2 py-1 rounded-md mb-3">
+              <p className="text-[10px] md:text-xs text-blue-600 font-semibold bg-blue-50 px-2 py-1 rounded-md mb-2 md:mb-3 text-center">
                 {branches.find(b => b.id === table.branchId)?.name || 'Cơ sở không xác định'}
               </p>
             )}
 
-            <div className={`bg-gray-50 p-4 rounded-xl border border-gray-200 relative cursor-pointer group/qr ${selectedBranch === 'all' ? 'mb-4' : 'mb-4 mt-3'}`} onClick={() => setViewingQR(table)}>
-              <QRCodeSVG value={getQRUrl(table.id, table.branchId)} size={120} />
-              <div className="absolute inset-0 bg-black/50 backdrop-blur-sm rounded-xl opacity-0 group-hover/qr:opacity-100 transition-opacity flex flex-col items-center justify-center text-white gap-2">
+            <div className={`bg-gray-50 p-3 md:p-4 rounded-xl border border-gray-200 relative cursor-pointer group/qr ${selectedBranch === 'all' ? 'mb-3 md:mb-4' : 'mb-3 md:mb-4 mt-2 md:mt-3'} w-full flex justify-center`} onClick={() => setViewingQR(table)}>
+              <QRCodeSVG value={getQRUrl(table.id, table.branchId)} className="w-20 h-20 md:w-32 md:h-32" />
+              <div className="absolute inset-0 bg-black/50 backdrop-blur-sm rounded-xl opacity-0 group-hover/qr:opacity-100 transition-opacity flex flex-col items-center justify-center text-white gap-1 md:gap-2">
                 <QrCode size={32} />
                 <span className="font-medium text-sm">Xem QR Lớn</span>
               </div>
@@ -343,9 +343,9 @@ const TableManager: React.FC = () => {
 
       {/* Add Table Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 md:p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
               <h2 className="text-xl font-bold text-gray-800">Thêm Bàn Mới</h2>
               <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:bg-gray-200 p-2 rounded-full"><X size={20} /></button>
             </div>
@@ -386,11 +386,11 @@ const TableManager: React.FC = () => {
         </div>
       )}
 
-      {/* View QR Modal */}
+      {/* QR Modal */}
       {viewingQR && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col items-center p-8 relative">
-            <button onClick={() => setViewingQR(null)} className="absolute top-4 right-4 text-gray-400 hover:bg-gray-100 p-2 rounded-full"><X size={24} /></button>
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 flex flex-col items-center max-w-sm w-full relative">
+            <button onClick={() => setViewingQR(null)} className="absolute top-4 right-4 text-gray-400 hover:bg-gray-200 p-2 rounded-full transition-colors"><X size={20} /></button>
             <h2 className="text-3xl font-black text-gray-800 mb-2">{viewingQR.name}</h2>
             <p className="text-gray-500 mb-8 text-center text-sm">Quét mã QR dưới đây để xem Menu và Gọi món</p>
 
@@ -408,7 +408,7 @@ const TableManager: React.FC = () => {
 
       {/* Delete Confirm Modal */}
       {tableToDelete && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-slide-up">
             <div className="flex justify-center mb-4 text-red-500 bg-red-50 w-16 h-16 rounded-full items-center mx-auto">
               <Lock size={32} />
