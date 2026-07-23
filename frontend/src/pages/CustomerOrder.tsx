@@ -21,7 +21,9 @@ interface MenuItem {
 interface CartItem extends MenuItem {
   quantity: number;
   cartItemId: string;
+  isServed?: boolean;
   selectedSize?: string;
+  cancelRequested?: boolean;
 }
 
 const CustomerOrder: React.FC = () => {

@@ -24,6 +24,7 @@ interface CartItem extends MenuItem {
   cartItemId?: string;
   isServed?: boolean;
   selectedSize?: string;
+  cancelRequested?: boolean;
 }
 
 interface TableOrderDoc {
@@ -276,6 +277,26 @@ const TableOrder: React.FC = () => {
     }
   };
 
+  const handleRequestCancel = async (cartItemId: string) => {
+    if (!activeOrder || !cartItemId) return;
+    try {
+      const newItems = activeOrder.items.map(item => 
+        item.cartItemId === cartItemId 
+          ? { ...item, cancelRequested: true } 
+          : item
+      );
+      
+      await updateDoc(doc(db, 'active_table_orders', activeOrder.id), {
+        items: newItems,
+        hasNewItems: true // notify POS
+      });
+      toast.success('Đã gửi yêu cầu huỷ món đến thu ngân!');
+    } catch (error) {
+      console.error(error);
+      toast.error('Có lỗi xảy ra khi gửi yêu cầu huỷ');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
@@ -379,11 +400,33 @@ const TableOrder: React.FC = () => {
           {isOrderExpanded && (
             <div className="space-y-2 mt-3 animate-slide-up">
               {activeOrder.items.map((item, idx) => (
-                <div key={idx} className="flex justify-between items-center text-sm">
-                  <span className={`font-medium ${item.isServed ? 'text-gray-400 line-through' : 'text-orange-900'}`}>
-                    {item.quantity}x {item.name} {item.selectedSize ? `(${item.selectedSize})` : ''}
-                  </span>
-                  <span className={`${item.isServed ? 'text-gray-400 line-through' : 'text-orange-700 font-bold'}`}>{new Intl.NumberFormat('vi-VN').format(item.price * item.quantity)}đ</span>
+                <div key={idx} className="flex flex-col gap-1 text-sm border-b border-orange-100/50 pb-2 last:border-0 last:pb-0">
+                  <div className="flex justify-between items-center">
+                    <span className={`font-medium ${item.isServed ? 'text-gray-400 line-through' : 'text-orange-900'}`}>
+                      {item.quantity}x {item.name} {item.selectedSize ? `(${item.selectedSize})` : ''}
+                    </span>
+                    <span className={`${item.isServed ? 'text-gray-400 line-through' : 'text-orange-700 font-bold'}`}>{new Intl.NumberFormat('vi-VN').format(item.price * item.quantity)}đ</span>
+                  </div>
+                  {!item.isServed && (
+                    <div className="flex justify-end mt-1">
+                      {item.cancelRequested ? (
+                        <span className="text-[11px] font-bold text-orange-500 bg-orange-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <Clock size={10} /> Đang chờ huỷ...
+                        </span>
+                      ) : (
+                        <button 
+                          onClick={() => {
+                            if(window.confirm(`Bạn muốn yêu cầu huỷ món ${item.name}?`)) {
+                              if(item.cartItemId) handleRequestCancel(item.cartItemId);
+                            }
+                          }}
+                          className="text-[11px] font-bold text-red-500 hover:text-red-600 flex items-center gap-1 opacity-70 hover:opacity-100 transition-opacity"
+                        >
+                          <X size={12} /> Yêu cầu huỷ
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

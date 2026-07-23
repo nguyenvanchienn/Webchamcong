@@ -25,6 +25,7 @@ interface CartItem extends MenuItem {
   cartItemId: string;
   isServed?: boolean;
   selectedSize?: string;
+  cancelRequested?: boolean;
 }
 
 interface ActiveTableOrder {
@@ -1500,7 +1501,7 @@ const POS: React.FC = () => {
 
                       <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700 flex flex-col gap-2 mt-2" onClick={e => e.stopPropagation()}>
                         {order.items.map((item, idx) => (
-                          <div key={item.cartItemId || idx} className="flex items-center justify-between group">
+                          <div key={item.cartItemId || idx} className={`flex items-center justify-between group rounded-md p-1 ${item.cancelRequested ? 'bg-red-50 border border-red-100' : ''}`}>
                             <div className="flex items-start gap-3 flex-1">
                               <input
                                 type="checkbox"
@@ -1515,36 +1516,85 @@ const POS: React.FC = () => {
                                 className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 mt-0.5 cursor-pointer shrink-0"
                               />
                               <div className="flex flex-col">
-                                <span className={`${item.isServed ? 'line-through text-gray-400' : 'font-medium text-gray-800'}`}>
+                                <span className={`${item.isServed ? 'line-through text-gray-400' : (item.cancelRequested ? 'font-bold text-red-600' : 'font-medium text-gray-800')}`}>
                                   {item.quantity}x {item.name} {item.selectedSize ? `(${item.selectedSize})` : ''}
                                 </span>
-                                <span className="text-[10px] font-bold text-gray-400">
-                                  {(() => {
-                                    if (!item.cartItemId) return '';
-                                    const t = parseInt(item.cartItemId.substring(0, 13));
-                                    return isNaN(t) ? '' : new Date(t).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-                                  })()}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] font-bold text-gray-400">
+                                    {(() => {
+                                      if (!item.cartItemId) return '';
+                                      const t = parseInt(item.cartItemId.substring(0, 13));
+                                      return isNaN(t) ? '' : new Date(t).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                                    })()}
+                                  </span>
+                                  {item.cancelRequested && (
+                                    <span className="text-[10px] font-bold text-red-500 bg-red-100 px-1.5 rounded animate-pulse">Khách đòi huỷ</span>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setItemToDelete({
-                                  type: 'ITEM',
-                                  orderId: order.id,
-                                  tableId: order.tableId,
-                                  tableName: order.tableName,
-                                  itemIndex: idx,
-                                  itemName: item.name,
-                                  orderItems: order.items
-                                });
-                              }}
-                              className="text-red-400 hover:text-red-600 transition-opacity p-1 -mr-2"
-                              title="Xóa món này"
-                            >
-                              <X size={18} strokeWidth={3} />
-                            </button>
+                            
+                            {item.cancelRequested ? (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    // Từ chối huỷ
+                                    const newItems = [...order.items];
+                                    newItems[idx].cancelRequested = false;
+                                    await updateDoc(doc(db, 'active_table_orders', order.id), {
+                                      items: newItems,
+                                      notifications: arrayUnion({
+                                        id: Date.now().toString(),
+                                        message: `Thu ngân đã từ chối yêu cầu huỷ món ${item.name}`,
+                                        timestamp: Date.now()
+                                      })
+                                    });
+                                    toast.success('Đã từ chối huỷ món');
+                                  }}
+                                  className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded font-bold hover:bg-gray-300 transition-colors"
+                                >
+                                  Từ chối
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    // Đồng ý huỷ -> Mở modal xoá món như bình thường
+                                    setItemToDelete({
+                                      type: 'ITEM',
+                                      orderId: order.id,
+                                      tableId: order.tableId,
+                                      tableName: order.tableName,
+                                      itemIndex: idx,
+                                      itemName: item.name,
+                                      orderItems: order.items
+                                    });
+                                  }}
+                                  className="text-xs bg-red-500 text-white px-2 py-1 rounded font-bold hover:bg-red-600 transition-colors"
+                                >
+                                  Đồng ý
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setItemToDelete({
+                                    type: 'ITEM',
+                                    orderId: order.id,
+                                    tableId: order.tableId,
+                                    tableName: order.tableName,
+                                    itemIndex: idx,
+                                    itemName: item.name,
+                                    orderItems: order.items
+                                  });
+                                }}
+                                className="text-red-400 hover:text-red-600 transition-opacity p-1 -mr-2"
+                                title="Xóa món này"
+                              >
+                                <X size={18} strokeWidth={3} />
+                              </button>
+                            )}
                           </div>
                         ))}
                       </div>
