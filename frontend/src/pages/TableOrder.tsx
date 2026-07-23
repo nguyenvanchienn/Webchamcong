@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { collection, doc, getDoc, getDocs, addDoc, updateDoc, query, where, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
@@ -124,6 +124,28 @@ const TableOrder: React.FC = () => {
     });
     return () => unsub();
   }, [branchId, tableId]);
+
+  const prevNotificationsCount = useRef(0);
+  useEffect(() => {
+    if (activeOrder?.notifications) {
+      const currentCount = activeOrder.notifications.length;
+      if (currentCount > prevNotificationsCount.current && prevNotificationsCount.current > 0) {
+        const newNotifs = activeOrder.notifications.slice(prevNotificationsCount.current);
+        newNotifs.forEach(n => {
+          if (!n.isRead) {
+            toast(n.message, { 
+              icon: '🔔', 
+              duration: 5000, 
+              style: { background: '#fff3cd', color: '#856404', fontWeight: 'bold', border: '1px solid #ffeeba' } 
+            });
+          }
+        });
+      }
+      prevNotificationsCount.current = currentCount;
+    } else {
+      prevNotificationsCount.current = 0;
+    }
+  }, [activeOrder?.notifications]);
 
   const handleSendRequest = async () => {
     if (!requestText.trim() || !activeOrder) return;
