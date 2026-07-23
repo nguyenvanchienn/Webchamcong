@@ -1150,7 +1150,7 @@ const POS: React.FC = () => {
                     {billModalData.items.map((item: any, idx: number) => (
                       <tr key={idx} className="border-b border-dashed border-gray-100">
                         <td className="py-2 pr-2 font-medium">
-                          {item.name}
+                          {item.name.replace(/\s*\([^)]*\)/g, '')}
                         </td>
                         <td className="py-2 text-center text-gray-500 font-bold">{item.selectedSize || '-'}</td>
                         <td className="py-2 text-center">{item.quantity}</td>
@@ -1194,7 +1194,7 @@ const POS: React.FC = () => {
                 <div className="mt-4 pt-4 border-t border-dashed border-gray-300 flex justify-between items-center">
                   <div className="text-center text-xs text-gray-500 italic flex-1 mr-2">
                     <p>Cảm ơn quý khách đã ủng hộ!</p>
-                    <p>Hẹn gặp lại</p>
+                    <p>Hẹn gặp lại ❤️</p>
                   </div>
 
                   {storeBankId && storeBankAccount && (
