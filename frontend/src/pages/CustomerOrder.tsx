@@ -58,6 +58,8 @@ const CustomerOrder: React.FC = () => {
   const [newExitPassword, setNewExitPassword] = useState('');
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   
+  const [branchName, setBranchName] = useState<string>('');
+  
   const navigate = useNavigate();
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -153,6 +155,7 @@ const CustomerOrder: React.FC = () => {
           const branchDoc = await getDoc(doc(db, 'branches', branchId));
           if (branchDoc.exists()) {
             const data = branchDoc.data();
+            setBranchName(data.name || '');
             setStoreBankId(data.bankId || null);
             setStoreBankAccount(data.bankAccount || null);
             setStoreBankAccountName(data.bankAccountName || null);
@@ -263,6 +266,11 @@ const CustomerOrder: React.FC = () => {
             <Store size={28} />
           </button>
           <div className="flex-1">
+            {branchName && (
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                <Store size={12} /> {branchName}
+              </p>
+            )}
             <h1 className="text-2xl font-black text-gray-800 tracking-tight">Xin chào Quý khách!</h1>
             <p className="text-gray-500 font-medium">Vui lòng chọn món ăn bên dưới</p>
           </div>

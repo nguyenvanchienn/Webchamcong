@@ -54,6 +54,7 @@ const TableOrder: React.FC = () => {
   const [editingCartItemId, setEditingCartItemId] = useState<string | null>(null);
   
   const [tableName, setTableName] = useState<string>('');
+  const [branchName, setBranchName] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isOrderExpanded, setIsOrderExpanded] = useState(false);
@@ -86,6 +87,12 @@ const TableOrder: React.FC = () => {
           toast.error('Không tìm thấy thông tin bàn!');
           setLoading(false);
           return;
+        }
+
+        // Fetch Branch info
+        const branchDoc = await getDoc(doc(db, 'branches', branchId));
+        if (branchDoc.exists()) {
+          setBranchName(branchDoc.data().name);
         }
 
         // Fetch Menu
@@ -343,6 +350,11 @@ const TableOrder: React.FC = () => {
       <div className="bg-white px-4 pt-6 pb-4 sticky top-0 z-20 shadow-sm rounded-b-2xl">
         <div className="flex justify-between items-start mb-4">
           <div>
+            {branchName && (
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                <ChefHat size={12} /> {branchName}
+              </p>
+            )}
             <h1 className="text-2xl font-black text-gray-800 tracking-tight">Gọi món</h1>
             <p className="text-sm font-medium text-blue-600 flex items-center gap-1 mt-0.5">
               <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
