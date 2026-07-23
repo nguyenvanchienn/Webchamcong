@@ -84,7 +84,7 @@ const POS: React.FC = () => {
   const [currentTableId, setCurrentTableId] = useState<string | null>(null);
   const [currentTableName, setCurrentTableName] = useState<string | null>(null);
   const [pendingOrderCode, setPendingOrderCode] = useState<string | null>(null);
-  const [itemToDelete, setItemToDelete] = useState<{ type: 'ITEM' | 'REQUEST'; orderId: string; tableId: string; tableName: string; itemIndex?: number; itemName?: string; orderItems?: any[]; reqId?: string; reqMessage?: string; requests?: any[] } | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<{ type: 'ITEM' | 'REQUEST' | 'REJECT_CANCEL'; orderId: string; tableId: string; tableName: string; itemIndex?: number; itemName?: string; orderItems?: any[]; reqId?: string; reqMessage?: string; requests?: any[] } | null>(null);
   const [deleteReason, setDeleteReason] = useState<string>('');
 
   const navigate = useNavigate();
@@ -1539,18 +1539,16 @@ const POS: React.FC = () => {
                                 <button
                                   onClick={async (e) => {
                                     e.stopPropagation();
-                                    // Từ chối huỷ
-                                    const newItems = [...order.items];
-                                    newItems[idx].cancelRequested = false;
-                                    await updateDoc(doc(db, 'active_table_orders', order.id), {
-                                      items: newItems,
-                                      notifications: arrayUnion({
-                                        id: Date.now().toString(),
-                                        message: `Thu ngân đã từ chối yêu cầu huỷ món ${item.name}`,
-                                        timestamp: Date.now()
-                                      })
+                                    // Từ chối huỷ -> Mở modal nhập lý do
+                                    setItemToDelete({
+                                      type: 'REJECT_CANCEL',
+                                      orderId: order.id,
+                                      tableId: order.tableId,
+                                      tableName: order.tableName,
+                                      itemIndex: idx,
+                                      itemName: item.name,
+                                      orderItems: order.items
                                     });
-                                    toast.success('Đã từ chối huỷ món');
                                   }}
                                   className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded font-bold hover:bg-gray-300 transition-colors"
                                 >
@@ -1645,10 +1643,10 @@ const POS: React.FC = () => {
               <Trash2 size={32} />
             </div>
             <h3 className="text-xl font-bold text-center text-gray-800 mb-2">
-              Xác nhận xoá {itemToDelete.type === 'ITEM' ? 'món' : 'yêu cầu'}
+              Xác nhận {itemToDelete.type === 'ITEM' ? 'xoá món' : itemToDelete.type === 'REQUEST' ? 'xoá yêu cầu' : 'từ chối huỷ'}
             </h3>
             <p className="text-gray-600 text-center mb-6 text-sm">
-              Bạn có chắc chắn muốn xoá <span className="font-bold text-gray-800">{itemToDelete.type === 'ITEM' ? itemToDelete.itemName : itemToDelete.reqMessage}</span> khỏi đơn của <span className="font-bold text-blue-600">{itemToDelete.tableName}</span> không?
+              Bạn có chắc chắn muốn {itemToDelete.type === 'REJECT_CANCEL' ? 'từ chối yêu cầu huỷ' : 'xoá'} <span className="font-bold text-gray-800">{itemToDelete.type === 'REQUEST' ? itemToDelete.reqMessage : itemToDelete.itemName}</span> khỏi đơn của <span className="font-bold text-blue-600">{itemToDelete.tableName}</span> không?
             </p>
 
             <div className="mb-6">
@@ -1705,6 +1703,19 @@ const POS: React.FC = () => {
                         })
                       });
                       toast.success('Đã xoá yêu cầu');
+                    } else if (itemToDelete.type === 'REJECT_CANCEL') {
+                      const { orderId, itemIndex, itemName, orderItems } = itemToDelete;
+                      const newItems = [...(orderItems || [])];
+                      newItems[itemIndex as number].cancelRequested = false;
+                      await updateDoc(doc(db, 'active_table_orders', orderId), {
+                        items: newItems,
+                        notifications: arrayUnion({
+                          id: Date.now().toString(),
+                          message: `Thu ngân đã từ chối yêu cầu huỷ món ${itemName}${deleteReason.trim() ? `. Lý do: ${deleteReason.trim()}` : ''}`,
+                          timestamp: Date.now()
+                        })
+                      });
+                      toast.success('Đã từ chối huỷ món');
                     }
                   } catch (e) {
                     toast.error('Có lỗi xảy ra');
@@ -1712,9 +1723,9 @@ const POS: React.FC = () => {
                   setItemToDelete(null);
                   setDeleteReason('');
                 }}
-                className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-200"
+                className={`flex-1 py-3 ${itemToDelete.type === 'REJECT_CANCEL' ? 'bg-orange-500 hover:bg-orange-600 shadow-orange-200' : 'bg-red-600 hover:bg-red-700 shadow-red-200'} text-white font-bold rounded-xl transition-colors shadow-lg`}
               >
-                Xác nhận xoá
+                {itemToDelete.type === 'REJECT_CANCEL' ? 'Từ chối huỷ' : 'Xác nhận xoá'}
               </button>
             </div>
           </div>
