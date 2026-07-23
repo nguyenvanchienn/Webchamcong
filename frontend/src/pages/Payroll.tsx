@@ -1,9 +1,26 @@
-import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, doc, getDoc, addDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import { Wallet, CalendarDays, Clock, X, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
-import toast from 'react-hot-toast';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useState, useEffect } from "react";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  doc,
+  getDoc,
+  addDoc,
+  updateDoc,
+} from "firebase/firestore";
+import { db } from "../config/firebase";
+import {
+  Wallet,
+  CalendarDays,
+  Clock,
+  X,
+  CheckCircle,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+import toast from "react-hot-toast";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 interface EmployeeInfo {
   id: string;
@@ -29,7 +46,7 @@ interface PayrollItem {
 }
 
 const formatHours = (decimalHours: number) => {
-  if (!decimalHours || decimalHours === 0) return '0h 0m 0s';
+  if (!decimalHours || decimalHours === 0) return "0h 0m 0s";
   const totalSeconds = Math.round(decimalHours * 3600);
   const h = Math.floor(totalSeconds / 3600);
   const m = Math.floor((totalSeconds % 3600) / 60);
@@ -44,10 +61,12 @@ const calculateHoursWorked = (data: any, isLive = false): number => {
     let totalMs = 0;
     let lastIn: Date | null = null;
     for (const log of data.logs) {
-      if (log.action === 'CHECK_IN') {
+      if (log.action === "CHECK_IN") {
         lastIn = log.time?.toDate ? log.time.toDate() : new Date(log.time);
-      } else if (log.action === 'CHECK_OUT' && lastIn) {
-        const outTime = log.time?.toDate ? log.time.toDate() : new Date(log.time);
+      } else if (log.action === "CHECK_OUT" && lastIn) {
+        const outTime = log.time?.toDate
+          ? log.time.toDate()
+          : new Date(log.time);
         totalMs += outTime.getTime() - lastIn.getTime();
         lastIn = null;
       }
@@ -57,12 +76,17 @@ const calculateHoursWorked = (data: any, isLive = false): number => {
     }
     return totalMs / (1000 * 60 * 60);
   }
-  const inTime = data.checkIn?.toDate ? data.checkIn.toDate() : new Date(data.checkIn);
+  const inTime = data.checkIn?.toDate
+    ? data.checkIn.toDate()
+    : new Date(data.checkIn);
   if (!data.checkOut) {
-    if (isLive) return Math.max(0, Date.now() - inTime.getTime()) / (1000 * 60 * 60);
+    if (isLive)
+      return Math.max(0, Date.now() - inTime.getTime()) / (1000 * 60 * 60);
     return 0;
   }
-  const outTime = data.checkOut?.toDate ? data.checkOut.toDate() : new Date(data.checkOut);
+  const outTime = data.checkOut?.toDate
+    ? data.checkOut.toDate()
+    : new Date(data.checkOut);
   return Math.max(0, outTime.getTime() - inTime.getTime()) / (1000 * 60 * 60);
 };
 
@@ -76,24 +100,24 @@ const Payroll: React.FC = () => {
   const [activeShiftData, setActiveShiftData] = useState<any | null>(null);
   const [liveHours, setLiveHours] = useState(0);
   const [salaryRate, setSalaryRate] = useState(0);
-  
+
   const [month, setMonth] = useState(() => {
     const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
-  
+
   const [selectedLogs, setSelectedLogs] = useState<any[] | null>(null);
   const [bonuses, setBonuses] = useState<any[]>([]);
-  
+
   // Dành cho Admin
   const [adminPayroll, setAdminPayroll] = useState<any[]>([]);
-  
-  const initialBranchId = searchParams.get('branchId') || 'ALL';
+
+  const initialBranchId = searchParams.get("branchId") || "ALL";
   const [filterBranchId, setFilterBranchId] = useState<string>(initialBranchId);
   const [branches, setBranches] = useState<any[]>([]);
 
   useEffect(() => {
-    const bId = searchParams.get('branchId');
+    const bId = searchParams.get("branchId");
     if (bId) {
       setFilterBranchId(bId);
     }
@@ -114,16 +138,16 @@ const Payroll: React.FC = () => {
     bonuses?: any[];
   } | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'admin' | 'personal'>('personal');
-  const userRole = localStorage.getItem('userRole') || 'EMPLOYEE';
-  const currentEmployeeId = localStorage.getItem('employeeId');
+  const [activeTab, setActiveTab] = useState<"admin" | "personal">("personal");
+  const userRole = localStorage.getItem("userRole") || "EMPLOYEE";
+  const currentEmployeeId = localStorage.getItem("employeeId");
 
   useEffect(() => {
-    if (userRole === 'SUPER_ADMIN') {
+    if (userRole === "SUPER_ADMIN") {
       const fetchBranches = async () => {
-        const snap = await getDocs(collection(db, 'branches'));
+        const snap = await getDocs(collection(db, "branches"));
         const br: any[] = [];
-        snap.forEach(d => br.push({ id: d.id, ...d.data() }));
+        snap.forEach((d) => br.push({ id: d.id, ...d.data() }));
         setBranches(br);
       };
       fetchBranches();
@@ -135,54 +159,75 @@ const Payroll: React.FC = () => {
     try {
       let latePenaltyMap: Record<string, number> = { ALL: 0 };
       let lateGracePeriodMap: Record<string, number> = { ALL: 0 };
-      const settingsDoc = await getDoc(doc(db, 'settings', 'general'));
+      const settingsDoc = await getDoc(doc(db, "settings", "general"));
       if (settingsDoc.exists()) {
         const data = settingsDoc.data();
-        if (typeof data.latePenalty === 'number') latePenaltyMap = { ALL: data.latePenalty };
-        else if (typeof data.latePenalty === 'object') latePenaltyMap = data.latePenalty;
-        
-        if (typeof data.lateGracePeriod === 'number') lateGracePeriodMap = { ALL: data.lateGracePeriod };
-        else if (typeof data.lateGracePeriod === 'object') lateGracePeriodMap = data.lateGracePeriod;
+        if (typeof data.latePenalty === "number")
+          latePenaltyMap = { ALL: data.latePenalty };
+        else if (typeof data.latePenalty === "object")
+          latePenaltyMap = data.latePenalty;
+
+        if (typeof data.lateGracePeriod === "number")
+          lateGracePeriodMap = { ALL: data.lateGracePeriod };
+        else if (typeof data.lateGracePeriod === "object")
+          lateGracePeriodMap = data.lateGracePeriod;
       }
 
       const startDate = `${month}-01`;
-      const endDay = new Date(parseInt(month.split('-')[0]), parseInt(month.split('-')[1]), 0).getDate();
+      const endDay = new Date(
+        parseInt(month.split("-")[0]),
+        parseInt(month.split("-")[1]),
+        0,
+      ).getDate();
       const endDate = `${month}-${endDay}`;
 
       // --- PERSONAL PAYROLL ---
-      if (currentEmployeeId && (['EMPLOYEE', 'CASHIER', 'BARTENDER', 'KITCHEN', 'GUARD'].includes(userRole) || userRole === 'BRANCH_ADMIN')) {
+      if (
+        currentEmployeeId &&
+        (["EMPLOYEE", "CASHIER", "BARTENDER", "KITCHEN", "GUARD"].includes(
+          userRole,
+        ) ||
+          userRole === "BRANCH_ADMIN")
+      ) {
         // Lấy thông tin lương/giờ của NV
-        const empDoc = await getDoc(doc(db, 'employees', currentEmployeeId));
+        const empDoc = await getDoc(doc(db, "employees", currentEmployeeId));
         if (!empDoc.exists()) return;
         const salaryPerHour = empDoc.data().salaryPerHour || 0;
         const currentUserBranchId = empDoc.data().branchId;
 
         // Lấy lịch làm việc của nhân viên này để tính đi muộn
-        const schedQuery = query(collection(db, 'schedules'), where('employeeId', '==', currentEmployeeId));
+        const schedQuery = query(
+          collection(db, "schedules"),
+          where("employeeId", "==", currentEmployeeId),
+        );
         const schedSnap = await getDocs(schedQuery);
         const schedulesMap: Record<string, string[]> = {};
-        schedSnap.forEach(d => {
-           const data = d.data();
-           if (!schedulesMap[data.date]) schedulesMap[data.date] = [];
-           schedulesMap[data.date].push(data.shift);
+        schedSnap.forEach((d) => {
+          const data = d.data();
+          if (!schedulesMap[data.date]) schedulesMap[data.date] = [];
+          schedulesMap[data.date].push(data.shift);
         });
 
         // Lấy các record chấm công
         const attQuery = query(
-          collection(db, 'attendance'), 
-          where('employeeId', '==', currentEmployeeId)
+          collection(db, "attendance"),
+          where("employeeId", "==", currentEmployeeId),
         );
         const attSnap = await getDocs(attQuery);
-        
-        const bonusQuery = query(collection(db, 'bonuses'), where('employeeId', '==', currentEmployeeId), where('month', '==', month));
+
+        const bonusQuery = query(
+          collection(db, "bonuses"),
+          where("employeeId", "==", currentEmployeeId),
+          where("month", "==", month),
+        );
         const bonusSnap = await getDocs(bonusQuery);
         let totalBonus = 0;
         const userBonuses: any[] = [];
-        bonusSnap.forEach(d => {
-           const b = d.data();
-           const amt = b.amount || 0;
-           totalBonus += (b.type === 'DEDUCT' ? -amt : amt);
-           userBonuses.push(b);
+        bonusSnap.forEach((d) => {
+          const b = d.data();
+          const amt = b.amount || 0;
+          totalBonus += b.type === "DEDUCT" ? -amt : amt;
+          userBonuses.push(b);
         });
         setBonuses(userBonuses);
 
@@ -191,20 +236,22 @@ const Payroll: React.FC = () => {
         let tEarned = totalBonus;
         let activeData: any | null = null;
 
-        attSnap.forEach(d => {
+        attSnap.forEach((d) => {
           const data = d.data();
           if (data.date >= startDate && data.date <= endDate) {
             if (data.checkIn) {
               const inTime = data.checkIn.toDate();
               let outTime = data.checkOut ? data.checkOut.toDate() : null;
-              
+
               let roundedHours = 0;
               let earned = 0;
 
               if (outTime) {
                 const hours = calculateHoursWorked(data);
                 roundedHours = hours;
-                const recordSalary = Number(data.salaryPerHour || salaryPerHour || 0);
+                const recordSalary = Number(
+                  data.salaryPerHour || salaryPerHour || 0,
+                );
                 earned = Math.round(hours * recordSalary);
                 tHours += roundedHours;
               } else {
@@ -216,200 +263,248 @@ const Payroll: React.FC = () => {
               let isEarly = false;
               let latePenalty = 0;
               const branchIdForRecord = data.branchId || currentUserBranchId;
-              const latePenaltyRate = (latePenaltyMap[branchIdForRecord] !== undefined ? latePenaltyMap[branchIdForRecord] : latePenaltyMap['ALL']) || 0;
-              const gracePeriod = (lateGracePeriodMap[branchIdForRecord] !== undefined ? lateGracePeriodMap[branchIdForRecord] : lateGracePeriodMap['ALL']) ?? 0;
-              
+              const latePenaltyRate =
+                (latePenaltyMap[branchIdForRecord] !== undefined
+                  ? latePenaltyMap[branchIdForRecord]
+                  : latePenaltyMap["ALL"]) || 0;
+              const gracePeriod =
+                (lateGracePeriodMap[branchIdForRecord] !== undefined
+                  ? lateGracePeriodMap[branchIdForRecord]
+                  : lateGracePeriodMap["ALL"]) ?? 0;
+
               const shiftsToday = schedulesMap[data.date];
               if (shiftsToday && shiftsToday.length > 0) {
                 // Tìm ca sớm nhất trong ngày của NV này
                 let earliestShiftM = 24 * 60;
                 let latestEndM = 0;
-                shiftsToday.forEach(shiftStr => {
-                   const match = shiftStr.match(/\((\d{2}):(\d{2})/);
-                   if (match) {
-                      const startM = parseInt(match[1]) * 60 + parseInt(match[2]);
-                      if (startM < earliestShiftM) earliestShiftM = startM;
-                   }
-                   const matchEnd = shiftStr.match(/-\s*(\d{2}):(\d{2})/);
-                   if (matchEnd && match) {
-                      const startM = parseInt(match[1]) * 60 + parseInt(match[2]);
-                      let endM = parseInt(matchEnd[1]) * 60 + parseInt(matchEnd[2]);
-                      if (endM < startM) endM += 24 * 60;
-                      if (endM > latestEndM) latestEndM = endM;
-                   }
+                shiftsToday.forEach((shiftStr) => {
+                  const match = shiftStr.match(/\((\d{2}):(\d{2})/);
+                  if (match) {
+                    const startM = parseInt(match[1]) * 60 + parseInt(match[2]);
+                    if (startM < earliestShiftM) earliestShiftM = startM;
+                  }
+                  const matchEnd = shiftStr.match(/-\s*(\d{2}):(\d{2})/);
+                  if (matchEnd && match) {
+                    const startM = parseInt(match[1]) * 60 + parseInt(match[2]);
+                    let endM =
+                      parseInt(matchEnd[1]) * 60 + parseInt(matchEnd[2]);
+                    if (endM < startM) endM += 24 * 60;
+                    if (endM > latestEndM) latestEndM = endM;
+                  }
                 });
-                const inTotalS = inTime.getHours() * 3600 + inTime.getMinutes() * 60 + inTime.getSeconds();
+                const inTotalS =
+                  inTime.getHours() * 3600 +
+                  inTime.getMinutes() * 60 +
+                  inTime.getSeconds();
                 const earliestShiftS = earliestShiftM * 60;
                 // gracePeriod is in seconds
-                if (inTotalS > earliestShiftS + gracePeriod) { // Cho phép trễ theo cấu hình
-                   isLate = true;
-                   const lateMinutes = Math.floor((inTotalS - earliestShiftS) / 60);
-                   latePenalty = lateMinutes * latePenaltyRate;
+                if (inTotalS > earliestShiftS + gracePeriod) {
+                  // Cho phép trễ theo cấu hình
+                  isLate = true;
+                  const lateMinutes = Math.floor(
+                    (inTotalS - earliestShiftS) / 60,
+                  );
+                  latePenalty = lateMinutes * latePenaltyRate;
                 }
                 if (outTime) {
-                   const outTotalM = outTime.getHours() * 60 + outTime.getMinutes();
-                   if (outTotalM < latestEndM) {
-                      isEarly = true;
-                   }
+                  const outTotalM =
+                    outTime.getHours() * 60 + outTime.getMinutes();
+                  if (outTotalM < latestEndM) {
+                    isEarly = true;
+                  }
                 }
               }
-              
+
               if (outTime) {
                 earned -= latePenalty;
                 if (earned < 0) earned = 0;
                 tEarned += earned;
               }
 
-              let status = '';
+              let status = "";
               if (!outTime) {
-                 status = isLate ? 'Đang làm (Đi muộn)' : 'Đang làm (Đúng giờ)';
+                status = isLate ? "Đang làm (Đi muộn)" : "Đang làm (Đúng giờ)";
               } else {
-                 if (isLate && isEarly) status = 'Hoàn thành (Muộn/Sớm)';
-                 else if (isLate) status = 'Hoàn thành (Đi muộn)';
-                 else if (isEarly) status = 'Hoàn thành (Về sớm)';
-                 else status = 'Hoàn thành (Đúng giờ)';
+                if (isLate && isEarly) status = "Hoàn thành (Muộn/Sớm)";
+                else if (isLate) status = "Hoàn thành (Đi muộn)";
+                else if (isEarly) status = "Hoàn thành (Về sớm)";
+                else status = "Hoàn thành (Đúng giờ)";
               }
 
               if (data.logs && data.logs.length > 3) {
-                 status += ' - Ngắt quãng';
+                status += " - Ngắt quãng";
               }
 
               records.push({
                 date: data.date,
-                checkInStr: inTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-                checkOutStr: outTime ? outTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '--:--',
+                checkInStr: inTime.toLocaleTimeString("vi-VN", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
+                checkOutStr: outTime
+                  ? outTime.toLocaleTimeString("vi-VN", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                  : "--:--",
                 hoursWorked: roundedHours,
                 earned: earned,
                 status: status,
-                logs: data.logs?.map((l: any) => ({ action: l.action, time: l.time?.toDate ? l.time.toDate() : new Date(l.time) }))
+                logs: data.logs?.map((l: any) => ({
+                  action: l.action,
+                  time: l.time?.toDate ? l.time.toDate() : new Date(l.time),
+                })),
               });
             }
           }
         });
 
-        records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        records.sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+        );
         setPayrollData(records);
         setTotalHours(tHours);
         setTotalEarned(tEarned);
         setActiveShiftData(activeData);
-        setSalaryRate(activeData && activeData.salaryPerHour !== undefined ? activeData.salaryPerHour : salaryPerHour);
-      } 
-      
+        setSalaryRate(
+          activeData && activeData.salaryPerHour !== undefined
+            ? activeData.salaryPerHour
+            : salaryPerHour,
+        );
+      }
+
       // --- ADMIN PAYROLL ---
-      if (userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') {
-        let currentUserBranchId = '';
-        let currentUserBranchName = '';
+      if (userRole === "SUPER_ADMIN" || userRole === "BRANCH_ADMIN") {
+        let currentUserBranchId = "";
+        let currentUserBranchName = "";
 
         if (currentEmployeeId) {
-          const empDoc = await getDoc(doc(db, 'employees', currentEmployeeId));
+          const empDoc = await getDoc(doc(db, "employees", currentEmployeeId));
           if (empDoc.exists()) {
             currentUserBranchId = empDoc.data().branchId;
             currentUserBranchName = empDoc.data().branchName;
           }
         }
 
-        const empSnap = await getDocs(collection(db, 'employees'));
+        const empSnap = await getDocs(collection(db, "employees"));
         const allEmps: Record<string, EmployeeInfo> = {};
 
-        empSnap.forEach(d => {
-           allEmps[d.id] = { id: d.id, ...d.data() } as EmployeeInfo;
-           if (d.id === currentEmployeeId) {
-             currentUserBranchId = d.data().branchId;
-             currentUserBranchName = d.data().branchName;
-           }
+        empSnap.forEach((d) => {
+          allEmps[d.id] = { id: d.id, ...d.data() } as EmployeeInfo;
+          if (d.id === currentEmployeeId) {
+            currentUserBranchId = d.data().branchId;
+            currentUserBranchName = d.data().branchName;
+          }
         });
 
         // Lấy chấm công trong tháng
         const attQuery = query(
-          collection(db, 'attendance'),
-          where('date', '>=', startDate),
-          where('date', '<=', endDate)
+          collection(db, "attendance"),
+          where("date", ">=", startDate),
+          where("date", "<=", endDate),
         );
         const attSnap = await getDocs(attQuery);
-        
+
         // Load admin schedules to compute late penalty
         const schedQueryAdmin = query(
-          collection(db, 'schedules'),
-          where('date', '>=', startDate),
-          where('date', '<=', endDate)
+          collection(db, "schedules"),
+          where("date", ">=", startDate),
+          where("date", "<=", endDate),
         );
         const schedSnapAdmin = await getDocs(schedQueryAdmin);
         const adminSchedulesMap: Record<string, string[]> = {};
-        schedSnapAdmin.forEach(d => {
-           const data = d.data();
-           const key = `${data.employeeId}_${data.date}`;
-           if (!adminSchedulesMap[key]) adminSchedulesMap[key] = [];
-           adminSchedulesMap[key].push(data.shift);
+        schedSnapAdmin.forEach((d) => {
+          const data = d.data();
+          const key = `${data.employeeId}_${data.date}`;
+          if (!adminSchedulesMap[key]) adminSchedulesMap[key] = [];
+          adminSchedulesMap[key].push(data.shift);
         });
 
-        const adminBonusQuery = query(collection(db, 'bonuses'), where('month', '==', month));
+        const adminBonusQuery = query(
+          collection(db, "bonuses"),
+          where("month", "==", month),
+        );
         const adminBonusSnap = await getDocs(adminBonusQuery);
         const adminBonusMap: Record<string, number> = {};
         const adminBonusDetails: Record<string, any[]> = {};
-        adminBonusSnap.forEach(d => {
-           const b = { id: d.id, ...d.data() } as any;
-           if (!b.isPaid) {
-             if (!adminBonusMap[b.employeeId]) adminBonusMap[b.employeeId] = 0;
-             if (!adminBonusDetails[b.employeeId]) adminBonusDetails[b.employeeId] = [];
-             const amt = b.amount || 0;
-             adminBonusMap[b.employeeId] += (b.type === 'DEDUCT' ? -amt : amt);
-             adminBonusDetails[b.employeeId].push(b);
-           }
+        adminBonusSnap.forEach((d) => {
+          const b = { id: d.id, ...d.data() } as any;
+          if (!b.isPaid) {
+            if (!adminBonusMap[b.employeeId]) adminBonusMap[b.employeeId] = 0;
+            if (!adminBonusDetails[b.employeeId])
+              adminBonusDetails[b.employeeId] = [];
+            const amt = b.amount || 0;
+            adminBonusMap[b.employeeId] += b.type === "DEDUCT" ? -amt : amt;
+            adminBonusDetails[b.employeeId].push(b);
+          }
         });
 
         const adminList: any[] = [];
-        
+
         // 1. Dòng Đã thanh toán (Từ Lịch sử)
-        const historyQuery = query(collection(db, 'payroll_history'), where('month', '==', month));
+        const historyQuery = query(
+          collection(db, "payroll_history"),
+          where("month", "==", month),
+        );
         const historySnap = await getDocs(historyQuery);
-        historySnap.forEach(d => {
+        historySnap.forEach((d) => {
           const historyData = d.data();
           if (historyData.employeeId && allEmps[historyData.employeeId]) {
             const empId = historyData.employeeId;
             let belongsToAdmin = false;
             const employeeCurrentBranchId = allEmps[empId]?.branchId;
-            if (userRole === 'SUPER_ADMIN') {
-              if (filterBranchId === 'ALL') belongsToAdmin = true;
-              else if (employeeCurrentBranchId === filterBranchId) belongsToAdmin = true;
-            } else if (userRole === 'BRANCH_ADMIN') {
-              if (employeeCurrentBranchId === currentUserBranchId) belongsToAdmin = true;
+            if (userRole === "SUPER_ADMIN") {
+              if (filterBranchId === "ALL") belongsToAdmin = true;
+              else if (employeeCurrentBranchId === filterBranchId)
+                belongsToAdmin = true;
+            } else if (userRole === "BRANCH_ADMIN") {
+              if (employeeCurrentBranchId === currentUserBranchId)
+                belongsToAdmin = true;
             }
             if (belongsToAdmin) {
-               adminList.push({
-                 groupKey: `paid_${d.id}`,
-                 employeeInfo: { ...allEmps[empId] },
-                 branches: new Set<string>(),
-                 totalHours: historyData.totalHours || 0,
-                 totalEarned: historyData.amount,
-                 shiftsCount: historyData.shiftsCount || 0,
-                 isPaid: true,
-                 historyId: d.id,
-                 salaryRate: historyData.salaryPerHour || 0,
-                 bonuses: historyData.bonuses || []
-               });
+              adminList.push({
+                groupKey: `paid_${d.id}`,
+                employeeInfo: { ...allEmps[empId] },
+                branches: new Set<string>(),
+                totalHours: historyData.totalHours || 0,
+                totalEarned: historyData.amount,
+                shiftsCount: historyData.shiftsCount || 0,
+                isPaid: true,
+                historyId: d.id,
+                salaryRate: historyData.salaryPerHour || 0,
+                bonuses: historyData.bonuses || [],
+              });
             }
           }
         });
 
         // 2. Dòng Chưa thanh toán (Nhóm các attendance chưa thanh toán)
         const summary: Record<string, any> = {};
-        attSnap.forEach(d => {
+        attSnap.forEach((d) => {
           const data = d.data();
-          if (data.employeeId && allEmps[data.employeeId] && data.checkIn && data.checkOut && !data.isPaid) {
+          if (
+            data.employeeId &&
+            allEmps[data.employeeId] &&
+            data.checkIn &&
+            data.checkOut &&
+            !data.isPaid
+          ) {
             const empId = data.employeeId;
             let belongsToAdmin = false;
-            
+
             const employeeCurrentBranchId = allEmps[empId]?.branchId;
 
-            if (userRole === 'SUPER_ADMIN') {
-              if (filterBranchId === 'ALL') {
+            if (userRole === "SUPER_ADMIN") {
+              if (filterBranchId === "ALL") {
                 belongsToAdmin = true;
               } else {
-                if (employeeCurrentBranchId === filterBranchId) belongsToAdmin = true;
+                if (employeeCurrentBranchId === filterBranchId)
+                  belongsToAdmin = true;
               }
-            } else if (userRole === 'BRANCH_ADMIN') {
+            } else if (userRole === "BRANCH_ADMIN") {
               if (data.branchId) {
-                if (data.branchId === currentUserBranchId) belongsToAdmin = true;
+                if (data.branchId === currentUserBranchId)
+                  belongsToAdmin = true;
               } else {
                 // Legacy records fallback
                 if (data.branchName === currentUserBranchName) {
@@ -421,43 +516,57 @@ const Payroll: React.FC = () => {
             if (!belongsToAdmin) return;
 
             const hours = calculateHoursWorked(data);
-            const recordSalary = Number(data.salaryPerHour || allEmps[empId]?.salaryPerHour || 0);
-            
+            const recordSalary = Number(
+              data.salaryPerHour || allEmps[empId]?.salaryPerHour || 0,
+            );
+
             let latePenalty = 0;
             const branchIdForRecord = data.branchId || allEmps[empId]?.branchId;
-            const latePenaltyRate = (latePenaltyMap[branchIdForRecord] !== undefined ? latePenaltyMap[branchIdForRecord] : latePenaltyMap['ALL']) || 0;
-            const gracePeriod = (lateGracePeriodMap[branchIdForRecord] !== undefined ? lateGracePeriodMap[branchIdForRecord] : lateGracePeriodMap['ALL']) ?? 0;
+            const latePenaltyRate =
+              (latePenaltyMap[branchIdForRecord] !== undefined
+                ? latePenaltyMap[branchIdForRecord]
+                : latePenaltyMap["ALL"]) || 0;
+            const gracePeriod =
+              (lateGracePeriodMap[branchIdForRecord] !== undefined
+                ? lateGracePeriodMap[branchIdForRecord]
+                : lateGracePeriodMap["ALL"]) ?? 0;
 
-            const inTime = data.checkIn.toDate ? data.checkIn.toDate() : new Date(data.checkIn);
-            const inTotalM = inTime.getHours() * 60 + inTime.getMinutes();
+            const inTime = data.checkIn.toDate
+              ? data.checkIn.toDate()
+              : new Date(data.checkIn);
             const shiftsToday = adminSchedulesMap[`${empId}_${data.date}`];
             if (shiftsToday && shiftsToday.length > 0) {
-                 let earliestShiftM = 24 * 60;
-                 shiftsToday.forEach(shiftStr => {
-                    const match = shiftStr.match(/\((\d{2}):(\d{2})/);
-                    if (match) {
-                       const startM = parseInt(match[1]) * 60 + parseInt(match[2]);
-                       if (startM < earliestShiftM) earliestShiftM = startM;
-                    }
-                 });
-                 const inTotalS = inTime.getHours() * 3600 + inTime.getMinutes() * 60 + inTime.getSeconds();
-                 const earliestShiftS = earliestShiftM * 60;
-                 if (inTotalS > earliestShiftS + gracePeriod) {
-                    const lateMinutes = Math.floor((inTotalS - earliestShiftS) / 60);
-                    latePenalty = lateMinutes * latePenaltyRate;
-                 }
+              let earliestShiftM = 24 * 60;
+              shiftsToday.forEach((shiftStr) => {
+                const match = shiftStr.match(/\((\d{2}):(\d{2})/);
+                if (match) {
+                  const startM = parseInt(match[1]) * 60 + parseInt(match[2]);
+                  if (startM < earliestShiftM) earliestShiftM = startM;
+                }
+              });
+              const inTotalS =
+                inTime.getHours() * 3600 +
+                inTime.getMinutes() * 60 +
+                inTime.getSeconds();
+              const earliestShiftS = earliestShiftM * 60;
+              if (inTotalS > earliestShiftS + gracePeriod) {
+                const lateMinutes = Math.floor(
+                  (inTotalS - earliestShiftS) / 60,
+                );
+                latePenalty = lateMinutes * latePenaltyRate;
+              }
             }
 
             let earned = Math.round(hours * recordSalary) - latePenalty;
             if (earned < 0) earned = 0;
 
             const groupKey = `${empId}_${recordSalary}`;
-            
+
             if (!summary[groupKey]) {
               let bonus = 0;
               if (adminBonusMap[empId]) {
-                 bonus = adminBonusMap[empId];
-                 adminBonusMap[empId] = 0; // Consume the bonus
+                bonus = adminBonusMap[empId];
+                adminBonusMap[empId] = 0; // Consume the bonus
               }
               summary[groupKey] = {
                 groupKey: `unpaid_${groupKey}`,
@@ -469,11 +578,12 @@ const Payroll: React.FC = () => {
                 attendanceIds: [],
                 isPaid: false,
                 salaryRate: recordSalary,
-                bonuses: adminBonusDetails[empId] || []
+                bonuses: adminBonusDetails[empId] || [],
               };
             }
 
-            if (data.branchName) summary[groupKey].branches.add(data.branchName);
+            if (data.branchName)
+              summary[groupKey].branches.add(data.branchName);
             summary[groupKey].totalHours += hours;
             summary[groupKey].shiftsCount += 1;
             summary[groupKey].attendanceIds.push(d.id);
@@ -483,62 +593,68 @@ const Payroll: React.FC = () => {
 
         // Post process remaining bonuses for employees without attendance
         for (const [empId, bonusAmount] of Object.entries(adminBonusMap)) {
-           if (bonusAmount > 0 && allEmps[empId]) {
-              let belongsToAdmin = false;
-              const employeeCurrentBranchId = allEmps[empId]?.branchId;
-              if (userRole === 'SUPER_ADMIN') {
-                if (filterBranchId === 'ALL') belongsToAdmin = true;
-                else if (employeeCurrentBranchId === filterBranchId) belongsToAdmin = true;
-              } else if (userRole === 'BRANCH_ADMIN') {
-                if (employeeCurrentBranchId === currentUserBranchId) belongsToAdmin = true;
+          if (bonusAmount > 0 && allEmps[empId]) {
+            let belongsToAdmin = false;
+            const employeeCurrentBranchId = allEmps[empId]?.branchId;
+            if (userRole === "SUPER_ADMIN") {
+              if (filterBranchId === "ALL") belongsToAdmin = true;
+              else if (employeeCurrentBranchId === filterBranchId)
+                belongsToAdmin = true;
+            } else if (userRole === "BRANCH_ADMIN") {
+              if (employeeCurrentBranchId === currentUserBranchId)
+                belongsToAdmin = true;
+            }
+
+            if (belongsToAdmin) {
+              const recordSalary = Number(allEmps[empId]?.salaryPerHour || 0);
+              const groupKey = `${empId}_${recordSalary}`;
+              if (!summary[groupKey]) {
+                summary[groupKey] = {
+                  groupKey: `unpaid_${groupKey}`,
+                  employeeInfo: { ...allEmps[empId] },
+                  branches: new Set<string>(),
+                  totalHours: 0,
+                  totalEarned: bonusAmount,
+                  shiftsCount: 0,
+                  attendanceIds: [],
+                  isPaid: false,
+                  salaryRate: recordSalary,
+                  bonuses: adminBonusDetails[empId] || [],
+                };
+              } else {
+                summary[groupKey].totalEarned += bonusAmount;
               }
-              
-              if (belongsToAdmin) {
-                 const recordSalary = Number(allEmps[empId]?.salaryPerHour || 0);
-                 const groupKey = `${empId}_${recordSalary}`;
-                 if (!summary[groupKey]) {
-                    summary[groupKey] = {
-                      groupKey: `unpaid_${groupKey}`,
-                      employeeInfo: { ...allEmps[empId] },
-                      branches: new Set<string>(),
-                      totalHours: 0,
-                      totalEarned: bonusAmount,
-                      shiftsCount: 0,
-                      attendanceIds: [],
-                      isPaid: false,
-                      salaryRate: recordSalary,
-                      bonuses: adminBonusDetails[empId] || []
-                    };
-                 } else {
-                    summary[groupKey].totalEarned += bonusAmount;
-                 }
-              }
-           }
+            }
+          }
         }
 
-        const unpaidList = Object.values(summary).map(item => ({
+        const unpaidList = Object.values(summary).map((item) => ({
           ...item,
-          totalHours: Math.round(item.totalHours * 100) / 100
+          totalHours: Math.round(item.totalHours * 100) / 100,
         }));
-        
-        setAdminPayroll([...adminList, ...unpaidList].sort((a, b) => {
-          if (a.isPaid === b.isPaid) {
-            return a.employeeInfo.fullName.localeCompare(b.employeeInfo.fullName);
-          }
-          return a.isPaid ? 1 : -1;
-        }));
+
+        setAdminPayroll(
+          [...adminList, ...unpaidList].sort((a, b) => {
+            if (a.isPaid === b.isPaid) {
+              return a.employeeInfo.fullName.localeCompare(
+                b.employeeInfo.fullName,
+              );
+            }
+            return a.isPaid ? 1 : -1;
+          }),
+        );
       }
     } catch (error) {
       console.error("Lỗi tính lương:", error);
     } finally {
-        if (!silent) setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   const handleMarkAsPaid = async () => {
     if (!paymentModalData) return;
     try {
-      const historyRef = await addDoc(collection(db, 'payroll_history'), {
+      const historyRef = await addDoc(collection(db, "payroll_history"), {
         employeeId: paymentModalData.employeeId,
         month,
         amount: paymentModalData.amount,
@@ -546,49 +662,47 @@ const Payroll: React.FC = () => {
         shiftsCount: paymentModalData.shiftsCount,
         salaryPerHour: paymentModalData.salaryRate,
         bonuses: paymentModalData.bonuses || [],
-        paidAt: new Date()
+        paidAt: new Date(),
       });
-      
+
       // Update attendance docs
       for (const id of paymentModalData.attendanceIds) {
-        await updateDoc(doc(db, 'attendance', id), {
+        await updateDoc(doc(db, "attendance", id), {
           isPaid: true,
-          paymentId: historyRef.id
+          paymentId: historyRef.id,
         });
       }
-      
+
       // Update bonus docs
       if (paymentModalData.bonuses) {
         for (const bonus of paymentModalData.bonuses) {
           if (bonus.id) {
-            await updateDoc(doc(db, 'bonuses', bonus.id), {
+            await updateDoc(doc(db, "bonuses", bonus.id), {
               isPaid: true,
-              paymentId: historyRef.id
+              paymentId: historyRef.id,
             });
           }
         }
       }
-      
+
       // Send notification to employee
-      await addDoc(collection(db, 'notifications'), {
+      await addDoc(collection(db, "notifications"), {
         employeeId: paymentModalData.employeeId,
-        title: 'Thanh toán lương',
-        message: `Lương tháng ${month} của bạn đã được thanh toán. Tổng nhận: ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(paymentModalData.amount)}`,
-        type: 'MONEY_ADD',
+        title: "Thanh toán lương",
+        message: `Lương tháng ${month} của bạn đã được thanh toán. Tổng nhận: ${new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(paymentModalData.amount)}`,
+        type: "MONEY_ADD",
         read: false,
-        createdAt: new Date()
+        createdAt: new Date(),
       });
 
       setPaymentModalData(null);
-      toast.success('Đã đánh dấu thanh toán!');
+      toast.success("Đã đánh dấu thanh toán!");
       fetchPayroll(true); // refresh without full loading screen
     } catch (error) {
       console.error(error);
-      toast.error('Lỗi cập nhật thanh toán');
+      toast.error("Lỗi cập nhật thanh toán");
     }
   };
-
-
 
   useEffect(() => {
     fetchPayroll();
@@ -607,22 +721,26 @@ const Payroll: React.FC = () => {
   }, [activeShiftData]);
 
   if (loading) {
-    return <div className="p-8 text-center text-gray-500">Đang tính toán bảng lương...</div>;
+    return (
+      <div className="p-8 text-center text-gray-500">
+        Đang tính toán bảng lương...
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
-      {userRole === 'BRANCH_ADMIN' && (
+      {userRole === "BRANCH_ADMIN" && (
         <div className="flex border-b border-gray-200 bg-white px-2 rounded-t-xl pt-2">
-          <button 
-            className={`py-3 px-6 font-medium text-sm border-b-2 transition-colors ${activeTab === 'personal' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-            onClick={() => setActiveTab('personal')}
+          <button
+            className={`py-3 px-6 font-medium text-sm border-b-2 transition-colors ${activeTab === "personal" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}
+            onClick={() => setActiveTab("personal")}
           >
             Bảng lương Cá nhân
           </button>
-          <button 
-            className={`py-3 px-6 font-medium text-sm border-b-2 transition-colors ${activeTab === 'admin' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-            onClick={() => setActiveTab('admin')}
+          <button
+            className={`py-3 px-6 font-medium text-sm border-b-2 transition-colors ${activeTab === "admin" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}
+            onClick={() => setActiveTab("admin")}
           >
             Quản lý Lương Nhân viên
           </button>
@@ -636,171 +754,286 @@ const Payroll: React.FC = () => {
             <Wallet className="mr-2 text-green-600" /> Bảng Lương Tự Động
           </h2>
           <p className="text-sm text-gray-500 mt-1">
-            {(['EMPLOYEE', 'CASHIER', 'BARTENDER', 'KITCHEN', 'GUARD'].includes(userRole) || activeTab === 'personal') ? 'Lương được tính toán dựa trên số giờ Check-in/Check-out thực tế' : 'Tổng hợp lương nhân viên toàn hệ thống'}
+            {["EMPLOYEE", "CASHIER", "BARTENDER", "KITCHEN", "GUARD"].includes(
+              userRole,
+            ) || activeTab === "personal"
+              ? "Lương được tính toán dựa trên số giờ Check-in/Check-out thực tế"
+              : "Tổng hợp lương nhân viên toàn hệ thống"}
           </p>
         </div>
-        {(['EMPLOYEE', 'CASHIER', 'BARTENDER', 'KITCHEN', 'GUARD'].includes(userRole) || (userRole === 'BRANCH_ADMIN' && activeTab === 'personal')) && (
+        {(["EMPLOYEE", "CASHIER", "BARTENDER", "KITCHEN", "GUARD"].includes(
+          userRole,
+        ) ||
+          (userRole === "BRANCH_ADMIN" && activeTab === "personal")) && (
           <div className="bg-green-50 px-4 py-2 rounded-lg border border-green-200 text-right">
-            <p className="text-xs font-semibold text-green-800 uppercase tracking-wider">Tổng Thu Nhập Tạm Tính</p>
+            <p className="text-xs font-semibold text-green-800 uppercase tracking-wider">
+              Tổng Thu Nhập Tạm Tính
+            </p>
             <p className="text-2xl font-bold text-green-600">
-              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(totalEarned + Math.round(liveHours * salaryRate))}
+              {new Intl.NumberFormat("vi-VN", {
+                style: "currency",
+                currency: "VND",
+              }).format(totalEarned + Math.round(liveHours * salaryRate))}
             </p>
           </div>
         )}
       </div>
 
       {/* TỔNG KẾT NHÂN VIÊN (Dành cho Admin) */}
-      {(userRole === 'SUPER_ADMIN' || (userRole === 'BRANCH_ADMIN' && activeTab === 'admin')) && (
+      {(userRole === "SUPER_ADMIN" ||
+        (userRole === "BRANCH_ADMIN" && activeTab === "admin")) && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto overflow-y-hidden">
           <div className="p-4 bg-gray-50 border-b border-gray-200 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-            <h3 className="font-bold text-gray-800">Tổng hợp Bảng Lương Nhân Viên</h3>
+            <h3 className="font-bold text-gray-800">
+              Tổng hợp Bảng Lương Nhân Viên
+            </h3>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full lg:w-auto">
-              {userRole === 'SUPER_ADMIN' && (
+              {userRole === "SUPER_ADMIN" && (
                 <select
                   value={filterBranchId}
                   onChange={(e) => {
                     setFilterBranchId(e.target.value);
-                    if (e.target.value === 'ALL') {
-                      searchParams.delete('branchId');
+                    if (e.target.value === "ALL") {
+                      searchParams.delete("branchId");
                     } else {
-                      searchParams.set('branchId', e.target.value);
+                      searchParams.set("branchId", e.target.value);
                     }
                     setSearchParams(searchParams);
                   }}
                   className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 outline-none bg-gray-50 mr-2"
                 >
                   <option value="ALL">Tất cả cơ sở</option>
-                  {branches.map(b => (
-                    <option key={b.id} value={b.id}>{b.name}</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
                   ))}
                 </select>
               )}
               <div className="flex items-center justify-between sm:justify-start gap-2">
-                <label className="text-sm font-medium text-gray-700 whitespace-nowrap">Chọn tháng:</label>
+                <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                  Chọn tháng:
+                </label>
                 <div className="flex items-center space-x-1 bg-white border border-gray-300 rounded-lg p-0.5">
-                  <button 
-                  onClick={() => {
-                    const [y, m] = month.split('-');
-                    let date = new Date(parseInt(y), parseInt(m) - 2, 1);
-                    setMonth(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
-                  }}
-                  className="p-1.5 hover:bg-gray-100 rounded-md text-gray-600 transition-colors"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <input 
-                  type="month" 
-                  value={month}
-                  onChange={e => setMonth(e.target.value)}
-                  className="px-2 py-1.5 text-sm outline-none bg-transparent w-[140px] md:w-[150px] text-center font-medium"
-                />
-                <button 
-                  onClick={() => {
-                    const [y, m] = month.split('-');
-                    let date = new Date(parseInt(y), parseInt(m), 1);
-                    setMonth(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
-                  }}
-                  className="p-1.5 hover:bg-gray-100 rounded-md text-gray-600 transition-colors"
-                >
-                  <ChevronRight size={16} />
-                </button>
+                  <button
+                    onClick={() => {
+                      const [y, m] = month.split("-");
+                      let date = new Date(parseInt(y), parseInt(m) - 2, 1);
+                      setMonth(
+                        `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
+                      );
+                    }}
+                    className="p-1.5 hover:bg-gray-100 rounded-md text-gray-600 transition-colors"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <input
+                    type="month"
+                    value={month}
+                    onChange={(e) => setMonth(e.target.value)}
+                    className="px-2 py-1.5 text-sm outline-none bg-transparent w-[140px] md:w-[150px] text-center font-medium"
+                  />
+                  <button
+                    onClick={() => {
+                      const [y, m] = month.split("-");
+                      let date = new Date(parseInt(y), parseInt(m), 1);
+                      setMonth(
+                        `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
+                      );
+                    }}
+                    className="p-1.5 hover:bg-gray-100 rounded-md text-gray-600 transition-colors"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
               </div>
-             </div>
             </div>
           </div>
           <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="p-4 font-semibold text-gray-600 text-sm text-center w-12">STT</th>
-                <th className="p-4 font-semibold text-gray-600 text-sm">Nhân viên</th>
-                <th className="p-4 font-semibold text-gray-600 text-sm">Cơ sở</th>
-                <th className="p-4 font-semibold text-gray-600 text-sm text-center">Số ca hoàn thành</th>
-                <th className="p-4 font-semibold text-gray-600 text-sm text-center">Tổng giờ làm</th>
-                <th className="p-4 font-semibold text-gray-600 text-sm text-right">Mức lương/giờ</th>
-                <th className="p-4 font-semibold text-gray-600 text-sm text-right">Thành tiền</th>
-                <th className="p-4 font-semibold text-gray-600 text-sm text-center">Trạng thái</th>
+                <th className="p-4 font-semibold text-gray-600 text-sm text-center w-12">
+                  STT
+                </th>
+                <th className="p-4 font-semibold text-gray-600 text-sm">
+                  Nhân viên
+                </th>
+                <th className="p-4 font-semibold text-gray-600 text-sm">
+                  Cơ sở
+                </th>
+                <th className="p-4 font-semibold text-gray-600 text-sm text-center">
+                  Số ca hoàn thành
+                </th>
+                <th className="p-4 font-semibold text-gray-600 text-sm text-center">
+                  Tổng giờ làm
+                </th>
+                <th className="p-4 font-semibold text-gray-600 text-sm text-right">
+                  Mức lương/giờ
+                </th>
+                <th className="p-4 font-semibold text-gray-600 text-sm text-right">
+                  Thành tiền
+                </th>
+                <th className="p-4 font-semibold text-gray-600 text-sm text-center">
+                  Trạng thái
+                </th>
               </tr>
             </thead>
             <tbody>
               {adminPayroll.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-gray-500 italic">Chưa có dữ liệu chấm công nào được ghi nhận.</td>
+                  <td
+                    colSpan={8}
+                    className="p-8 text-center text-gray-500 italic"
+                  >
+                    Chưa có dữ liệu chấm công nào được ghi nhận.
+                  </td>
                 </tr>
               ) : (
                 adminPayroll.map((item, index) => {
                   const displayBranch = item.employeeInfo.branchName;
                   return (
-                  <tr key={item.groupKey} className={`border-b border-gray-100 transition-colors ${item.isPaid ? 'bg-green-50/50 hover:bg-green-50' : 'hover:bg-gray-50'}`}>
-                    <td className="p-4 text-sm text-center font-medium text-gray-500">{index + 1}</td>
-                    <td className="p-4 text-sm font-bold text-gray-800">
-                      <button 
-                        onClick={() => navigate(`/dashboard/employees?highlightId=${item.employeeInfo.id}`)}
-                        className="hover:text-blue-600 hover:underline transition-colors text-left"
-                      >
-                        [{item.employeeInfo.employeeCode || 'No ID'}] {item.employeeInfo.fullName}
-                      </button>
-                    </td>
-                    <td className="p-4 text-sm text-gray-600">{displayBranch as string}</td>
-                    <td className="p-4 text-sm text-center font-medium text-blue-600">{item.shiftsCount} ca</td>
-                    <td className="p-4 text-sm text-center text-gray-700">
-                      <button 
-                        onClick={() => navigate(`/dashboard/timesheets?expandId=${item.employeeInfo.id}`)}
-                        className="hover:text-blue-600 hover:underline transition-colors font-bold"
-                        title="Xem chi tiết bảng công"
-                      >
-                        {formatHours(item.totalHours)}
-                      </button>
-                    </td>
+                    <tr
+                      key={item.groupKey}
+                      className={`border-b border-gray-100 transition-colors ${item.isPaid ? "bg-green-50/50 hover:bg-green-50" : "hover:bg-gray-50"}`}
+                    >
+                      <td className="p-4 text-sm text-center font-medium text-gray-500">
+                        {index + 1}
+                      </td>
+                      <td className="p-4 text-sm font-bold text-gray-800">
+                        <button
+                          onClick={() =>
+                            navigate(
+                              `/dashboard/employees?highlightId=${item.employeeInfo.id}`,
+                            )
+                          }
+                          className="hover:text-blue-600 hover:underline transition-colors text-left"
+                        >
+                          [{item.employeeInfo.employeeCode || "No ID"}]{" "}
+                          {item.employeeInfo.fullName}
+                        </button>
+                      </td>
+                      <td className="p-4 text-sm text-gray-600">
+                        {displayBranch as string}
+                      </td>
+                      <td className="p-4 text-sm text-center font-medium text-blue-600">
+                        {item.shiftsCount} ca
+                      </td>
+                      <td className="p-4 text-sm text-center text-gray-700">
+                        <button
+                          onClick={() =>
+                            navigate(
+                              `/dashboard/timesheets?expandId=${item.employeeInfo.id}`,
+                            )
+                          }
+                          className="hover:text-blue-600 hover:underline transition-colors font-bold"
+                          title="Xem chi tiết bảng công"
+                        >
+                          {formatHours(item.totalHours)}
+                        </button>
+                      </td>
                       <td className="p-4 text-sm text-right text-gray-500">
                         <div className="flex flex-col items-end gap-1">
-                          <span>{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.salaryRate !== undefined ? item.salaryRate : item.employeeInfo.salaryPerHour)}</span>
+                          <span>
+                            {new Intl.NumberFormat("vi-VN", {
+                              style: "currency",
+                              currency: "VND",
+                            }).format(
+                              item.salaryRate !== undefined
+                                ? item.salaryRate
+                                : item.employeeInfo.salaryPerHour,
+                            )}
+                          </span>
                         </div>
                       </td>
-                    <td className="p-4 text-sm text-right font-bold text-gray-800">
-                      {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.totalEarned)}
-                      {item.bonuses && item.bonuses.length > 0 && (
-                        <div className="text-[10px] font-normal mt-1 flex flex-col items-end">
-                           {(() => {
-                             const tBonus = item.bonuses.filter((b: any) => b.type === 'BONUS' || !b.type).reduce((sum: number, b: any) => sum + (b.amount || 0), 0);
-                             const tDeduct = item.bonuses.filter((b: any) => b.type === 'DEDUCT').reduce((sum: number, b: any) => sum + (b.amount || 0), 0);
-                             return (
-                               <>
-                                 {tBonus > 0 && <span className="text-green-600">(+ {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(tBonus)} thưởng)</span>}
-                                 {tDeduct > 0 && <span className="text-red-500">(- {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(tDeduct)} phạt)</span>}
-                               </>
-                             );
-                           })()}
-                        </div>
-                      )}
-                    </td>
-                    <td className="p-4 text-sm text-center">
-                      {item.isPaid ? (
-                        <div className="flex items-center justify-center gap-2">
-                          <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">Đã thanh toán</span>
-                        </div>
-                      ) : (
-                        <button 
-                          onClick={() => setPaymentModalData({
-                            employeeId: item.employeeInfo.id,
-                            amount: item.totalEarned,
-                            totalHours: item.totalHours,
-                            shiftsCount: item.shiftsCount,
-                            attendanceIds: item.attendanceIds,
-                            bankName: item.employeeInfo.bankName,
-                            bankAccountNum: item.employeeInfo.bankAccountNum,
-                            bankAccountName: item.employeeInfo.bankAccountName,
-                            fullName: item.employeeInfo.fullName,
-                            employeeCode: item.employeeInfo.employeeCode,
-                            salaryRate: item.salaryRate !== undefined ? item.salaryRate : item.employeeInfo.salaryPerHour,
-                            bonuses: item.bonuses || []
-                          })}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                        >
-                          Xác nhận trả lương
-                        </button>
-                      )}
-                    </td>
-                  </tr>
+                      <td className="p-4 text-sm text-right font-bold text-gray-800">
+                        {new Intl.NumberFormat("vi-VN", {
+                          style: "currency",
+                          currency: "VND",
+                        }).format(item.totalEarned)}
+                        {item.bonuses && item.bonuses.length > 0 && (
+                          <div className="text-[10px] font-normal mt-1 flex flex-col items-end">
+                            {(() => {
+                              const tBonus = item.bonuses
+                                .filter(
+                                  (b: any) => b.type === "BONUS" || !b.type,
+                                )
+                                .reduce(
+                                  (sum: number, b: any) =>
+                                    sum + (b.amount || 0),
+                                  0,
+                                );
+                              const tDeduct = item.bonuses
+                                .filter((b: any) => b.type === "DEDUCT")
+                                .reduce(
+                                  (sum: number, b: any) =>
+                                    sum + (b.amount || 0),
+                                  0,
+                                );
+                              return (
+                                <>
+                                  {tBonus > 0 && (
+                                    <span className="text-green-600">
+                                      (+{" "}
+                                      {new Intl.NumberFormat("vi-VN", {
+                                        style: "currency",
+                                        currency: "VND",
+                                      }).format(tBonus)}{" "}
+                                      thưởng)
+                                    </span>
+                                  )}
+                                  {tDeduct > 0 && (
+                                    <span className="text-red-500">
+                                      (-{" "}
+                                      {new Intl.NumberFormat("vi-VN", {
+                                        style: "currency",
+                                        currency: "VND",
+                                      }).format(tDeduct)}{" "}
+                                      phạt)
+                                    </span>
+                                  )}
+                                </>
+                              );
+                            })()}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-4 text-sm text-center">
+                        {item.isPaid ? (
+                          <div className="flex items-center justify-center gap-2">
+                            <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">
+                              Đã thanh toán
+                            </span>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() =>
+                              setPaymentModalData({
+                                employeeId: item.employeeInfo.id,
+                                amount: item.totalEarned,
+                                totalHours: item.totalHours,
+                                shiftsCount: item.shiftsCount,
+                                attendanceIds: item.attendanceIds,
+                                bankName: item.employeeInfo.bankName,
+                                bankAccountNum:
+                                  item.employeeInfo.bankAccountNum,
+                                bankAccountName:
+                                  item.employeeInfo.bankAccountName,
+                                fullName: item.employeeInfo.fullName,
+                                employeeCode: item.employeeInfo.employeeCode,
+                                salaryRate:
+                                  item.salaryRate !== undefined
+                                    ? item.salaryRate
+                                    : item.employeeInfo.salaryPerHour,
+                                bonuses: item.bonuses || [],
+                              })
+                            }
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                          >
+                            Xác nhận trả lương
+                          </button>
+                        )}
+                      </td>
+                    </tr>
                   );
                 })
               )}
@@ -810,7 +1043,10 @@ const Payroll: React.FC = () => {
       )}
 
       {/* CHI TIẾT CÁ NHÂN (Dành cho Nhân viên) */}
-      {(['EMPLOYEE', 'CASHIER', 'BARTENDER', 'KITCHEN', 'GUARD'].includes(userRole) || (userRole === 'BRANCH_ADMIN' && activeTab === 'personal')) && (
+      {(["EMPLOYEE", "CASHIER", "BARTENDER", "KITCHEN", "GUARD"].includes(
+        userRole,
+      ) ||
+        (userRole === "BRANCH_ADMIN" && activeTab === "personal")) && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto overflow-y-hidden">
           <div className="p-4 bg-gray-50 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <h3 className="font-bold text-gray-800 flex items-center">
@@ -818,10 +1054,10 @@ const Payroll: React.FC = () => {
               Chi tiết công làm việc
             </h3>
             <div className="flex items-center space-x-4">
-              <input 
-                type="month" 
+              <input
+                type="month"
                 value={month}
-                onChange={e => setMonth(e.target.value)}
+                onChange={(e) => setMonth(e.target.value)}
                 className="px-3 py-1 border border-gray-300 rounded-md text-sm outline-none focus:border-blue-500 w-[140px] md:w-auto text-center"
               />
               <span className="text-sm font-medium text-gray-600 bg-white px-3 py-1 rounded-full border">
@@ -829,52 +1065,81 @@ const Payroll: React.FC = () => {
               </span>
             </div>
           </div>
-          
+
           <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="p-4 font-semibold text-gray-600 text-sm">Ngày làm việc</th>
-                <th className="p-4 font-semibold text-gray-600 text-sm">Thời gian làm việc</th>
-                <th className="p-4 font-semibold text-gray-600 text-sm">Trạng thái</th>
-                <th className="p-4 font-semibold text-gray-600 text-sm text-center">Số giờ</th>
-                <th className="p-4 font-semibold text-gray-600 text-sm text-right">Thu nhập</th>
+                <th className="p-4 font-semibold text-gray-600 text-sm">
+                  Ngày làm việc
+                </th>
+                <th className="p-4 font-semibold text-gray-600 text-sm">
+                  Thời gian làm việc
+                </th>
+                <th className="p-4 font-semibold text-gray-600 text-sm">
+                  Trạng thái
+                </th>
+                <th className="p-4 font-semibold text-gray-600 text-sm text-center">
+                  Số giờ
+                </th>
+                <th className="p-4 font-semibold text-gray-600 text-sm text-right">
+                  Thu nhập
+                </th>
               </tr>
             </thead>
             <tbody>
               {payrollData.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="p-8 text-center text-gray-500 italic">Chưa có ca làm việc nào được ghi nhận.</td>
+                  <td
+                    colSpan={5}
+                    className="p-8 text-center text-gray-500 italic"
+                  >
+                    Chưa có ca làm việc nào được ghi nhận.
+                  </td>
                 </tr>
               ) : (
                 payrollData.map((item, idx) => (
-                  <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                  <tr
+                    key={idx}
+                    className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                  >
                     <td className="p-4 text-sm font-medium text-gray-800">
-                      {new Date(item.date).toLocaleDateString('vi-VN')}
+                      {new Date(item.date).toLocaleDateString("vi-VN")}
                     </td>
                     <td className="p-4 text-sm text-gray-600">
-                      Từ <span className="font-medium text-blue-600">{item.checkInStr}</span> đến <span className="font-medium text-blue-600">{item.checkOutStr}</span>
+                      Từ{" "}
+                      <span className="font-medium text-blue-600">
+                        {item.checkInStr}
+                      </span>{" "}
+                      đến{" "}
+                      <span className="font-medium text-blue-600">
+                        {item.checkOutStr}
+                      </span>
                     </td>
                     <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                            item.status.includes('Đang làm') 
-                              ? 'bg-blue-50 text-blue-700 border-blue-200' 
-                              : item.status.includes('Muộn') || item.status.includes('Sớm') || item.status.includes('Ngắt quãng')
-                              ? 'bg-orange-50 text-orange-700 border-orange-200'
-                              : 'bg-green-50 text-green-700 border-green-200'
-                          }`}>
-                            {item.status}
-                          </span>
-                          {item.logs && item.logs.length > 0 && (
-                            <button 
-                              onClick={() => setSelectedLogs(item.logs!)}
-                              className="text-xs text-blue-600 hover:text-blue-800 underline transition-colors"
-                            >
-                              Chi tiết
-                            </button>
-                          )}
-                        </div>
-                      </td>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                            item.status.includes("Đang làm")
+                              ? "bg-blue-50 text-blue-700 border-blue-200"
+                              : item.status.includes("Muộn") ||
+                                  item.status.includes("Sớm") ||
+                                  item.status.includes("Ngắt quãng")
+                                ? "bg-orange-50 text-orange-700 border-orange-200"
+                                : "bg-green-50 text-green-700 border-green-200"
+                          }`}
+                        >
+                          {item.status}
+                        </span>
+                        {item.logs && item.logs.length > 0 && (
+                          <button
+                            onClick={() => setSelectedLogs(item.logs!)}
+                            className="text-xs text-blue-600 hover:text-blue-800 underline transition-colors"
+                          >
+                            Chi tiết
+                          </button>
+                        )}
+                      </div>
+                    </td>
                     <td className="p-4 text-sm text-center text-gray-600">
                       {item.hoursWorked > 0 ? (
                         <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded-lg font-medium border border-blue-100">
@@ -887,10 +1152,17 @@ const Payroll: React.FC = () => {
                       )}
                     </td>
                     <td className="p-4 text-sm text-right font-bold text-green-600">
-                      {item.earned > 0 
-                        ? `+ ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.earned)}` 
-                        : <span className="opacity-70 animate-pulse">+ {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(Math.round(liveHours * salaryRate))}</span>
-                      }
+                      {item.earned > 0 ? (
+                        `+ ${new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(item.earned)}`
+                      ) : (
+                        <span className="opacity-70 animate-pulse">
+                          +{" "}
+                          {new Intl.NumberFormat("vi-VN", {
+                            style: "currency",
+                            currency: "VND",
+                          }).format(Math.round(liveHours * salaryRate))}
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -899,17 +1171,39 @@ const Payroll: React.FC = () => {
           </table>
           {bonuses && bonuses.length > 0 && (
             <div className="p-4 bg-gray-50 border-t border-gray-100">
-               <h4 className="font-semibold text-gray-800 mb-2">Các khoản thưởng/phạt trong tháng:</h4>
-               <ul className="space-y-1">
-                 {bonuses.map((b, idx) => (
-                   <li key={idx} className="flex justify-between items-center text-sm border-b border-gray-200 pb-1 last:border-b-0">
-                     <span className="text-gray-700">{b.reason} <span className="text-gray-400 text-xs ml-1">({new Date(b.createdAt?.toDate ? b.createdAt.toDate() : b.createdAt).toLocaleDateString('vi-VN')})</span></span>
-                     <span className={`font-bold ${b.type === 'DEDUCT' ? 'text-red-500' : 'text-green-600'}`}>
-                       {b.type === 'DEDUCT' ? '-' : '+'}{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(b.amount || 0)}
-                     </span>
-                   </li>
-                 ))}
-               </ul>
+              <h4 className="font-semibold text-gray-800 mb-2">
+                Các khoản thưởng/phạt trong tháng:
+              </h4>
+              <ul className="space-y-1">
+                {bonuses.map((b, idx) => (
+                  <li
+                    key={idx}
+                    className="flex justify-between items-center text-sm border-b border-gray-200 pb-1 last:border-b-0"
+                  >
+                    <span className="text-gray-700">
+                      {b.reason}{" "}
+                      <span className="text-gray-400 text-xs ml-1">
+                        (
+                        {new Date(
+                          b.createdAt?.toDate
+                            ? b.createdAt.toDate()
+                            : b.createdAt,
+                        ).toLocaleDateString("vi-VN")}
+                        )
+                      </span>
+                    </span>
+                    <span
+                      className={`font-bold ${b.type === "DEDUCT" ? "text-red-500" : "text-green-600"}`}
+                    >
+                      {b.type === "DEDUCT" ? "-" : "+"}
+                      {new Intl.NumberFormat("vi-VN", {
+                        style: "currency",
+                        currency: "VND",
+                      }).format(b.amount || 0)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </div>
@@ -921,103 +1215,174 @@ const Payroll: React.FC = () => {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-fade-in-up flex flex-col max-h-[90vh]">
             <div className="bg-blue-600 p-4 text-white flex justify-between items-center shrink-0">
               <h3 className="font-bold text-lg">Thông tin thanh toán</h3>
-              <button onClick={() => setPaymentModalData(null)} className="text-white/80 hover:text-white transition-colors">
+              <button
+                onClick={() => setPaymentModalData(null)}
+                className="text-white/80 hover:text-white transition-colors"
+              >
                 ✕
               </button>
             </div>
-            
+
             <div className="p-4 space-y-3 overflow-y-auto flex-1 custom-scrollbar">
               <div className="text-center mb-3">
-                <p className="text-xs text-gray-500 mb-1">Thanh toán lương tháng {month} cho</p>
+                <p className="text-xs text-gray-500 mb-1">
+                  Thanh toán lương tháng {month} cho
+                </p>
                 <p className="text-lg font-bold text-gray-800">
-                  {paymentModalData.fullName} {paymentModalData.employeeCode && <span className="text-sm font-medium text-gray-500"> - {paymentModalData.employeeCode}</span>}
+                  {paymentModalData.fullName}{" "}
+                  {paymentModalData.employeeCode && (
+                    <span className="text-sm font-medium text-gray-500">
+                      {" "}
+                      - {paymentModalData.employeeCode}
+                    </span>
+                  )}
                 </p>
                 <p className="text-2xl font-black text-green-600 mt-1">
-                  {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(paymentModalData.amount)}
+                  {new Intl.NumberFormat("vi-VN", {
+                    style: "currency",
+                    currency: "VND",
+                  }).format(paymentModalData.amount)}
                 </p>
               </div>
 
               <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                {paymentModalData.bankName && paymentModalData.bankAccountNum ? (
+                {paymentModalData.bankName &&
+                paymentModalData.bankAccountNum ? (
                   <div className="flex flex-col sm:flex-row gap-5 items-center sm:items-start justify-between">
                     <div className="flex flex-col items-center space-y-1 shrink-0">
-                      <img 
+                      <img
                         src={`https://img.vietqr.io/image/${(() => {
-                          const lower = paymentModalData.bankName!.toLowerCase().replace(/\s/g, '');
-                          if (lower.includes('mb') || lower.includes('quandoi')) return 'mb';
-                          if (lower.includes('vcb') || lower.includes('vietcombank')) return 'vcb';
-                          if (lower.includes('techcombank') || lower.includes('tcb')) return 'tcb';
-                          if (lower.includes('vpbank') || lower.includes('vpb')) return 'vpbank';
-                          if (lower.includes('acb')) return 'acb';
-                          if (lower.includes('bidv')) return 'bidv';
-                          if (lower.includes('agribank')) return 'agribank';
-                          if (lower.includes('vietinbank') || lower.includes('ctg')) return 'vietinbank';
-                          if (lower.includes('sacombank') || lower.includes('stb')) return 'sacombank';
-                          if (lower.includes('tpbank') || lower.includes('tpb')) return 'tpbank';
-                          if (lower.includes('vib')) return 'vib';
-                          if (lower.includes('hdbank') || lower.includes('hdb')) return 'hdbank';
-                          if (lower.includes('msb')) return 'msb';
-                          if (lower.includes('shb')) return 'shb';
-                          if (lower.includes('ocb')) return 'ocb';
-                          if (lower.includes('scb')) return 'scb';
-                          if (lower.includes('seabank')) return 'seabank';
-                          if (lower.includes('abbank')) return 'abbank';
-                          if (lower.includes('eximbank')) return 'eximbank';
-                          if (lower.includes('lpbank') || lower.includes('lienviet')) return 'lpbank';
-                          return paymentModalData.bankName!.split(' ')[0].toLowerCase();
-                        })()}-${paymentModalData.bankAccountNum}-compact2.jpg?amount=${paymentModalData.amount}&addInfo=${encodeURIComponent(`Thanh toan luong thang ${month}`)}&accountName=${encodeURIComponent(paymentModalData.bankAccountName || '')}`} 
+                          const lower = paymentModalData
+                            .bankName!.toLowerCase()
+                            .replace(/\s/g, "");
+                          if (lower.includes("mb") || lower.includes("quandoi"))
+                            return "mb";
+                          if (
+                            lower.includes("vcb") ||
+                            lower.includes("vietcombank")
+                          )
+                            return "vcb";
+                          if (
+                            lower.includes("techcombank") ||
+                            lower.includes("tcb")
+                          )
+                            return "tcb";
+                          if (lower.includes("vpbank") || lower.includes("vpb"))
+                            return "vpbank";
+                          if (lower.includes("acb")) return "acb";
+                          if (lower.includes("bidv")) return "bidv";
+                          if (lower.includes("agribank")) return "agribank";
+                          if (
+                            lower.includes("vietinbank") ||
+                            lower.includes("ctg")
+                          )
+                            return "vietinbank";
+                          if (
+                            lower.includes("sacombank") ||
+                            lower.includes("stb")
+                          )
+                            return "sacombank";
+                          if (lower.includes("tpbank") || lower.includes("tpb"))
+                            return "tpbank";
+                          if (lower.includes("vib")) return "vib";
+                          if (lower.includes("hdbank") || lower.includes("hdb"))
+                            return "hdbank";
+                          if (lower.includes("msb")) return "msb";
+                          if (lower.includes("shb")) return "shb";
+                          if (lower.includes("ocb")) return "ocb";
+                          if (lower.includes("scb")) return "scb";
+                          if (lower.includes("seabank")) return "seabank";
+                          if (lower.includes("abbank")) return "abbank";
+                          if (lower.includes("eximbank")) return "eximbank";
+                          if (
+                            lower.includes("lpbank") ||
+                            lower.includes("lienviet")
+                          )
+                            return "lpbank";
+                          return paymentModalData
+                            .bankName!.split(" ")[0]
+                            .toLowerCase();
+                        })()}-${paymentModalData.bankAccountNum}-compact2.jpg?amount=${paymentModalData.amount}&addInfo=${encodeURIComponent(`Thanh toan luong thang ${month}`)}&accountName=${encodeURIComponent(paymentModalData.bankAccountName || "")}`}
                         alt="VietQR"
                         className="w-56 h-56 rounded-lg shadow-md border border-gray-200 object-contain bg-white"
                         onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
+                          (e.target as HTMLImageElement).style.display = "none";
                         }}
                       />
-                      <p className="text-[10px] text-gray-500 italic text-center">Quét mã QR để thanh toán nhanh</p>
+                      <p className="text-[10px] text-gray-500 italic text-center">
+                        Quét mã QR để thanh toán nhanh
+                      </p>
                     </div>
-                    
+
                     <div className="flex-1 w-full space-y-3 sm:pt-2">
-                      <h4 className="font-semibold text-gray-700 border-b border-gray-200 pb-2 text-sm uppercase">Tài khoản thụ hưởng</h4>
+                      <h4 className="font-semibold text-gray-700 border-b border-gray-200 pb-2 text-sm uppercase">
+                        Tài khoản thụ hưởng
+                      </h4>
                       <div className="flex flex-col gap-0.5">
-                        <span className="text-xs text-gray-500">Ngân hàng:</span>
-                        <span className="font-medium text-gray-800">{paymentModalData.bankName}</span>
+                        <span className="text-xs text-gray-500">
+                          Ngân hàng:
+                        </span>
+                        <span className="font-medium text-gray-800">
+                          {paymentModalData.bankName}
+                        </span>
                       </div>
                       <div className="flex flex-col gap-0.5">
-                        <span className="text-xs text-gray-500">Số tài khoản:</span>
-                        <span className="font-bold text-blue-600 tracking-wider text-base">{paymentModalData.bankAccountNum}</span>
+                        <span className="text-xs text-gray-500">
+                          Số tài khoản:
+                        </span>
+                        <span className="font-bold text-blue-600 tracking-wider text-base">
+                          {paymentModalData.bankAccountNum}
+                        </span>
                       </div>
                       <div className="flex flex-col gap-0.5">
-                        <span className="text-xs text-gray-500">Chủ tài khoản:</span>
-                        <span className="font-medium text-gray-800 uppercase">{paymentModalData.bankAccountName || 'Chưa cập nhật'}</span>
+                        <span className="text-xs text-gray-500">
+                          Chủ tài khoản:
+                        </span>
+                        <span className="font-medium text-gray-800 uppercase">
+                          {paymentModalData.bankAccountName || "Chưa cập nhật"}
+                        </span>
                       </div>
                     </div>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <h4 className="font-semibold text-gray-700 mb-2 border-b border-gray-200 pb-2">Tài khoản thụ hưởng</h4>
+                    <h4 className="font-semibold text-gray-700 mb-2 border-b border-gray-200 pb-2">
+                      Tài khoản thụ hưởng
+                    </h4>
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-gray-500">Ngân hàng:</span>
-                      <span className="font-medium text-gray-800">Chưa cập nhật</span>
+                      <span className="font-medium text-gray-800">
+                        Chưa cập nhật
+                      </span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-500">Số tài khoản:</span>
-                      <span className="font-medium text-blue-600 tracking-wider">Chưa cập nhật</span>
+                      <span className="text-sm text-gray-500">
+                        Số tài khoản:
+                      </span>
+                      <span className="font-medium text-blue-600 tracking-wider">
+                        Chưa cập nhật
+                      </span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-500">Chủ tài khoản:</span>
-                      <span className="font-medium text-gray-800 uppercase">Chưa cập nhật</span>
+                      <span className="text-sm text-gray-500">
+                        Chủ tài khoản:
+                      </span>
+                      <span className="font-medium text-gray-800 uppercase">
+                        Chưa cập nhật
+                      </span>
                     </div>
                   </div>
                 )}
               </div>
-              
+
               <div className="pt-2 flex gap-3">
-                <button 
+                <button
                   onClick={() => setPaymentModalData(null)}
                   className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition-colors"
                 >
                   Hủy
                 </button>
-                <button 
+                <button
                   onClick={() => handleMarkAsPaid()}
                   className="flex-1 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-colors flex items-center justify-center gap-2"
                 >
@@ -1037,24 +1402,34 @@ const Payroll: React.FC = () => {
                 <Clock className="w-5 h-5 text-blue-600" />
                 Lịch sử Ra/Vào ca
               </h3>
-              <button onClick={() => setSelectedLogs(null)} className="text-gray-400 hover:text-gray-600 p-1">
+              <button
+                onClick={() => setSelectedLogs(null)}
+                className="text-gray-400 hover:text-gray-600 p-1"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-4 max-h-[60vh] overflow-y-auto">
               <div className="space-y-3 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-gray-200 before:to-transparent">
                 {selectedLogs.map((log, index) => (
-                  <div key={index} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                  <div
+                    key={index}
+                    className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active"
+                  >
                     <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-blue-100 text-blue-600 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
-                      {log.action === 'CHECK_IN' ? <CheckCircle className="w-4 h-4 text-green-500" /> : <X className="w-4 h-4 text-orange-500" />}
+                      {log.action === "CHECK_IN" ? (
+                        <CheckCircle className="w-4 h-4 text-green-500" />
+                      ) : (
+                        <X className="w-4 h-4 text-orange-500" />
+                      )}
                     </div>
                     <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-3 rounded-lg border border-gray-100 bg-white shadow-sm">
                       <div className="flex items-center justify-between space-x-2 mb-1">
                         <div className="font-bold text-gray-800 text-sm">
-                          {log.action === 'CHECK_IN' ? 'Check-In' : 'Check-Out'}
+                          {log.action === "CHECK_IN" ? "Check-In" : "Check-Out"}
                         </div>
                         <time className="font-mono text-xs font-medium text-indigo-500">
-                          {log.time.toLocaleTimeString('vi-VN')}
+                          {log.time.toLocaleTimeString("vi-VN")}
                         </time>
                       </div>
                     </div>
@@ -1063,7 +1438,7 @@ const Payroll: React.FC = () => {
               </div>
             </div>
             <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
-              <button 
+              <button
                 onClick={() => setSelectedLogs(null)}
                 className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors"
               >
@@ -1078,4 +1453,3 @@ const Payroll: React.FC = () => {
 };
 
 export default Payroll;
-
