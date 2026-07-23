@@ -1622,26 +1622,25 @@ const POS: React.FC = () => {
                 onClick={async () => {
                   try {
                     if (itemToDelete.type === 'ITEM') {
-                      const { orderId, tableId, tableName, itemIndex, itemName, orderItems } = itemToDelete;
+                      const { orderId, tableName, itemIndex, itemName, orderItems } = itemToDelete;
                       const newItems = [...(orderItems || [])];
                       newItems.splice(itemIndex as number, 1);
 
+                      const newTotal = newItems.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+                      await updateDoc(doc(db, 'active_table_orders', orderId), {
+                        items: newItems,
+                        totalAmount: newTotal,
+                        updatedAt: serverTimestamp(),
+                        notifications: arrayUnion({
+                          id: Date.now().toString(),
+                          message: `Món ${itemName} đã bị huỷ${deleteReason.trim() ? `. Lý do: ${deleteReason.trim()}` : ''}`,
+                          timestamp: Date.now()
+                        })
+                      });
+                      
                       if (newItems.length === 0) {
-                        await deleteDoc(doc(db, 'active_table_orders', orderId));
-                        await updateDoc(doc(db, 'tables', tableId), { status: 'AVAILABLE' });
-                        toast.success(`Đã xoá bàn ${tableName}`);
+                        toast.success(`Đã xoá món cuối cùng của bàn ${tableName}`);
                       } else {
-                        const newTotal = newItems.reduce((sum, i) => sum + (i.price * i.quantity), 0);
-                        await updateDoc(doc(db, 'active_table_orders', orderId), {
-                          items: newItems,
-                          totalAmount: newTotal,
-                          updatedAt: serverTimestamp(),
-                          notifications: arrayUnion({
-                            id: Date.now().toString(),
-                            message: `Món ${itemName} đã bị huỷ${deleteReason.trim() ? `. Lý do: ${deleteReason.trim()}` : ''}`,
-                            timestamp: Date.now()
-                          })
-                        });
                         toast.success('Đã xoá món');
                       }
                     } else if (itemToDelete.type === 'REQUEST') {
