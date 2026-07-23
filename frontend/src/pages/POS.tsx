@@ -1149,7 +1149,7 @@ const POS: React.FC = () => {
                     {billModalData.items.map((item: any, idx: number) => (
                       <tr key={idx} className="border-b border-dashed border-gray-100">
                         <td className="py-2 pr-2 font-medium">
-                          {item.name} {item.selectedSize ? `(${item.selectedSize})` : ''}
+                          {item.name}
                         </td>
                         <td className="py-2 text-center">{item.quantity}</td>
                         <td className="py-2 text-right">{new Intl.NumberFormat('vi-VN').format(item.price)}</td>
