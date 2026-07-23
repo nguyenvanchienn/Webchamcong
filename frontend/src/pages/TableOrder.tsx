@@ -544,8 +544,14 @@ const TableOrder: React.FC = () => {
 
       {/* Notifications Modal */}
       {showNotificationsModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[70] flex flex-col justify-end">
-          <div className="bg-gray-50 rounded-t-[32px] p-6 max-h-[80vh] overflow-y-auto animate-slide-up pb-10">
+        <div 
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[70] flex flex-col justify-end"
+          onClick={() => setShowNotificationsModal(false)}
+        >
+          <div 
+            className="bg-gray-50 rounded-t-[32px] p-6 max-h-[80vh] overflow-y-auto animate-slide-up pb-10"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-black text-gray-800 flex items-center gap-2">
                 <Bell size={24} className="text-red-500" /> Thông báo
@@ -576,8 +582,14 @@ const TableOrder: React.FC = () => {
 
       {/* Requests Modal */}
       {showRequestModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[70] flex flex-col justify-end">
-          <div className="bg-orange-50 rounded-t-[32px] p-6 max-h-[85vh] overflow-y-auto animate-slide-up pb-10">
+        <div 
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[70] flex flex-col justify-end"
+          onClick={() => setShowRequestModal(false)}
+        >
+          <div 
+            className="bg-orange-50 rounded-t-[32px] p-6 max-h-[85vh] overflow-y-auto animate-slide-up pb-10"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-black text-orange-900 flex items-center gap-2">
                 <MessageSquare size={24} className="text-orange-600" /> Gửi yêu cầu
