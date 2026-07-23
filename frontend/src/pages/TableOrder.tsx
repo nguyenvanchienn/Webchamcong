@@ -352,7 +352,7 @@ const TableOrder: React.FC = () => {
           <div>
             {branchName && (
               <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1 flex items-center gap-1">
-                <ChefHat size={12} /> {branchName.toLowerCase().includes('cơ sở') ? branchName : `Cơ sở ${branchName}`}
+                <ChefHat size={12} /> Tiệm nhà Bơ - {branchName.toLowerCase().includes('cơ sở') ? branchName : `Cơ sở ${branchName}`}
               </p>
             )}
             <h1 className="text-2xl font-black text-gray-800 tracking-tight">Gọi món</h1>
