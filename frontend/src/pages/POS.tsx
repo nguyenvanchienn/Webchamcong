@@ -687,6 +687,9 @@ const POS: React.FC = () => {
   };
 
   const unservedTablesCount = activeTableOrders.filter(order => order.items.some(item => !item.isServed)).length;
+  const pendingRequestsCount = activeTableOrders.reduce((sum, order) => {
+    return sum + (order.customerRequests?.filter((r: any) => !r.isCompleted).length || 0);
+  }, 0);
 
   return (
     <div className="flex flex-col lg:flex-row w-screen h-[100dvh] overflow-hidden bg-gray-100 relative">
@@ -707,8 +710,13 @@ const POS: React.FC = () => {
             <Coffee size={18} className={unservedTablesCount > 0 ? 'animate-pulse' : ''} />
             Bàn gọi món
             {unservedTablesCount > 0 && (
-              <span className="bg-orange-500 text-white w-5 h-5 flex items-center justify-center rounded-full text-xs ml-1">
+              <span className="bg-red-500 text-white w-5 h-5 flex items-center justify-center rounded-full text-xs ml-1" title="Bàn có món chưa lên">
                 {unservedTablesCount}
+              </span>
+            )}
+            {pendingRequestsCount > 0 && (
+              <span className="bg-orange-500 text-white w-5 h-5 flex items-center justify-center rounded-full text-xs ml-1" title="Số lượng yêu cầu từ khách">
+                {pendingRequestsCount}
               </span>
             )}
           </button>
@@ -1354,7 +1362,9 @@ const POS: React.FC = () => {
                               {order.tableName}
                               {order.hasNewItems && <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" title="Có món mới"></span>}
                               {order.customerRequests?.some((r: any) => !r.isCompleted) && (
-                                <span className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-bounce" title="Có yêu cầu mới"></span>
+                                <span className="bg-orange-500 text-white text-[10px] px-2 py-0.5 rounded-full animate-bounce shadow-sm font-bold" title="Có yêu cầu mới">
+                                  {order.customerRequests.filter((r: any) => !r.isCompleted).length} yêu cầu
+                                </span>
                               )}
                             </h4>
                             <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md flex items-center gap-1">
