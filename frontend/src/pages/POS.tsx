@@ -1321,17 +1321,33 @@ const POS: React.FC = () => {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {[...activeTableOrders].sort((a, b) => {
-                    const oldestReqA = a.customerRequests?.filter((r: any) => !r.isCompleted).reduce((min: number, r: any) => r.timestamp < min ? r.timestamp : min, Infinity);
-                    const oldestReqB = b.customerRequests?.filter((r: any) => !r.isCompleted).reduce((min: number, r: any) => r.timestamp < min ? r.timestamp : min, Infinity);
-                    const hasReqA = oldestReqA !== Infinity && oldestReqA !== undefined;
-                    const hasReqB = oldestReqB !== Infinity && oldestReqB !== undefined;
+                    const getOldestPendingTimestamp = (order: ActiveTableOrder) => {
+                      let oldest = Infinity;
+                      if (order.customerRequests) {
+                        for (const req of order.customerRequests) {
+                          if (!req.isCompleted && req.timestamp < oldest) oldest = req.timestamp;
+                        }
+                      }
+                      if (order.items) {
+                        for (const item of order.items) {
+                          if (!item.isServed && item.cartItemId) {
+                            const ts = parseInt(item.cartItemId.substring(0, 13));
+                            if (!isNaN(ts) && ts < oldest) oldest = ts;
+                          }
+                        }
+                      }
+                      return oldest;
+                    };
+
+                    const oldestA = getOldestPendingTimestamp(a);
+                    const oldestB = getOldestPendingTimestamp(b);
+                    const hasPendingA = oldestA !== Infinity;
+                    const hasPendingB = oldestB !== Infinity;
                     
-                    if (hasReqA && hasReqB) return oldestReqA - oldestReqB;
-                    if (hasReqA) return -1;
-                    if (hasReqB) return 1;
+                    if (hasPendingA && hasPendingB) return oldestA - oldestB;
+                    if (hasPendingA) return -1;
+                    if (hasPendingB) return 1;
                     
-                    if (a.hasNewItems && !b.hasNewItems) return -1;
-                    if (!a.hasNewItems && b.hasNewItems) return 1;
                     return (b.updatedAt?.toMillis?.() || 0) - (a.updatedAt?.toMillis?.() || 0);
                   }).map(order => (
                     <div
