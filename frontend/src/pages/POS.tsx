@@ -1471,7 +1471,7 @@ const POS: React.FC = () => {
                 </button>
               <button
                 onClick={async () => {
-                  const { orderId, tableId, tableName, itemIndex, orderItems } = itemToDelete;
+                  const { orderId, tableId, tableName, itemIndex, itemName, orderItems } = itemToDelete;
                   const newItems = [...orderItems];
                   newItems.splice(itemIndex, 1);
 
