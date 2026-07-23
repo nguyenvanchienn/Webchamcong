@@ -1553,9 +1553,30 @@ const POS: React.FC = () => {
                         <span className="text-xs font-bold text-gray-400 uppercase">
                           {currentTableOrderId === order.id ? 'Đang xử lý' : 'Nhấn để thanh toán'}
                         </span>
-                        <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
-                          <CheckCircle size={16} />
-                        </div>
+                        {order.items.length === 0 && (!order.customerRequests || order.customerRequests.every((r: any) => r.isCompleted)) ? (
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (window.confirm('Bàn này không có món nào. Bạn muốn kết thúc bàn?')) {
+                                try {
+                                  await deleteDoc(doc(db, 'active_table_orders', order.id));
+                                  await updateDoc(doc(db, 'tables', order.tableId), { status: 'AVAILABLE' });
+                                  toast.success(`Đã đóng ${order.tableName}`);
+                                } catch (err) {
+                                  toast.error('Lỗi khi đóng bàn');
+                                }
+                              }
+                            }}
+                            className="bg-red-100 text-red-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-200 transition-colors flex items-center gap-1"
+                            title="Bàn trống, nhấn để dọn bàn"
+                          >
+                            <Trash2 size={14} /> Đóng bàn
+                          </button>
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
+                            <CheckCircle size={16} />
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1614,6 +1635,7 @@ const POS: React.FC = () => {
                         await updateDoc(doc(db, 'active_table_orders', orderId), {
                           items: newItems,
                           totalAmount: newTotal,
+                          updatedAt: serverTimestamp(),
                           notifications: arrayUnion({
                             id: Date.now().toString(),
                             message: `Món ${itemName} đã bị huỷ${deleteReason.trim() ? `. Lý do: ${deleteReason.trim()}` : ''}`,
