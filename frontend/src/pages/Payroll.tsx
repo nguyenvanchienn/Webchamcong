@@ -810,7 +810,7 @@ const Payroll: React.FC = () => {
                   ))}
                 </select>
               )}
-              <div className="flex items-center justify-between sm:justify-start gap-2">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center sm:justify-start gap-2 w-full sm:w-auto">
                 <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
                   Chọn tháng:
                 </label>
@@ -831,7 +831,7 @@ const Payroll: React.FC = () => {
                     type="month"
                     value={month}
                     onChange={(e) => setMonth(e.target.value)}
-                    className="px-2 py-1.5 text-sm outline-none bg-transparent w-[140px] md:w-[150px] text-center font-medium"
+                    className="px-2 py-1.5 text-sm outline-none bg-transparent w-full sm:w-[140px] md:w-[150px] text-center font-medium"
                   />
                   <button
                     onClick={() => {

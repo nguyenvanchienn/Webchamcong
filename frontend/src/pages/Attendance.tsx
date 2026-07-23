@@ -655,11 +655,11 @@ const Attendance: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
+      <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-xl font-bold text-gray-800">Quản lý Chấm công</h2>
-          <div className="flex items-center gap-3 mt-2">
-            <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            <div className="flex items-center gap-1 w-full sm:w-auto">
               <button
                 onClick={handlePrevDay}
                 className="p-1 hover:bg-gray-100 rounded text-gray-600 transition-colors"
@@ -698,10 +698,10 @@ const Attendance: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center space-x-3 bg-blue-50 p-3 rounded-lg border border-blue-100">
-          <div className="relative">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-blue-50 p-3 rounded-lg border border-blue-100 w-full md:w-auto">
+          <div className="relative w-full sm:w-auto">
             <div
-              className="px-3 py-2 border border-gray-300 bg-white rounded-lg cursor-pointer flex items-center justify-between min-w-[250px]"
+              className="px-3 py-2 border border-gray-300 bg-white rounded-lg cursor-pointer flex items-center justify-between w-full sm:min-w-[250px]"
               onClick={() => setIsSelectOpen(!isSelectOpen)}
             >
               <span className="truncate pr-4">
@@ -739,7 +739,7 @@ const Attendance: React.FC = () => {
                   className="fixed inset-0 z-40"
                   onClick={() => setIsSelectOpen(false)}
                 ></div>
-                <div className="absolute z-50 mt-1 w-max min-w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                <div className="absolute z-50 mt-1 left-0 right-0 sm:right-auto sm:w-max sm:min-w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                   <div
                     className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-gray-700"
                     onClick={() => {
@@ -838,7 +838,7 @@ const Attendance: React.FC = () => {
           </div>
           <button
             onClick={handleAction}
-            className={`px-4 py-2 rounded-lg font-medium shadow-sm transition-colors text-white ${(() => {
+            className={`px-4 py-2 rounded-lg font-medium shadow-sm transition-colors text-white w-full sm:w-auto ${(() => {
               const today = new Date().toLocaleDateString("en-CA");
               const existing = records.find(
                 (r) =>

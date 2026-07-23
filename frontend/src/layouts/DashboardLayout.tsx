@@ -98,6 +98,10 @@ const DashboardLayout: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (userRole === "SUPER_ADMIN") {
+      setUnreadCount(0);
+      return;
+    }
     if (!employeeId) return;
     const q = query(
       collection(db, "notifications"),
@@ -116,7 +120,7 @@ const DashboardLayout: React.FC = () => {
       setUnreadCount(count);
     });
     return () => unsub();
-  }, [employeeId]);
+  }, [employeeId, userRole]);
 
   useEffect(() => {
     const fetchName = async () => {
@@ -144,6 +148,15 @@ const DashboardLayout: React.FC = () => {
     };
     fetchName();
   }, [employeeId, userRole]);
+
+  useEffect(() => {
+    if (window.innerWidth < 768) {
+      document.body.style.overflow = isMobileMenuOpen ? "hidden" : "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isMobileMenuOpen]);
 
   const handleLogout = () => {
     setShowLogoutModal(true);
@@ -355,7 +368,15 @@ const DashboardLayout: React.FC = () => {
       name: "Xuất Excel",
       path: "/dashboard/export",
       icon: <FileSpreadsheet size={20} />,
-      roles: ["SUPER_ADMIN", "BRANCH_ADMIN"],
+      roles: [
+        "SUPER_ADMIN",
+        "BRANCH_ADMIN",
+        "EMPLOYEE",
+        "CASHIER",
+        "BARTENDER",
+        "KITCHEN",
+        "GUARD",
+      ],
     },
     {
       name: "Thiết lập",
@@ -387,7 +408,7 @@ const DashboardLayout: React.FC = () => {
         ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"}
         md:translate-x-0 transition-transform duration-300 ease-in-out
         ${isSidebarCollapsed ? "md:w-20" : "md:w-64"} 
-        w-64 bg-white shadow-lg flex flex-col h-full
+        w-[85vw] max-w-xs md:max-w-none bg-white shadow-lg flex flex-col h-full
       `}
       >
         {/* Mobile close button */}
@@ -553,7 +574,7 @@ const DashboardLayout: React.FC = () => {
           </div>
         </header>
 
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-4 md:p-6">
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-3 sm:p-4 md:p-6">
           <Outlet />
         </main>
       </div>

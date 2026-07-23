@@ -1,12 +1,34 @@
-import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, updateDoc, doc, addDoc, deleteDoc, orderBy } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import toast from 'react-hot-toast';
-import { Bell, Clock, UserCog, Wallet, Info, TrendingUp, TrendingDown, Megaphone, Plus, X, Edit2 } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  updateDoc,
+  doc,
+  addDoc,
+  deleteDoc,
+  orderBy,
+} from "firebase/firestore";
+import { db } from "../config/firebase";
+import toast from "react-hot-toast";
+import {
+  Bell,
+  Clock,
+  UserCog,
+  Wallet,
+  Info,
+  TrendingUp,
+  TrendingDown,
+  Megaphone,
+  Plus,
+  X,
+  Edit2,
+} from "lucide-react";
 
 interface Notification {
   id: string;
-  employeeId: string;
+  employeeId?: string;
   title: string;
   message: string;
   type: string;
@@ -17,26 +39,32 @@ interface Notification {
 const Notifications: React.FC = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
-  const currentEmployeeId = localStorage.getItem('employeeId');
-  const userRole = localStorage.getItem('userRole');
-  const currentUserBranchId = localStorage.getItem('branchId');
+  const currentEmployeeId = localStorage.getItem("employeeId");
+  const userRole = localStorage.getItem("userRole");
+  const currentUserBranchId = localStorage.getItem("branchId");
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAnnId, setEditingAnnId] = useState<string | null>(null);
-  const [newNotif, setNewNotif] = useState({ title: '', message: '', expiresAt: '', targetBranchId: 'ALL' });
+  const [newNotif, setNewNotif] = useState({
+    title: "",
+    message: "",
+    expiresAt: "",
+    targetBranchId: "ALL",
+  });
   const [sending, setSending] = useState(false);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
-  
-  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
+
+  const [selectedNotification, setSelectedNotification] =
+    useState<Notification | null>(null);
 
   useEffect(() => {
-    if (userRole === 'SUPER_ADMIN') {
+    if (userRole === "SUPER_ADMIN") {
       const fetchBranches = async () => {
         try {
-          const snap = await getDocs(collection(db, 'branches'));
+          const snap = await getDocs(collection(db, "branches"));
           const list: any[] = [];
-          snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+          snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
           setBranches(list);
         } catch (err) {
           console.error(err);
@@ -47,17 +75,28 @@ const Notifications: React.FC = () => {
   }, [userRole]);
 
   useEffect(() => {
-    if (userRole !== 'SUPER_ADMIN' && userRole !== 'BRANCH_ADMIN') return;
+    if (userRole !== "SUPER_ADMIN" && userRole !== "BRANCH_ADMIN") return;
     const fetchAnns = async () => {
       try {
-        const q = query(collection(db, 'announcements'), orderBy('createdAt', 'desc'));
+        const q = query(
+          collection(db, "announcements"),
+          orderBy("createdAt", "desc"),
+        );
         const snap = await getDocs(q);
         const list: any[] = [];
-        snap.forEach(d => {
+        snap.forEach((d) => {
           const data = d.data();
-          if (userRole === 'BRANCH_ADMIN') {
-            if (data.createdByRole === 'SUPER_ADMIN' || (!data.createdByRole && data.targetBranchId === 'ALL')) return;
-            if (data.targetBranchId !== 'ALL' && data.targetBranchId !== currentUserBranchId) return;
+          if (userRole === "BRANCH_ADMIN") {
+            if (
+              data.createdByRole === "SUPER_ADMIN" ||
+              (!data.createdByRole && data.targetBranchId === "ALL")
+            )
+              return;
+            if (
+              data.targetBranchId !== "ALL" &&
+              data.targetBranchId !== currentUserBranchId
+            )
+              return;
           }
           list.push({ id: d.id, ...data });
         });
@@ -71,72 +110,85 @@ const Notifications: React.FC = () => {
 
   useEffect(() => {
     const fetchNotifications = async () => {
-      if (!currentEmployeeId && userRole !== 'SUPER_ADMIN') {
+      if (!currentEmployeeId && userRole !== "SUPER_ADMIN") {
         setLoading(false);
         return;
       }
-      
+
       try {
         const list: Notification[] = [];
-        
-        // Fetch personal notifications
-        if (currentEmployeeId) {
+
+        // Fetch personal notifications (khong ap dung cho SUPER_ADMIN)
+        if (currentEmployeeId && userRole !== "SUPER_ADMIN") {
           const q = query(
-            collection(db, 'notifications'),
-            where('employeeId', '==', currentEmployeeId)
+            collection(db, "notifications"),
+            where("employeeId", "==", currentEmployeeId),
           );
           const snap = await getDocs(q);
           const now = new Date();
-          snap.forEach(d => {
-             const data = d.data();
-             if (!data.visibleAfter || new Date(data.visibleAfter) <= now) {
-                list.push({ id: d.id, ...data } as Notification);
-             }
+          snap.forEach((d) => {
+            const data = d.data();
+            if (!data.visibleAfter || new Date(data.visibleAfter) <= now) {
+              list.push({ id: d.id, ...data } as Notification);
+            }
           });
         }
 
         // Fetch announcements
-        const qAnn = query(collection(db, 'announcements'), orderBy('createdAt', 'desc'));
+        const qAnn = query(
+          collection(db, "announcements"),
+          orderBy("createdAt", "desc"),
+        );
         const snapAnn = await getDocs(qAnn);
-        
+
         const now = new Date();
-        snapAnn.forEach(d => {
+        snapAnn.forEach((d) => {
           const data = d.data();
-          
+
           // Check expiration
           let isExpired = false;
           if (data.expiresAt) {
-            const expDate = data.expiresAt.toDate ? data.expiresAt.toDate() : new Date(data.expiresAt);
+            const expDate = data.expiresAt.toDate
+              ? data.expiresAt.toDate()
+              : new Date(data.expiresAt);
             if (now > expDate) isExpired = true;
           }
           if (isExpired) return;
 
           // Check branch target (for employees and branch admins)
-          if (userRole !== 'SUPER_ADMIN') {
-             if (data.targetBranchId !== 'ALL' && data.targetBranchId !== currentUserBranchId) return;
+          if (userRole !== "SUPER_ADMIN") {
+            if (
+              data.targetBranchId !== "ALL" &&
+              data.targetBranchId !== currentUserBranchId
+            )
+              return;
           }
-          
+
           list.push({
             id: d.id,
-            employeeId: currentEmployeeId || 'admin',
+            employeeId: currentEmployeeId || "admin",
             title: data.title,
             message: data.message,
-            type: 'ANNOUNCEMENT',
+            type: "ANNOUNCEMENT",
             read: true, // Announcements are always "read"
-            createdAt: data.createdAt
+            createdAt: data.createdAt,
           });
         });
 
         // Sort combined list by createdAt desc
         list.sort((a, b) => {
-          const dateA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt).getTime();
-          const dateB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt).getTime();
+          const dateA = a.createdAt?.toDate
+            ? a.createdAt.toDate().getTime()
+            : new Date(a.createdAt).getTime();
+          const dateB = b.createdAt?.toDate
+            ? b.createdAt.toDate().getTime()
+            : new Date(b.createdAt).getTime();
           return dateB - dateA;
         });
 
         setNotifications(list);
       } catch (error) {
-        console.error('Error fetching notifications:', error);
+        console.error("Error fetching notifications:", error);
       } finally {
         setLoading(false);
       }
@@ -147,42 +199,53 @@ const Notifications: React.FC = () => {
 
   const handleNotificationClick = async (notif: Notification) => {
     // 1. Mark as read
-    if (!notif.read && notif.type !== 'ANNOUNCEMENT') {
+    if (!notif.read && notif.type !== "ANNOUNCEMENT") {
       try {
-        await updateDoc(doc(db, 'notifications', notif.id), { read: true });
-        setNotifications(notifications.map(n => n.id === notif.id ? { ...n, read: true } : n));
+        await updateDoc(doc(db, "notifications", notif.id), { read: true });
+        setNotifications(
+          notifications.map((n) =>
+            n.id === notif.id ? { ...n, read: true } : n,
+          ),
+        );
       } catch (error) {
-        console.error('Error marking as read:', error);
+        console.error("Error marking as read:", error);
       }
     }
-    
+
     // 2. Open detail modal
     setSelectedNotification(notif);
   };
 
   const handleDeleteAnnouncement = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'announcements', id));
-      setAnnouncements(announcements.filter(a => a.id !== id));
-      toast.success('Đã xóa thông báo chung!');
+      await deleteDoc(doc(db, "announcements", id));
+      setAnnouncements(announcements.filter((a) => a.id !== id));
+      toast.success("Đã xóa thông báo chung!");
     } catch (err) {
-      toast.error('Có lỗi khi xóa!');
+      toast.error("Có lỗi khi xóa!");
     }
   };
 
   const handleSendNotification = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newNotif.title || !newNotif.message) {
-      toast.error('Vui lòng nhập đầy đủ tiêu đề và nội dung');
+      toast.error("Vui lòng nhập đầy đủ tiêu đề và nội dung");
       return;
     }
-    
+
     setSending(true);
     try {
-      const targetBranchId = userRole === 'SUPER_ADMIN' ? newNotif.targetBranchId : currentUserBranchId;
-      const targetBranchName = userRole === 'SUPER_ADMIN' 
-        ? (newNotif.targetBranchId === 'ALL' ? 'Toàn hệ thống' : branches.find(b => b.id === newNotif.targetBranchId)?.name || 'Chi nhánh')
-        : 'Chi nhánh của bạn';
+      const targetBranchId =
+        userRole === "SUPER_ADMIN"
+          ? newNotif.targetBranchId
+          : currentUserBranchId;
+      const targetBranchName =
+        userRole === "SUPER_ADMIN"
+          ? newNotif.targetBranchId === "ALL"
+            ? "Toàn hệ thống"
+            : branches.find((b) => b.id === newNotif.targetBranchId)?.name ||
+              "Chi nhánh"
+          : "Chi nhánh của bạn";
 
       let expiresAtDate = null;
       if (newNotif.expiresAt) {
@@ -191,31 +254,48 @@ const Notifications: React.FC = () => {
       }
 
       const docData = {
-         title: newNotif.title,
-         message: newNotif.message,
-         targetBranchId,
-         targetBranchName,
-         expiresAt: expiresAtDate,
-         updatedAt: new Date()
+        title: newNotif.title,
+        message: newNotif.message,
+        targetBranchId,
+        targetBranchName,
+        expiresAt: expiresAtDate,
+        updatedAt: new Date(),
       };
-      
+
       if (editingAnnId) {
-        await updateDoc(doc(db, 'announcements', editingAnnId), docData);
-        toast.success('Đã cập nhật thông báo chung!');
-        setAnnouncements(announcements.map(a => a.id === editingAnnId ? { ...a, ...docData } : a));
+        await updateDoc(doc(db, "announcements", editingAnnId), docData);
+        toast.success("Đã cập nhật thông báo chung!");
+        setAnnouncements(
+          announcements.map((a) =>
+            a.id === editingAnnId ? { ...a, ...docData } : a,
+          ),
+        );
       } else {
-        const newDocData = { ...docData, createdAt: new Date(), createdBy: currentEmployeeId, createdByRole: userRole };
-        const docRef = await addDoc(collection(db, 'announcements'), newDocData);
-        toast.success('Đã tạo thông báo chung thành công!');
+        const newDocData = {
+          ...docData,
+          createdAt: new Date(),
+          createdBy: currentEmployeeId,
+          createdByRole: userRole,
+        };
+        const docRef = await addDoc(
+          collection(db, "announcements"),
+          newDocData,
+        );
+        toast.success("Đã tạo thông báo chung thành công!");
         setAnnouncements([{ id: docRef.id, ...newDocData }, ...announcements]);
       }
-      
+
       setIsModalOpen(false);
       setEditingAnnId(null);
-      setNewNotif({ title: '', message: '', expiresAt: '', targetBranchId: 'ALL' });
+      setNewNotif({
+        title: "",
+        message: "",
+        expiresAt: "",
+        targetBranchId: "ALL",
+      });
     } catch (err) {
       console.error(err);
-      toast.error('Có lỗi xảy ra khi lưu thông báo');
+      toast.error("Có lỗi xảy ra khi lưu thông báo");
     } finally {
       setSending(false);
     }
@@ -226,27 +306,43 @@ const Notifications: React.FC = () => {
     setNewNotif({
       title: a.title,
       message: a.message,
-      targetBranchId: a.targetBranchId || 'ALL',
-      expiresAt: a.expiresAt ? (a.expiresAt.toDate ? a.expiresAt.toDate().toISOString().split('T')[0] : new Date(a.expiresAt).toISOString().split('T')[0]) : ''
+      targetBranchId: a.targetBranchId || "ALL",
+      expiresAt: a.expiresAt
+        ? a.expiresAt.toDate
+          ? a.expiresAt.toDate().toISOString().split("T")[0]
+          : new Date(a.expiresAt).toISOString().split("T")[0]
+        : "",
     });
     setIsModalOpen(true);
   };
 
   const handleOpenCreateModal = () => {
     setEditingAnnId(null);
-    setNewNotif({ title: '', message: '', expiresAt: '', targetBranchId: 'ALL' });
+    setNewNotif({
+      title: "",
+      message: "",
+      expiresAt: "",
+      targetBranchId: "ALL",
+    });
     setIsModalOpen(true);
   };
 
   const getIcon = (type: string) => {
     switch (type) {
-      case 'SALARY_UPDATE': return <Wallet className="text-green-500" size={24} />;
-      case 'PROFILE_UPDATE': return <UserCog className="text-blue-500" size={24} />;
-      case 'MONEY_ADD': return <TrendingUp className="text-green-500" size={24} />;
-      case 'MONEY_SUB': return <TrendingDown className="text-red-500" size={24} />;
-      case 'ANNOUNCEMENT': return <Megaphone className="text-orange-500" size={24} />;
-      case 'SYSTEM': return <Info className="text-blue-500" size={24} />;
-      default: return <Info className="text-gray-500" size={24} />;
+      case "SALARY_UPDATE":
+        return <Wallet className="text-green-500" size={24} />;
+      case "PROFILE_UPDATE":
+        return <UserCog className="text-blue-500" size={24} />;
+      case "MONEY_ADD":
+        return <TrendingUp className="text-green-500" size={24} />;
+      case "MONEY_SUB":
+        return <TrendingDown className="text-red-500" size={24} />;
+      case "ANNOUNCEMENT":
+        return <Megaphone className="text-orange-500" size={24} />;
+      case "SYSTEM":
+        return <Info className="text-blue-500" size={24} />;
+      default:
+        return <Info className="text-gray-500" size={24} />;
     }
   };
 
@@ -257,87 +353,117 @@ const Notifications: React.FC = () => {
           <h2 className="text-xl font-bold text-gray-800 flex items-center">
             <Bell className="mr-2 text-blue-600" /> Thông báo
           </h2>
-          <p className="text-gray-500 mt-1 text-sm">Cập nhật các thay đổi liên quan đến tài khoản và lương</p>
+          <p className="text-gray-500 mt-1 text-sm">
+            Cập nhật các thay đổi liên quan đến tài khoản và lương
+          </p>
         </div>
-        
-        {(userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') && (
-           <button 
-             onClick={handleOpenCreateModal} 
-             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-semibold shadow-sm transition-colors flex items-center gap-2"
-           >
-             <Plus size={18} /> Gửi thông báo chung
-           </button>
+
+        {(userRole === "SUPER_ADMIN" || userRole === "BRANCH_ADMIN") && (
+          <button
+            onClick={handleOpenCreateModal}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-semibold shadow-sm transition-colors flex items-center gap-2"
+          >
+            <Plus size={18} /> Gửi thông báo chung
+          </button>
         )}
       </div>
 
-      {(userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') && announcements.length > 0 && (
-        <div className="bg-orange-50 border border-orange-100 p-6 rounded-xl shadow-sm">
-          <h3 className="text-lg font-bold text-orange-900 mb-4 flex items-center">
-            <Megaphone className="mr-2 text-orange-600" /> Quản lý Thông báo Banner
-          </h3>
-          <div className="grid gap-3">
-            {announcements.map(a => (
-              <div key={a.id} className="bg-white p-4 rounded-lg shadow-sm border border-orange-100 flex justify-between items-center">
-                <div>
-                  <h4 className="font-bold text-gray-800">{a.title}</h4>
-                  <p className="text-sm text-gray-600 mt-1 line-clamp-1">{a.message}</p>
-                  <p className="text-xs text-orange-600 mt-2 font-medium">
-                    Hết hạn: {a.expiresAt ? (a.expiresAt.toDate ? a.expiresAt.toDate().toLocaleDateString('vi-VN') : new Date(a.expiresAt).toLocaleDateString('vi-VN')) : 'Không bao giờ'} 
-                    <span className="mx-2">•</span> Phạm vi: {a.targetBranchName || (a.targetBranchId === 'ALL' ? 'Toàn hệ thống' : 'Chi nhánh')}
-                  </p>
+      {(userRole === "SUPER_ADMIN" || userRole === "BRANCH_ADMIN") &&
+        announcements.length > 0 && (
+          <div className="bg-orange-50 border border-orange-100 p-6 rounded-xl shadow-sm">
+            <h3 className="text-lg font-bold text-orange-900 mb-4 flex items-center">
+              <Megaphone className="mr-2 text-orange-600" /> Quản lý Thông báo
+              Banner
+            </h3>
+            <div className="grid gap-3">
+              {announcements.map((a) => (
+                <div
+                  key={a.id}
+                  className="bg-white p-4 rounded-lg shadow-sm border border-orange-100 flex justify-between items-center"
+                >
+                  <div>
+                    <h4 className="font-bold text-gray-800">{a.title}</h4>
+                    <p className="text-sm text-gray-600 mt-1 line-clamp-1">
+                      {a.message}
+                    </p>
+                    <p className="text-xs text-orange-600 mt-2 font-medium">
+                      Hết hạn:{" "}
+                      {a.expiresAt
+                        ? a.expiresAt.toDate
+                          ? a.expiresAt.toDate().toLocaleDateString("vi-VN")
+                          : new Date(a.expiresAt).toLocaleDateString("vi-VN")
+                        : "Không bao giờ"}
+                      <span className="mx-2">•</span> Phạm vi:{" "}
+                      {a.targetBranchName ||
+                        (a.targetBranchId === "ALL"
+                          ? "Toàn hệ thống"
+                          : "Chi nhánh")}
+                    </p>
+                  </div>
+                  <div className="flex ml-4 flex-shrink-0">
+                    <button
+                      onClick={() => handleOpenEditModal(a)}
+                      className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 p-2 rounded-lg transition-colors mr-1"
+                      title="Sửa thông báo"
+                    >
+                      <Edit2 size={20} />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteAnnouncement(a.id)}
+                      className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors"
+                      title="Xóa thông báo"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex ml-4 flex-shrink-0">
-                  <button 
-                    onClick={() => handleOpenEditModal(a)}
-                    className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 p-2 rounded-lg transition-colors mr-1"
-                    title="Sửa thông báo"
-                  >
-                    <Edit2 size={20} />
-                  </button>
-                  <button 
-                    onClick={() => handleDeleteAnnouncement(a.id)}
-                    className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors"
-                    title="Xóa thông báo"
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto overflow-y-hidden">
         {loading ? (
-          <div className="p-8 text-center text-gray-500">Đang tải thông báo...</div>
+          <div className="p-8 text-center text-gray-500">
+            Đang tải thông báo...
+          </div>
         ) : notifications.length === 0 ? (
           <div className="p-16 flex flex-col items-center justify-center bg-gray-50/50">
             <Bell size={48} className="text-gray-300 mb-4" />
-            <p className="text-gray-500 font-medium">Bạn chưa có thông báo nào.</p>
+            <p className="text-gray-500 font-medium">
+              Bạn chưa có thông báo nào.
+            </p>
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
-            {notifications.map(notif => (
-              <div 
-                key={notif.id} 
+            {notifications.map((notif) => (
+              <div
+                key={notif.id}
                 onClick={() => handleNotificationClick(notif)}
-                className={`p-5 flex gap-4 transition-colors cursor-pointer hover:bg-gray-50 ${notif.read ? 'bg-white' : 'bg-blue-50/50'}`}
+                className={`p-5 flex gap-4 transition-colors cursor-pointer hover:bg-gray-50 ${notif.read ? "bg-white" : "bg-blue-50/50"}`}
               >
-                <div className={`p-3 rounded-full h-fit flex-shrink-0 ${notif.read ? 'bg-gray-100' : 'bg-white shadow-sm'}`}>
+                <div
+                  className={`p-3 rounded-full h-fit flex-shrink-0 ${notif.read ? "bg-gray-100" : "bg-white shadow-sm"}`}
+                >
                   {getIcon(notif.type)}
                 </div>
                 <div className="flex-1">
                   <div className="flex justify-between items-start">
-                    <h4 className={`text-base ${notif.read ? 'font-medium text-gray-700' : 'font-bold text-gray-900'}`}>
+                    <h4
+                      className={`text-base ${notif.read ? "font-medium text-gray-700" : "font-bold text-gray-900"}`}
+                    >
                       {notif.title}
                     </h4>
                     <span className="text-xs text-gray-500 flex items-center whitespace-nowrap ml-4">
                       <Clock size={12} className="mr-1" />
-                      {notif.createdAt?.toDate ? notif.createdAt.toDate().toLocaleString('vi-VN') : ''}
+                      {notif.createdAt?.toDate
+                        ? notif.createdAt.toDate().toLocaleString("vi-VN")
+                        : ""}
                     </span>
                   </div>
-                  <p className={`mt-1 text-sm ${notif.read ? 'text-gray-500' : 'text-gray-700'}`}>
+                  <p
+                    className={`mt-1 text-sm ${notif.read ? "text-gray-500" : "text-gray-700"}`}
+                  >
                     {notif.message}
                   </p>
                 </div>
@@ -352,58 +478,88 @@ const Notifications: React.FC = () => {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
             <div className="flex justify-between items-center p-4 border-b border-gray-200">
               <h3 className="font-bold text-lg text-gray-800">
-                {editingAnnId ? 'Cập nhật thông báo chung' : 'Gửi thông báo chung'}
+                {editingAnnId
+                  ? "Cập nhật thông báo chung"
+                  : "Gửi thông báo chung"}
               </h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
                 <X size={24} />
               </button>
             </div>
-            
+
             <form onSubmit={handleSendNotification} className="p-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tiêu đề</label>
-                <input 
-                  type="text" required
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tiêu đề
+                </label>
+                <input
+                  type="text"
+                  required
                   value={newNotif.title}
-                  onChange={(e) => setNewNotif({...newNotif, title: e.target.value})}
+                  onChange={(e) =>
+                    setNewNotif({ ...newNotif, title: e.target.value })
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:border-blue-500"
                   placeholder="Nhập tiêu đề thông báo..."
                 />
               </div>
-              
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nội dung</label>
-                <textarea 
-                  required rows={4}
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nội dung
+                </label>
+                <textarea
+                  required
+                  rows={4}
                   value={newNotif.message}
-                  onChange={(e) => setNewNotif({...newNotif, message: e.target.value})}
+                  onChange={(e) =>
+                    setNewNotif({ ...newNotif, message: e.target.value })
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:border-blue-500 resize-none"
                   placeholder="Nhập nội dung chi tiết..."
                 ></textarea>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ngày hết hạn hiển thị (Tùy chọn)</label>
-                <input 
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Ngày hết hạn hiển thị (Tùy chọn)
+                </label>
+                <input
                   type="date"
                   value={newNotif.expiresAt}
-                  onChange={(e) => setNewNotif({...newNotif, expiresAt: e.target.value})}
+                  onChange={(e) =>
+                    setNewNotif({ ...newNotif, expiresAt: e.target.value })
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:border-blue-500 text-gray-700"
                 />
-                <p className="text-xs text-gray-500 mt-1">Nếu để trống, thông báo sẽ hiển thị mãi cho đến khi bạn xóa.</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Nếu để trống, thông báo sẽ hiển thị mãi cho đến khi bạn xóa.
+                </p>
               </div>
 
-              {userRole === 'SUPER_ADMIN' && (
+              {userRole === "SUPER_ADMIN" && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Phạm vi hiển thị</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Phạm vi hiển thị
+                  </label>
                   <select
                     value={newNotif.targetBranchId}
-                    onChange={(e) => setNewNotif({...newNotif, targetBranchId: e.target.value})}
+                    onChange={(e) =>
+                      setNewNotif({
+                        ...newNotif,
+                        targetBranchId: e.target.value,
+                      })
+                    }
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:border-blue-500 text-gray-700"
                   >
                     <option value="ALL">Toàn hệ thống (Tất cả cơ sở)</option>
-                    {branches.map(b => (
-                      <option key={b.id} value={b.id}>{b.name}</option>
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -411,72 +567,93 @@ const Notifications: React.FC = () => {
 
               <div className="bg-orange-50 border border-orange-100 rounded-lg p-3 text-sm text-orange-800 flex">
                 <Info size={18} className="mr-2 flex-shrink-0 mt-0.5" />
-                <p>Thông báo sẽ được gửi đến <b>{userRole === 'SUPER_ADMIN' ? (newNotif.targetBranchId === 'ALL' ? 'toàn bộ nhân viên trên hệ thống' : 'nhân viên thuộc cơ sở đã chọn') : 'tất cả nhân viên trong cơ sở của bạn'}</b>.</p>
+                <p>
+                  Thông báo sẽ được gửi đến{" "}
+                  <b>
+                    {userRole === "SUPER_ADMIN"
+                      ? newNotif.targetBranchId === "ALL"
+                        ? "toàn bộ nhân viên trên hệ thống"
+                        : "nhân viên thuộc cơ sở đã chọn"
+                      : "tất cả nhân viên trong cơ sở của bạn"}
+                  </b>
+                  .
+                </p>
               </div>
 
               <div className="pt-2 flex justify-end gap-2">
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setIsModalOpen(false)}
                   className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
                 >
                   Hủy
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   disabled={sending}
-                  className={`px-4 py-2 text-white rounded-lg flex items-center font-medium ${sending ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'} transition-colors`}
+                  className={`px-4 py-2 text-white rounded-lg flex items-center font-medium ${sending ? "bg-blue-400" : "bg-blue-600 hover:bg-blue-700"} transition-colors`}
                 >
-                  {sending ? 'Đang lưu...' : (editingAnnId ? 'Cập nhật' : 'Gửi thông báo')}
+                  {sending
+                    ? "Đang lưu..."
+                    : editingAnnId
+                      ? "Cập nhật"
+                      : "Gửi thông báo"}
                 </button>
               </div>
             </form>
-            </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {selectedNotification && (
-          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col">
-              <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-gray-50">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-full bg-white shadow-sm border border-gray-100">
-                    {getIcon(selectedNotification.type)}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-lg text-gray-800 leading-tight">
-                      {selectedNotification.title}
-                    </h3>
-                    <p className="text-xs text-gray-500 mt-0.5 flex items-center">
-                      <Clock size={12} className="mr-1" />
-                      {selectedNotification.createdAt?.toDate ? selectedNotification.createdAt.toDate().toLocaleString('vi-VN') : ''}
-                    </p>
-                  </div>
+      {selectedNotification && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-gray-50">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-full bg-white shadow-sm border border-gray-100">
+                  {getIcon(selectedNotification.type)}
                 </div>
-                <button onClick={() => setSelectedNotification(null)} className="text-gray-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors">
-                  <X size={24} />
-                </button>
+                <div>
+                  <h3 className="font-bold text-lg text-gray-800 leading-tight">
+                    {selectedNotification.title}
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-0.5 flex items-center">
+                    <Clock size={12} className="mr-1" />
+                    {selectedNotification.createdAt?.toDate
+                      ? selectedNotification.createdAt
+                          .toDate()
+                          .toLocaleString("vi-VN")
+                      : ""}
+                  </p>
+                </div>
               </div>
-              
-              <div className="p-6 overflow-y-auto max-h-[60vh]">
-                <p className="text-gray-700 whitespace-pre-wrap leading-relaxed text-base">
-                  {selectedNotification.message}
-                </p>
-              </div>
-              
-              <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
-                <button 
-                  onClick={() => setSelectedNotification(null)}
-                  className="px-5 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium transition-colors"
-                >
-                  Đóng
-                </button>
-              </div>
+              <button
+                onClick={() => setSelectedNotification(null)}
+                className="text-gray-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[60vh]">
+              <p className="text-gray-700 whitespace-pre-wrap leading-relaxed text-base">
+                {selectedNotification.message}
+              </p>
+            </div>
+
+            <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+              <button
+                onClick={() => setSelectedNotification(null)}
+                className="px-5 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium transition-colors"
+              >
+                Đóng
+              </button>
             </div>
           </div>
-        )}
-      </div>
-    );
-  };
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default Notifications;

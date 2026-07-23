@@ -332,7 +332,7 @@ const Timesheets: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-gray-800 flex items-center">
             <ClipboardList className="mr-2 text-blue-600" /> Bảng Công Tổng Hợp
@@ -342,12 +342,12 @@ const Timesheets: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
           {userRole === "SUPER_ADMIN" && (
             <select
               value={filterBranchId}
               onChange={(e) => setFilterBranchId(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 w-full sm:w-auto"
             >
               <option value="ALL">Tất cả cơ sở</option>
               {branches.map((b) => (
@@ -364,7 +364,7 @@ const Timesheets: React.FC = () => {
             type="month"
             value={month}
             onChange={(e) => setMonth(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 outline-none"
+            className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 outline-none w-full sm:w-auto"
           />
         </div>
       </div>

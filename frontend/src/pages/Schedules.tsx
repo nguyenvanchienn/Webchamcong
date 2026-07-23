@@ -1,10 +1,29 @@
-import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc, getDoc, setDoc, query, where } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import toast from 'react-hot-toast';
-import Swal from 'sweetalert2';
-import { CalendarDays, Plus, Trash2, ChevronLeft, ChevronRight, Clock, Edit2 } from 'lucide-react';
-import { TimeInput24 } from '../components/TimeInput24';
+import React, { useState, useEffect } from "react";
+import {
+  collection,
+  getDocs,
+  addDoc,
+  deleteDoc,
+  doc,
+  updateDoc,
+  getDoc,
+  setDoc,
+  query,
+  where,
+} from "firebase/firestore";
+import { db } from "../config/firebase";
+import toast from "react-hot-toast";
+import Swal from "sweetalert2";
+import {
+  CalendarDays,
+  Plus,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Edit2,
+} from "lucide-react";
+import { TimeInput24 } from "../components/TimeInput24";
 
 interface Employee {
   id: string;
@@ -28,22 +47,22 @@ interface Schedule {
 }
 
 const generateShiftName = (start: string, end: string) => {
-  if (!start || !end) return 'Ca trống';
-  const startHour = parseInt(start.split(':')[0]);
-  let endHour = parseInt(end.split(':')[0]);
+  if (!start || !end) return "Ca trống";
+  const startHour = parseInt(start.split(":")[0]);
+  let endHour = parseInt(end.split(":")[0]);
 
   if (endHour < startHour) endHour += 24;
   const duration = endHour - startHour;
 
-  let name = '';
+  let name = "";
   if (duration >= 7) {
-    name = 'Full ca';
+    name = "Full ca";
   } else if (startHour < 12) {
-    name = 'Sáng';
+    name = "Sáng";
   } else if (startHour >= 12 && startHour < 17) {
-    name = 'Chiều';
+    name = "Chiều";
   } else {
-    name = 'Tối';
+    name = "Tối";
   }
   return `${name} (${start} - ${end})`;
 };
@@ -65,59 +84,72 @@ const checkShiftOverlap = (shiftA: string, shiftB: string) => {
   return Math.max(startA, startB) < Math.min(endA, endB);
 };
 
-const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTER' }) => {
+const Schedules: React.FC<{ mode?: "REGISTER" | "CREATE" }> = ({
+  mode = "REGISTER",
+}) => {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingSlot, setEditingSlot] = useState<string | null>(null);
-  const [editBlockModal, setEditBlockModal] = useState<{ isOpen: boolean, shiftsInSlot: any[], newStartTime: string, newEndTime: string, newSlots: number, newSalaryMultiplier: number }>({
+  const [editBlockModal, setEditBlockModal] = useState<{
+    isOpen: boolean;
+    shiftsInSlot: any[];
+    newStartTime: string;
+    newEndTime: string;
+    newSlots: number;
+    newSalaryMultiplier: number;
+  }>({
     isOpen: false,
     shiftsInSlot: [],
-    newStartTime: '08:00',
-    newEndTime: '12:00',
+    newStartTime: "08:00",
+    newEndTime: "12:00",
     newSlots: 0,
-    newSalaryMultiplier: 1
+    newSalaryMultiplier: 1,
   });
-  const [viewBlockModal, setViewBlockModal] = useState<{ isOpen: boolean, shiftsInSlot: any[] }>({
+  const [viewBlockModal, setViewBlockModal] = useState<{
+    isOpen: boolean;
+    shiftsInSlot: any[];
+  }>({
     isOpen: false,
-    shiftsInSlot: []
+    shiftsInSlot: [],
   });
   const [weekOffset, setWeekOffset] = useState(0);
 
-  const userRole = localStorage.getItem('userRole') || 'EMPLOYEE';
-  const currentEmployeeId = localStorage.getItem('employeeId');
+  const userRole = localStorage.getItem("userRole") || "EMPLOYEE";
+  const currentEmployeeId = localStorage.getItem("employeeId");
   const [deadlines, setDeadlines] = useState<Record<string, string>>({});
   const [openTimes, setOpenTimes] = useState<Record<string, string>>({});
   const [previewTimes, setPreviewTimes] = useState<Record<string, string>>({});
-  const [localDeadline, setLocalDeadline] = useState('');
-  const [localOpenTime, setLocalOpenTime] = useState('');
-  const [localPreviewTime, setLocalPreviewTime] = useState('');
+  const [localDeadline, setLocalDeadline] = useState("");
+  const [localOpenTime, setLocalOpenTime] = useState("");
+  const [localPreviewTime, setLocalPreviewTime] = useState("");
   const [applyWholeWeek, setApplyWholeWeek] = useState(false);
   const [branches, setBranches] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
-    employeeId: '',
-    date: new Date().toLocaleDateString('en-CA'),
-    startTime: '08:00',
-    endTime: '12:00',
+    employeeId: "",
+    date: new Date().toLocaleDateString("en-CA"),
+    startTime: "08:00",
+    endTime: "12:00",
     slots: 1,
-    salaryMultiplier: 1
+    salaryMultiplier: 1,
   });
 
-  const [myBranchId, setMyBranchId] = useState('');
-  const [myBranchName, setMyBranchName] = useState('');
+  const [myBranchId, setMyBranchId] = useState("");
+  const [myBranchName, setMyBranchName] = useState("");
   const [myInfo, setMyInfo] = useState<Employee | null>(null);
-  const [viewBranchId, setViewBranchId] = useState('ALL');
+  const [viewBranchId, setViewBranchId] = useState("ALL");
+  const [currentTime, setCurrentTime] = useState(() => new Date());
 
   const fetchData = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const empSnap = await getDocs(collection(db, 'employees'));
+      const empSnap = await getDocs(collection(db, "employees"));
       const allEmps: Employee[] = [];
-      let currentBranchId = '';
-      let currentBranchName = '';
+      let currentBranchId = "";
+      let currentBranchName = "";
 
-      empSnap.forEach(d => {
+      empSnap.forEach((d) => {
         const data = d.data();
         if (d.id === currentEmployeeId) {
           currentBranchId = data.branchId;
@@ -128,7 +160,7 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
             branchName: data.branchName,
             branchId: data.branchId,
             employeeCode: data.employeeCode,
-            position: data.position
+            position: data.position,
           });
         }
         allEmps.push({
@@ -137,7 +169,7 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
           branchName: data.branchName,
           branchId: data.branchId,
           employeeCode: data.employeeCode,
-          position: data.position
+          position: data.position,
         });
       });
 
@@ -145,47 +177,48 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
       setMyBranchName(currentBranchName);
 
       // Filter employees for dropdown
-      let filteredEmps = allEmps.filter(e => e.id !== currentEmployeeId); // Hide self
-      if (userRole === 'BRANCH_ADMIN') {
-        filteredEmps = filteredEmps.filter(e => e.branchId === currentBranchId);
+      let filteredEmps = allEmps.filter((e) => e.id !== currentEmployeeId); // Hide self
+      if (userRole === "BRANCH_ADMIN") {
+        filteredEmps = filteredEmps.filter(
+          (e) => e.branchId === currentBranchId,
+        );
       }
       setEmployees(filteredEmps);
 
-      if (userRole === 'SUPER_ADMIN') {
-        const branchSnap = await getDocs(collection(db, 'branches'));
+      if (userRole === "SUPER_ADMIN") {
+        const branchSnap = await getDocs(collection(db, "branches"));
         const brs: any[] = [];
-        branchSnap.forEach(b => brs.push({ id: b.id, name: b.data().name }));
+        branchSnap.forEach((b) => brs.push({ id: b.id, name: b.data().name }));
 
         // Sắp xếp các cơ sở theo tên (A-Z)
         brs.sort((a, b) => a.name.localeCompare(b.name));
 
         setBranches(brs);
         if (brs.length > 0) {
-          setViewBranchId(prev => prev || brs[0].id);
+          setViewBranchId((prev) => prev || brs[0].id);
         }
       }
 
-      const schSnap = await getDocs(collection(db, 'schedules'));
+      const schSnap = await getDocs(collection(db, "schedules"));
       const schList: Schedule[] = [];
-      schSnap.forEach(d => {
+      schSnap.forEach((d) => {
         const data = d.data();
         let belongsToBranch = false;
 
         // Infer branchId if missing and employeeId exists (legacy data support)
         let inferredBranchId = data.branchId;
         if (!inferredBranchId && data.employeeId) {
-          const emp = allEmps.find(e => e.id === data.employeeId);
+          const emp = allEmps.find((e) => e.id === data.employeeId);
           if (emp) inferredBranchId = emp.branchId;
         }
 
-        if (userRole === 'SUPER_ADMIN') {
+        if (userRole === "SUPER_ADMIN") {
           belongsToBranch = true;
         } else {
           if (inferredBranchId && inferredBranchId === currentBranchId) {
             belongsToBranch = true;
-          }
-          else if (data.employeeId) {
-            const emp = allEmps.find(e => e.id === data.employeeId);
+          } else if (data.employeeId) {
+            const emp = allEmps.find((e) => e.id === data.employeeId);
             if (emp && emp.branchId === currentBranchId) {
               belongsToBranch = true;
             }
@@ -193,12 +226,16 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
         }
 
         if (belongsToBranch) {
-          schList.push({ id: d.id, ...data, branchId: inferredBranchId } as Schedule);
+          schList.push({
+            id: d.id,
+            ...data,
+            branchId: inferredBranchId,
+          } as Schedule);
         }
       });
       setSchedules(schList);
 
-      const settingsDoc = await getDoc(doc(db, 'settings', 'general'));
+      const settingsDoc = await getDoc(doc(db, "settings", "general"));
       if (settingsDoc.exists()) {
         const data = settingsDoc.data();
         if (data.deadlines) setDeadlines(data.deadlines);
@@ -216,11 +253,22 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
     fetchData();
   }, []);
 
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 15000);
+    return () => clearInterval(timer);
+  }, []);
+
   const getVisibleAfter = (dateStr: string) => {
     const d = new Date(dateStr);
     const day = d.getDay() === 0 ? 7 : d.getDay();
     const firstDay = d.getDate() - day + 1;
-    const monday = new Date(d.getFullYear(), d.getMonth(), firstDay).toLocaleDateString('en-CA');
+    const monday = new Date(
+      d.getFullYear(),
+      d.getMonth(),
+      firstDay,
+    ).toLocaleDateString("en-CA");
 
     const preview = previewTimes[monday];
     const open = openTimes[monday];
@@ -231,38 +279,40 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
     e.preventDefault();
     try {
       if (!formData.startTime || !formData.endTime) {
-        toast.error('Vui lòng chọn thời gian bắt đầu và kết thúc!');
+        toast.error("Vui lòng chọn thời gian bắt đầu và kết thúc!");
         return;
       }
       const shiftStr = generateShiftName(formData.startTime, formData.endTime);
 
-      let empName = 'Đang trống (Chưa có người)';
+      let empName = "Đang trống (Chưa có người)";
       let empId = null;
-      let targetBranches: { id: string, name: string | null }[] = [];
-      if (userRole === 'BRANCH_ADMIN') {
+      let targetBranches: { id: string; name: string | null }[] = [];
+      if (userRole === "BRANCH_ADMIN") {
         targetBranches = [{ id: myBranchId, name: myBranchName }];
       } else {
-        if (viewBranchId === 'ALL') {
-          targetBranches = branches.map(b => ({ id: b.id, name: b.name }));
+        if (viewBranchId === "ALL") {
+          targetBranches = branches.map((b) => ({ id: b.id, name: b.name }));
         } else {
-          const b = branches.find(b => b.id === viewBranchId);
+          const b = branches.find((b) => b.id === viewBranchId);
           targetBranches = [{ id: viewBranchId, name: b?.name || null }];
         }
       }
 
-      if (formData.employeeId !== '') {
-        const emp = employees.find(e => e.id === formData.employeeId);
+      if (formData.employeeId !== "") {
+        const emp = employees.find((e) => e.id === formData.employeeId);
         if (emp) {
           empId = emp.id;
           empName = emp.fullName;
-          if (userRole === 'SUPER_ADMIN' && viewBranchId === 'ALL') {
-            targetBranches = [{ id: emp.branchId || '', name: emp.branchName || '' }];
+          if (userRole === "SUPER_ADMIN" && viewBranchId === "ALL") {
+            targetBranches = [
+              { id: emp.branchId || "", name: emp.branchName || "" },
+            ];
           }
         }
       } else {
-        if (userRole === 'SUPER_ADMIN') {
+        if (userRole === "SUPER_ADMIN") {
           if (!viewBranchId) {
-            toast.error('Vui lòng chọn cơ sở cho ca trống!');
+            toast.error("Vui lòng chọn cơ sở cho ca trống!");
             return;
           }
         }
@@ -275,18 +325,17 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
         const diff = d.getDate() - day + 1; // Monday
         for (let i = 0; i < 7; i++) {
           const nd = new Date(d.getFullYear(), d.getMonth(), diff + i);
-          datesToProcess.push(nd.toLocaleDateString('en-CA'));
+          datesToProcess.push(nd.toLocaleDateString("en-CA"));
         }
       } else {
         datesToProcess.push(formData.date);
       }
 
-
-      const startH = parseInt(formData.startTime.split(':')[0]);
-      const startM = parseInt(formData.startTime.split(':')[1]);
+      const startH = parseInt(formData.startTime.split(":")[0]);
+      const startM = parseInt(formData.startTime.split(":")[1]);
 
       let validDates = datesToProcess;
-      const invalidDates = datesToProcess.filter(dStr => {
+      const invalidDates = datesToProcess.filter((dStr) => {
         const d = new Date(dStr);
         d.setHours(startH, startM, 0, 0);
         const lockTime = new Date(d.getTime() - 60 * 60 * 1000);
@@ -296,22 +345,32 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
       if (invalidDates.length > 0) {
         if (applyWholeWeek) {
           // If applying whole week, just filter out the past dates and schedule the rest
-          validDates = datesToProcess.filter(dStr => !invalidDates.includes(dStr));
+          validDates = datesToProcess.filter(
+            (dStr) => !invalidDates.includes(dStr),
+          );
           if (validDates.length === 0) {
-            toast.error('Tất cả các ngày trong tuần này đều đã qua (khóa trước 1 tiếng)!');
+            toast.error(
+              "Tất cả các ngày trong tuần này đều đã qua (khóa trước 1 tiếng)!",
+            );
             return;
           }
-          toast(`Đã bỏ qua ${invalidDates.length} ngày trong quá khứ.`, { icon: 'ℹ️' });
+          toast(`Đã bỏ qua ${invalidDates.length} ngày trong quá khứ.`, {
+            icon: "ℹ️",
+          });
         } else {
-          toast.error('Không thể tạo ca trong quá khứ hoặc quá cận giờ (khóa trước 1 tiếng)!');
+          toast.error(
+            "Không thể tạo ca trong quá khứ hoặc quá cận giờ (khóa trước 1 tiếng)!",
+          );
           return;
         }
       }
 
-      if (formData.employeeId !== '') {
+      if (formData.employeeId !== "") {
         let hasConflict = false;
         for (const processDate of validDates) {
-          const empSchedules = schedules.filter(s => s.employeeId === empId && s.date === processDate);
+          const empSchedules = schedules.filter(
+            (s) => s.employeeId === empId && s.date === processDate,
+          );
           for (const s of empSchedules) {
             if (checkShiftOverlap(s.shift, shiftStr)) {
               hasConflict = true;
@@ -322,32 +381,38 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
         }
 
         if (hasConflict) {
-          toast.error('Nhân viên này đã có lịch làm việc bị trùng lấp trong khoảng thời gian được chọn!');
+          toast.error(
+            "Nhân viên này đã có lịch làm việc bị trùng lấp trong khoảng thời gian được chọn!",
+          );
           return;
         }
 
         const promises = [];
         for (const processDate of validDates) {
           for (const tb of targetBranches) {
-            promises.push(addDoc(collection(db, 'schedules'), {
-              employeeId: empId,
-              employeeName: empName,
-              date: processDate,
-              shift: shiftStr,
-              branchId: tb.id,
-              branchName: tb.name,
-              salaryMultiplier: formData.salaryMultiplier,
-              createdBy: currentEmployeeId || userRole
-            }));
-            promises.push(addDoc(collection(db, 'notifications'), {
-              employeeId: empId,
-              title: 'Lịch làm việc mới',
-              message: `Bạn đã được phân ca làm việc mới vào ngày ${processDate}, ${shiftStr}.`,
-              type: 'SCHEDULE_ASSIGNED',
-              read: false,
-              createdAt: new Date(),
-              visibleAfter: getVisibleAfter(processDate)
-            }));
+            promises.push(
+              addDoc(collection(db, "schedules"), {
+                employeeId: empId,
+                employeeName: empName,
+                date: processDate,
+                shift: shiftStr,
+                branchId: tb.id,
+                branchName: tb.name,
+                salaryMultiplier: formData.salaryMultiplier,
+                createdBy: currentEmployeeId || userRole,
+              }),
+            );
+            promises.push(
+              addDoc(collection(db, "notifications"), {
+                employeeId: empId,
+                title: "Lịch làm việc mới",
+                message: `Bạn đã được phân ca làm việc mới vào ngày ${processDate}, ${shiftStr}.`,
+                type: "SCHEDULE_ASSIGNED",
+                read: false,
+                createdAt: new Date(),
+                visibleAfter: getVisibleAfter(processDate),
+              }),
+            );
           }
         }
         await Promise.all(promises);
@@ -357,15 +422,15 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
           for (const tb of targetBranches) {
             for (let i = 0; i < formData.slots; i++) {
               promises.push(
-                addDoc(collection(db, 'schedules'), {
+                addDoc(collection(db, "schedules"), {
                   employeeId: null,
-                  employeeName: 'Đang trống (Chưa có người)',
+                  employeeName: "Đang trống (Chưa có người)",
                   date: processDate,
                   shift: shiftStr,
                   branchId: tb.id,
                   branchName: tb.name,
                   salaryMultiplier: formData.salaryMultiplier,
-                  createdBy: currentEmployeeId || userRole
+                  createdBy: currentEmployeeId || userRole,
                 }),
               );
             }
@@ -374,41 +439,46 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
         await Promise.all(promises);
       }
 
-      toast.success('Đã tạo ca làm việc thành công!');
+      toast.success("Đã tạo ca làm việc thành công!");
       fetchData(true);
     } catch (error) {
-      toast.error('Lỗi khi phân ca!');
+      toast.error("Lỗi khi phân ca!");
     }
   };
 
   const handleDelete = async (id: string) => {
     const result = await Swal.fire({
-      title: 'Xóa ca làm việc?',
-      text: 'Bạn có chắc chắn muốn xóa ca này không?',
-      icon: 'warning',
+      title: "Xóa ca làm việc?",
+      text: "Bạn có chắc chắn muốn xóa ca này không?",
+      icon: "warning",
       showCancelButton: true,
-      confirmButtonText: 'Có, xóa đi',
-      cancelButtonText: 'Hủy'
+      confirmButtonText: "Có, xóa đi",
+      cancelButtonText: "Hủy",
     });
     if (result.isConfirmed) {
       try {
-        await deleteDoc(doc(db, 'schedules', id));
+        await deleteDoc(doc(db, "schedules", id));
         fetchData(true);
       } catch (error) {
-        toast.error('Lỗi xóa ca!');
+        toast.error("Lỗi xóa ca!");
       }
     }
   };
 
-  const handleUpdateSlot = async (scheduleId: string, newEmployeeId: string) => {
+  const handleUpdateSlot = async (
+    scheduleId: string,
+    newEmployeeId: string,
+  ) => {
     try {
-      const sch = schedules.find(s => s.id === scheduleId);
+      const sch = schedules.find((s) => s.id === scheduleId);
 
       // Tự động check-out nhân viên cũ nếu ca đang diễn ra
       if (sch && sch.employeeId && sch.employeeId !== newEmployeeId) {
-        const today = new Date().toLocaleDateString('en-CA');
+        const today = new Date().toLocaleDateString("en-CA");
         if (sch.date === today) {
-          const match = sch.shift.match(/\((\d{2}):(\d{2}) - (\d{2}):(\d{2})\)/);
+          const match = sch.shift.match(
+            /\((\d{2}):(\d{2}) - (\d{2}):(\d{2})\)/,
+          );
           if (match) {
             const startH = parseInt(match[1]);
             const startM = parseInt(match[2]);
@@ -424,9 +494,9 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
 
             if (now >= shiftStart && now <= shiftEnd) {
               const attQuery = query(
-                collection(db, 'attendance'),
-                where('employeeId', '==', sch.employeeId),
-                where('date', '==', today)
+                collection(db, "attendance"),
+                where("employeeId", "==", sch.employeeId),
+                where("date", "==", today),
               );
               const attSnap = await getDocs(attQuery);
               const promises: any[] = [];
@@ -435,104 +505,127 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
                 if (attData.checkIn && !attData.checkOut) {
                   const checkOutTime = new Date();
                   const logs = attData.logs || [];
-                  promises.push(updateDoc(doc(db, 'attendance', d.id), {
-                    checkOut: checkOutTime,
-                    logs: [...logs, { action: 'CHECK_OUT', time: checkOutTime, note: 'Bị thay thế ca làm việc' }]
-                  }));
+                  promises.push(
+                    updateDoc(doc(db, "attendance", d.id), {
+                      checkOut: checkOutTime,
+                      logs: [
+                        ...logs,
+                        {
+                          action: "CHECK_OUT",
+                          time: checkOutTime,
+                          note: "Bị thay thế ca làm việc",
+                        },
+                      ],
+                    }),
+                  );
                 }
               });
               if (promises.length > 0) {
                 await Promise.all(promises);
-                toast.success(`Đã tự động Check-out cho ${sch.employeeName} do bị thay ca!`);
+                toast.success(
+                  `Đã tự động Check-out cho ${sch.employeeName} do bị thay ca!`,
+                );
               }
             }
           }
         }
 
         // Notify old employee that they were removed from this shift
-        await addDoc(collection(db, 'notifications'), {
+        await addDoc(collection(db, "notifications"), {
           employeeId: sch.employeeId,
-          title: 'Bị hủy / thay thế ca làm',
-          message: `Ca làm việc ${sch.shift} ngày ${new Date(sch.date).toLocaleDateString('vi-VN')} của bạn đã bị quản lý thay đổi.`,
-          type: 'SCHEDULE_CANCEL',
+          title: "Bị hủy / thay thế ca làm",
+          message: `Ca làm việc ${sch.shift} ngày ${new Date(sch.date).toLocaleDateString("vi-VN")} của bạn đã bị quản lý thay đổi.`,
+          type: "SCHEDULE_CANCEL",
           read: false,
           createdAt: new Date(),
-          visibleAfter: getVisibleAfter(sch.date)
+          visibleAfter: getVisibleAfter(sch.date),
         });
       }
 
-      if (newEmployeeId === '') {
-        await updateDoc(doc(db, 'schedules', scheduleId), {
+      if (newEmployeeId === "") {
+        await updateDoc(doc(db, "schedules", scheduleId), {
           employeeId: null,
-          employeeName: null
+          employeeName: null,
         });
       } else {
-        const emp = employees.find(e => e.id === newEmployeeId);
+        const emp = employees.find((e) => e.id === newEmployeeId);
         if (emp) {
           if (sch) {
-            const empSchedules = schedules.filter(s => s.employeeId === emp.id && s.date === sch.date && s.id !== scheduleId);
-            const hasConflict = empSchedules.some(s => checkShiftOverlap(s.shift, sch.shift));
+            const empSchedules = schedules.filter(
+              (s) =>
+                s.employeeId === emp.id &&
+                s.date === sch.date &&
+                s.id !== scheduleId,
+            );
+            const hasConflict = empSchedules.some((s) =>
+              checkShiftOverlap(s.shift, sch.shift),
+            );
             if (hasConflict) {
-              toast.error('Nhân viên này đã có ca làm việc trùng giờ trong ngày!');
+              toast.error(
+                "Nhân viên này đã có ca làm việc trùng giờ trong ngày!",
+              );
               return;
             }
           }
 
-          await updateDoc(doc(db, 'schedules', scheduleId), {
+          await updateDoc(doc(db, "schedules", scheduleId), {
             employeeId: emp.id,
-            employeeName: emp.fullName
+            employeeName: emp.fullName,
           });
 
           if (sch && sch.employeeId !== emp.id) {
-            await addDoc(collection(db, 'notifications'), {
+            await addDoc(collection(db, "notifications"), {
               employeeId: emp.id,
-              title: 'Lịch làm việc mới',
-              message: `Bạn đã được quản lý phân công vào ${sch.shift} ngày ${new Date(sch.date).toLocaleDateString('vi-VN')}.`,
-              type: 'SCHEDULE_ASSIGNED',
+              title: "Lịch làm việc mới",
+              message: `Bạn đã được quản lý phân công vào ${sch.shift} ngày ${new Date(sch.date).toLocaleDateString("vi-VN")}.`,
+              type: "SCHEDULE_ASSIGNED",
               read: false,
               createdAt: new Date(),
-              visibleAfter: getVisibleAfter(sch.date)
+              visibleAfter: getVisibleAfter(sch.date),
             });
           }
         }
       }
-      toast.success('Đã cập nhật ca làm việc!');
+      toast.success("Đã cập nhật ca làm việc!");
       setEditingSlot(null);
       fetchData(true);
     } catch (error) {
-      toast.error('Lỗi khi cập nhật ca!');
+      toast.error("Lỗi khi cập nhật ca!");
     }
   };
-
 
   const handleDeleteShiftBlock = async (shiftsInSlot: any[]) => {
     if (shiftsInSlot.length === 0) return;
     const result = await Swal.fire({
-      title: 'Xóa toàn bộ ca này?',
+      title: "Xóa toàn bộ ca này?",
       text: `Bạn chuẩn bị xóa ${shiftsInSlot.length} vị trí trong ca này. Hành động này không thể hoàn tác!`,
-      icon: 'warning',
+      icon: "warning",
       showCancelButton: true,
-      confirmButtonText: 'Có, xóa tất cả',
-      cancelButtonText: 'Hủy'
+      confirmButtonText: "Có, xóa tất cả",
+      cancelButtonText: "Hủy",
     });
 
     if (result.isConfirmed) {
       try {
-        const promises = shiftsInSlot.map(s => deleteDoc(doc(db, 'schedules', s.id)));
+        const promises = shiftsInSlot.map((s) =>
+          deleteDoc(doc(db, "schedules", s.id)),
+        );
         await Promise.all(promises);
         toast.success(`Đã xóa thành công ${shiftsInSlot.length} vị trí!`);
         fetchData(true);
       } catch (error) {
-        toast.error('Lỗi khi xóa ca!');
+        toast.error("Lỗi khi xóa ca!");
       }
     }
   };
 
   const handleOpenEditBlock = (shiftsInSlot: any[]) => {
     if (shiftsInSlot.length === 0) return;
-    const match = shiftsInSlot[0].shift.match(/\((\d{2}:\d{2}) - (\d{2}:\d{2})\)/);
-    const start = match ? match[1] : '08:00';
-    const end = match ? match[2] : '12:00';
+    const match = shiftsInSlot[0].shift.match(
+      /\((\d{2}:\d{2}) - (\d{2}:\d{2})\)/,
+    );
+    const start = match ? match[1] : "08:00";
+    const end = match ? match[2] : "12:00";
 
     setEditBlockModal({
       isOpen: true,
@@ -540,13 +633,19 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
       newStartTime: start,
       newEndTime: end,
       newSlots: shiftsInSlot.length,
-      newSalaryMultiplier: shiftsInSlot[0].salaryMultiplier || 1
+      newSalaryMultiplier: shiftsInSlot[0].salaryMultiplier || 1,
     });
   };
 
   const handleSaveEditBlock = async () => {
     try {
-      const { shiftsInSlot, newSlots, newStartTime, newEndTime, newSalaryMultiplier } = editBlockModal;
+      const {
+        shiftsInSlot,
+        newSlots,
+        newStartTime,
+        newEndTime,
+        newSalaryMultiplier,
+      } = editBlockModal;
       const newShift = generateShiftName(newStartTime, newEndTime);
       const currentLength = shiftsInSlot.length;
       const date = shiftsInSlot[0].date;
@@ -557,23 +656,33 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
 
       // Update existing slots to new shift
       for (let i = 0; i < Math.min(currentLength, newSlots); i++) {
-        if (shiftsInSlot[i].shift !== newShift || shiftsInSlot[i].salaryMultiplier !== newSalaryMultiplier) {
-          promises.push(updateDoc(doc(db, 'schedules', shiftsInSlot[i].id), { shift: newShift, salaryMultiplier: newSalaryMultiplier }));
+        if (
+          shiftsInSlot[i].shift !== newShift ||
+          shiftsInSlot[i].salaryMultiplier !== newSalaryMultiplier
+        ) {
+          promises.push(
+            updateDoc(doc(db, "schedules", shiftsInSlot[i].id), {
+              shift: newShift,
+              salaryMultiplier: newSalaryMultiplier,
+            }),
+          );
         }
       }
 
       // Add new slots if needed
       if (newSlots > currentLength) {
         for (let i = 0; i < newSlots - currentLength; i++) {
-          promises.push(addDoc(collection(db, 'schedules'), {
-            employeeId: null,
-            employeeName: 'Đang trống (Chưa có người)',
-            date: date,
-            shift: newShift,
-            salaryMultiplier: newSalaryMultiplier,
-            branchId: baseBranchId,
-            branchName: baseBranchName
-          }));
+          promises.push(
+            addDoc(collection(db, "schedules"), {
+              employeeId: null,
+              employeeName: "Đang trống (Chưa có người)",
+              date: date,
+              shift: newShift,
+              salaryMultiplier: newSalaryMultiplier,
+              branchId: baseBranchId,
+              branchName: baseBranchName,
+            }),
+          );
         }
       }
 
@@ -586,31 +695,34 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
           return 0;
         });
         for (let i = 0; i < slotsToDelete; i++) {
-          promises.push(deleteDoc(doc(db, 'schedules', sortedShifts[i].id)));
+          promises.push(deleteDoc(doc(db, "schedules", sortedShifts[i].id)));
         }
       }
 
       await Promise.all(promises);
-      toast.success('Đã cập nhật cấu trúc ca làm việc!');
+      toast.success("Đã cập nhật cấu trúc ca làm việc!");
       setEditBlockModal({ ...editBlockModal, isOpen: false });
       fetchData(true);
     } catch (error) {
-      toast.error('Lỗi khi cập nhật ca làm việc!');
+      toast.error("Lỗi khi cập nhật ca làm việc!");
     }
   };
 
   const handleRegisterShift = async (scheduleId: string) => {
     if (!currentEmployeeId || !myInfo) {
-      toast.error('Lỗi: Không tìm thấy hồ sơ nhân viên của bạn!');
+      toast.error("Lỗi: Không tìm thấy hồ sơ nhân viên của bạn!");
       return;
     }
 
     try {
-      const targetShift = schedules.find(s => s.id === scheduleId);
+      const targetShift = schedules.find((s) => s.id === scheduleId);
       if (!targetShift) return;
 
       // Check overlap
-      const myShiftsToday = schedules.filter(s => s.date === targetShift.date && s.employeeId === currentEmployeeId);
+      const myShiftsToday = schedules.filter(
+        (s) =>
+          s.date === targetShift.date && s.employeeId === currentEmployeeId,
+      );
 
       const parseShiftTime = (shiftStr: string) => {
         const match = shiftStr.match(/\((\d{2}):\d{2} - (\d{2}):\d{2}\)/);
@@ -622,73 +734,76 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
       };
 
       const targetTime = parseShiftTime(targetShift.shift);
-      const isOverlapping = myShiftsToday.some(myShift => {
+      const isOverlapping = myShiftsToday.some((myShift) => {
         const myTime = parseShiftTime(myShift.shift);
-        return Math.max(targetTime.start, myTime.start) < Math.min(targetTime.end, myTime.end);
+        return (
+          Math.max(targetTime.start, myTime.start) <
+          Math.min(targetTime.end, myTime.end)
+        );
       });
 
       if (isOverlapping) {
-        toast.error('Bạn đã có ca làm việc khác trùng giờ trong ngày này!');
+        toast.error("Bạn đã có ca làm việc khác trùng giờ trong ngày này!");
         return;
       }
 
-      await updateDoc(doc(db, 'schedules', scheduleId), {
+      await updateDoc(doc(db, "schedules", scheduleId), {
         employeeId: myInfo.id,
-        employeeName: myInfo.fullName
+        employeeName: myInfo.fullName,
       });
 
-      const sch = schedules.find(s => s.id === scheduleId);
+      const sch = schedules.find((s) => s.id === scheduleId);
       if (sch) {
-        await addDoc(collection(db, 'notifications'), {
+        await addDoc(collection(db, "notifications"), {
           employeeId: currentEmployeeId,
-          title: 'Đăng ký ca thành công',
-          message: `Bạn đã đăng ký thành công ${sch.shift} ngày ${new Date(sch.date).toLocaleDateString('vi-VN')}.`,
-          type: 'SCHEDULE_REGISTER',
+          title: "Đăng ký ca thành công",
+          message: `Bạn đã đăng ký thành công ${sch.shift} ngày ${new Date(sch.date).toLocaleDateString("vi-VN")}.`,
+          type: "SCHEDULE_REGISTER",
           read: false,
-          createdAt: new Date()
+          createdAt: new Date(),
         });
       }
 
-      toast.success('Đăng ký ca làm thành công!');
+      toast.success("Đăng ký ca làm thành công!");
       fetchData(true);
     } catch (error) {
-      toast.error('Lỗi khi đăng ký ca!');
+      toast.error("Lỗi khi đăng ký ca!");
     }
   };
 
   const handleCancelShift = async (scheduleId: string) => {
     const result = await Swal.fire({
-      title: 'Hủy đăng ký ca?',
-      text: 'Bạn có chắc chắn muốn hủy đăng ký ca làm việc này?',
-      icon: 'question',
+      title: "Hủy đăng ký ca?",
+      text: "Bạn có chắc chắn muốn hủy đăng ký ca làm việc này?",
+      icon: "question",
       showCancelButton: true,
-      confirmButtonText: 'Có, hủy',
-      cancelButtonText: 'Không'
+      confirmButtonText: "Có, hủy",
+      cancelButtonText: "Không",
     });
 
     if (result.isConfirmed) {
       try {
-        await updateDoc(doc(db, 'schedules', scheduleId), {
+        await updateDoc(doc(db, "schedules", scheduleId), {
           employeeId: null,
-          employeeName: 'Đang trống (Chưa có người)'
+          employeeName: "Đang trống (Chưa có người)",
         });
 
-        const sch = schedules.find(s => s.id === scheduleId);
+        const sch = schedules.find((s) => s.id === scheduleId);
         if (sch) {
-          await addDoc(collection(db, 'notifications'), {
+          await addDoc(collection(db, "notifications"), {
             employeeId: currentEmployeeId,
-            title: 'Hủy đăng ký ca',
-            message: `Bạn đã hủy đăng ký ${sch.shift} ngày ${new Date(sch.date).toLocaleDateString('vi-VN')}.`,
-            type: 'SCHEDULE_CANCEL',
+            title: "Hủy đăng ký ca",
+            message: `Bạn đã hủy đăng ký ${sch.shift} ngày ${new Date(sch.date).toLocaleDateString("vi-VN")}.`,
+            type: "SCHEDULE_CANCEL",
             read: false,
-            createdAt: new Date()
+            createdAt: new Date(),
           });
         }
 
-        toast.success('Đã hủy đăng ký ca!');
+        toast.success("Đã hủy đăng ký ca!");
         fetchData(true);
       } catch (error) {
-        toast.error('Lỗi khi hủy ca!');
+        toast.error("Lỗi khi hủy ca!");
       }
     }
   };
@@ -702,15 +817,19 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
       const newPreviewTimes = { ...previewTimes };
 
       if (!localDeadline) {
-        toast.error('Vui lòng chọn thời gian hạn chót!');
+        toast.error("Vui lòng chọn thời gian hạn chót!");
         return;
       }
       if (localOpenTime && new Date(localOpenTime) >= new Date(localDeadline)) {
-        toast.error('Thời gian mở đăng ký phải trước hạn chót!');
+        toast.error("Thời gian mở đăng ký phải trước hạn chót!");
         return;
       }
-      if (localPreviewTime && localOpenTime && new Date(localPreviewTime) >= new Date(localOpenTime)) {
-        toast.error('Thời gian xem trước phải trước thời gian mở đăng ký!');
+      if (
+        localPreviewTime &&
+        localOpenTime &&
+        new Date(localPreviewTime) >= new Date(localOpenTime)
+      ) {
+        toast.error("Thời gian xem trước phải trước thời gian mở đăng ký!");
         return;
       }
 
@@ -721,13 +840,21 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
       if (localPreviewTime) newPreviewTimes[monday] = localPreviewTime;
       else delete newPreviewTimes[monday];
 
-      await setDoc(doc(db, 'settings', 'general'), { deadlines: newDeadlines, openTimes: newOpenTimes, previewTimes: newPreviewTimes }, { merge: true });
+      await setDoc(
+        doc(db, "settings", "general"),
+        {
+          deadlines: newDeadlines,
+          openTimes: newOpenTimes,
+          previewTimes: newPreviewTimes,
+        },
+        { merge: true },
+      );
       setDeadlines(newDeadlines);
       setOpenTimes(newOpenTimes);
       setPreviewTimes(newPreviewTimes);
-      toast.success('Đã cập nhật thời gian đăng ký cho tuần này!');
+      toast.success("Đã cập nhật thời gian đăng ký cho tuần này!");
     } catch (error) {
-      toast.error('Lỗi khi lưu thời gian!');
+      toast.error("Lỗi khi lưu thời gian!");
     }
   };
 
@@ -742,33 +869,48 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
       delete newOpenTimes[monday];
       delete newPreviewTimes[monday];
 
-      await setDoc(doc(db, 'settings', 'general'), { deadlines: newDeadlines, openTimes: newOpenTimes, previewTimes: newPreviewTimes }, { merge: true });
+      await setDoc(
+        doc(db, "settings", "general"),
+        {
+          deadlines: newDeadlines,
+          openTimes: newOpenTimes,
+          previewTimes: newPreviewTimes,
+        },
+        { merge: true },
+      );
       setDeadlines(newDeadlines);
       setOpenTimes(newOpenTimes);
       setPreviewTimes(newPreviewTimes);
-      setLocalDeadline('');
-      setLocalOpenTime('');
-      setLocalPreviewTime('');
-      toast.success('Đã mở khóa ca làm việc tuần này!');
+      setLocalDeadline("");
+      setLocalOpenTime("");
+      setLocalPreviewTime("");
+      toast.success("Đã mở khóa ca làm việc tuần này!");
     } catch (error) {
-      toast.error('Lỗi khi mở khóa!');
+      toast.error("Lỗi khi mở khóa!");
     }
   };
 
   const getWeekDates = () => {
     const curr = new Date();
     const dayOfWeek = curr.getDay() === 0 ? 7 : curr.getDay(); // CN là 7
-    const firstDay = curr.getDate() - dayOfWeek + 1 + (weekOffset * 7);
+    const firstDay = curr.getDate() - dayOfWeek + 1 + weekOffset * 7;
 
     const dates = [];
     for (let i = 0; i < 7; i++) {
-      const nextDate = new Date(curr.getFullYear(), curr.getMonth(), firstDay + i);
+      const nextDate = new Date(
+        curr.getFullYear(),
+        curr.getMonth(),
+        firstDay + i,
+      );
       // Format YYYY-MM-DD local time
-      const dateStr = nextDate.toLocaleDateString('en-CA');
+      const dateStr = nextDate.toLocaleDateString("en-CA");
       dates.push({
         dateStr,
-        dayName: i === 6 ? 'CN' : `Thứ ${i + 2}`,
-        displayDate: nextDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
+        dayName: i === 6 ? "CN" : `Thứ ${i + 2}`,
+        displayDate: nextDate.toLocaleDateString("vi-VN", {
+          day: "2-digit",
+          month: "2-digit",
+        }),
       });
     }
     return dates;
@@ -776,19 +918,25 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
 
   const weekDates = getWeekDates();
   const weekDatesStr = weekDates.map((d: any) => d.dateStr);
+  const currentWeekOpenTime = openTimes[weekDatesStr[0]];
+  const currentWeekDeadline = deadlines[weekDatesStr[0]];
+  const formatDateTimeVi = (value?: string) => {
+    if (!value) return "";
+    return new Date(value).toLocaleString("vi-VN");
+  };
 
   useEffect(() => {
     const monday = weekDatesStr[0];
-    setLocalDeadline(deadlines[monday] || '');
-    setLocalOpenTime(openTimes[monday] || '');
-    setLocalPreviewTime(previewTimes[monday] || '');
+    setLocalDeadline(deadlines[monday] || "");
+    setLocalOpenTime(openTimes[monday] || "");
+    setLocalPreviewTime(previewTimes[monday] || "");
   }, [weekOffset, deadlines, openTimes, previewTimes]);
 
   useEffect(() => {
     const monday = weekDatesStr[0];
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      date: weekOffset === 0 ? new Date().toLocaleDateString('en-CA') : monday
+      date: weekOffset === 0 ? new Date().toLocaleDateString("en-CA") : monday,
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekOffset]);
@@ -796,11 +944,13 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
   let START_HOUR = 8;
   let END_HOUR = 12;
 
-  const currentWeekShifts = schedules.filter(s => weekDatesStr.includes(s.date));
+  const currentWeekShifts = schedules.filter((s) =>
+    weekDatesStr.includes(s.date),
+  );
   if (currentWeekShifts.length > 0) {
     let minH = 24;
     let maxH = 0;
-    currentWeekShifts.forEach(s => {
+    currentWeekShifts.forEach((s) => {
       const match = s.shift.match(/\((\d{2}):\d{2} - (\d{2}):\d{2}\)/);
       if (match) {
         const startH = parseInt(match[1]);
@@ -816,7 +966,10 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
   }
 
   const HOUR_HEIGHT = 60; // 60px
-  const hoursList = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
+  const hoursList = Array.from(
+    { length: END_HOUR - START_HOUR + 1 },
+    (_, i) => START_HOUR + i,
+  );
 
   const getEventStyle = (shiftStr: string) => {
     const match = shiftStr.match(/\((\d{2}):\d{2} - (\d{2}):\d{2}\)/);
@@ -826,7 +979,7 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
     let endH = parseInt(match[2]);
     if (endH <= startH) endH += 24;
 
-    const top = Math.max(0, (startH - START_HOUR)) * HOUR_HEIGHT;
+    const top = Math.max(0, startH - START_HOUR) * HOUR_HEIGHT;
     const height = (endH - startH) * HOUR_HEIGHT;
     return { top: `${top}px`, height: `${height}px` };
   };
@@ -837,8 +990,8 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
   };
 
   const getShiftName = (shiftStr: string) => {
-    const name = shiftStr.split(' (')[0];
-    return name.toLowerCase().includes('ca') ? name : `Ca ${name}`;
+    const name = shiftStr.split(" (")[0];
+    return name.toLowerCase().includes("ca") ? name : `Ca ${name}`;
   };
 
   const checkIsPastShift = (dateStr: string, shiftStr: string) => {
@@ -871,17 +1024,33 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
   };
 
   const renderEmployeeSlot = (shiftsInSlot: any[]) => {
-    const isPast = shiftsInSlot.length > 0 && checkIsPastShift(shiftsInSlot[0].date, shiftsInSlot[0].shift);
-    const openTimeStr = shiftsInSlot.length > 0 && weekDatesStr.length > 0 ? openTimes[weekDatesStr[0]] : undefined;
-    const isBeforeOpen = openTimeStr && new Date() < new Date(openTimeStr);
+    const isPast =
+      shiftsInSlot.length > 0 &&
+      checkIsPastShift(shiftsInSlot[0].date, shiftsInSlot[0].shift);
+    const openTimeStr =
+      shiftsInSlot.length > 0 && weekDatesStr.length > 0
+        ? openTimes[weekDatesStr[0]]
+        : undefined;
+    const isBeforeOpen =
+      openTimeStr && currentTime.getTime() < new Date(openTimeStr).getTime();
 
-    const myShift = shiftsInSlot.find(s => s.employeeId === currentEmployeeId);
+    const myShift = shiftsInSlot.find(
+      (s) => s.employeeId === currentEmployeeId,
+    );
 
     if (isPast) {
       if (myShift) {
-        return <div className="bg-gray-200 text-gray-600 font-bold p-1 rounded text-center text-[10px] border border-gray-300 mt-1">Đã tham gia</div>;
+        return (
+          <div className="bg-gray-200 text-gray-600 font-bold p-1 rounded text-center text-[10px] border border-gray-300 mt-1">
+            Đã tham gia
+          </div>
+        );
       }
-      return <div className="bg-gray-100 text-gray-400 p-1 rounded text-center text-[10px] border border-gray-200 mt-1">Đã qua</div>;
+      return (
+        <div className="bg-gray-100 text-gray-400 p-1 rounded text-center text-[10px] border border-gray-200 mt-1">
+          Đã qua
+        </div>
+      );
     }
 
     if (myShift) {
@@ -893,54 +1062,84 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
           }}
           className="w-full bg-blue-50 hover:bg-red-50 text-blue-700 hover:text-red-600 p-1 rounded border border-blue-200 hover:border-red-200 text-center mt-1 transition-colors group flex flex-col items-center justify-center cursor-pointer"
         >
-          <span className="text-[10px] font-bold group-hover:hidden">Ca của bạn</span>
-          <span className="text-[10px] font-bold hidden group-hover:block">Hủy đăng ký</span>
+          <span className="text-[10px] font-bold group-hover:hidden">
+            Ca của bạn
+          </span>
+          <span className="text-[10px] font-bold hidden group-hover:block">
+            Hủy đăng ký
+          </span>
         </button>
       );
     }
 
-    const openShifts = shiftsInSlot.filter(s => s.employeeId === null);
+    const openShifts = shiftsInSlot.filter((s) => s.employeeId === null);
     if (openShifts.length > 0) {
-      const isCreatedByMe = userRole === 'BRANCH_ADMIN' && openShifts[0].createdBy === (currentEmployeeId || userRole);
+      const isCreatedByMe =
+        userRole === "BRANCH_ADMIN" &&
+        openShifts[0].createdBy === (currentEmployeeId || userRole);
       return (
         <button
           onClick={(e) => {
             e.stopPropagation();
             if (isBeforeOpen) {
-              toast.error(`Chưa tới giờ đăng ký! Mở lúc: ${new Date(openTimeStr as string).toLocaleString('vi-VN')}`);
+              toast.error(
+                `Chưa tới giờ đăng ký! Mở lúc: ${new Date(openTimeStr as string).toLocaleString("vi-VN")}`,
+              );
               return;
             }
             if (isCreatedByMe) {
-              toast.error('Quản lý không thể tự đăng ký ca do chính mình tạo.');
+              toast.error("Quản lý không thể tự đăng ký ca do chính mình tạo.");
               return;
             }
             handleRegisterShift(openShifts[0].id);
           }}
           className={`w-full p-1 rounded text-center font-bold border transition-colors flex flex-col items-center justify-center mt-1 
-            ${isBeforeOpen ? 'bg-gray-100 text-gray-500 border-gray-300 opacity-70 cursor-not-allowed' :
-              isCreatedByMe ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-70' :
-                'bg-green-50 hover:bg-green-100 text-green-700 border-green-200'}`}
-          title={isBeforeOpen ? `Mở đăng ký lúc: ${new Date(openTimeStr as string).toLocaleString('vi-VN')}` : isCreatedByMe ? 'Quản lý không thể tự đăng ký ca do chính mình tạo' : ''}
+            ${
+              isBeforeOpen
+                ? "bg-gray-100 text-gray-500 border-gray-300 opacity-70 cursor-not-allowed"
+                : isCreatedByMe
+                  ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-70"
+                  : "bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+            }`}
+          title={
+            isBeforeOpen
+              ? `Mở đăng ký lúc: ${new Date(openTimeStr as string).toLocaleString("vi-VN")}`
+              : isCreatedByMe
+                ? "Quản lý không thể tự đăng ký ca do chính mình tạo"
+                : ""
+          }
         >
-          <span className="text-[10px]">{isBeforeOpen ? 'Chưa mở ĐK' : 'Đăng ký'}</span>
-          <span className="text-[9px] font-normal opacity-80">(Còn {openShifts.length}/{shiftsInSlot.length} chỗ)</span>
+          <span className="text-[10px]">
+            {isBeforeOpen ? "Chưa mở ĐK" : "Đăng ký"}
+          </span>
+          <span className="text-[9px] font-normal opacity-80">
+            (Còn {openShifts.length}/{shiftsInSlot.length} chỗ)
+          </span>
         </button>
       );
     }
 
-    return <div className="bg-gray-100 text-gray-500 p-1 rounded text-center text-[10px] border border-gray-200 mt-1">Đã kín chỗ</div>;
+    return (
+      <div className="bg-gray-100 text-gray-500 p-1 rounded text-center text-[10px] border border-gray-200 mt-1">
+        Đã kín chỗ
+      </div>
+    );
   };
 
   const renderAdminSlot = (shiftsInSlot: any[]) => {
     return (
       <div className="space-y-1 mt-1">
-        {shiftsInSlot.map(sch => {
+        {shiftsInSlot.map((sch) => {
           if (editingSlot === sch.id) {
             return (
-              <div key={sch.id} className="p-1 rounded flex flex-col gap-1 border bg-white border-blue-300 shadow-sm relative z-50" onClick={e => e.stopPropagation()}>
+              <div
+                key={sch.id}
+                className="p-1 rounded flex flex-col gap-1 border bg-white border-blue-300 shadow-sm relative z-50"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <select
                   className="text-[10px] w-full p-1 border rounded outline-none focus:ring-1 focus:ring-blue-500"
-                  defaultValue={sch.employeeId || ''}
+                  defaultValue={sch.employeeId || ""}
                   onChange={(e) => handleUpdateSlot(sch.id, e.target.value)}
                   autoFocus
                   onBlur={() => setEditingSlot(null)}
@@ -948,18 +1147,26 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
                   <option value="">-- Ca trống --</option>
                   {Object.entries(
                     employees
-                      .filter(emp => userRole !== 'SUPER_ADMIN' || viewBranchId === 'ALL' || emp.branchId === viewBranchId)
-                      .reduce((acc, emp) => {
-                        const pos = emp.position || 'Nhân viên';
-                        if (!acc[pos]) acc[pos] = [];
-                        acc[pos].push(emp);
-                        return acc;
-                      }, {} as Record<string, Employee[]>)
+                      .filter(
+                        (emp) =>
+                          userRole !== "SUPER_ADMIN" ||
+                          viewBranchId === "ALL" ||
+                          emp.branchId === viewBranchId,
+                      )
+                      .reduce(
+                        (acc, emp) => {
+                          const pos = emp.position || "Nhân viên";
+                          if (!acc[pos]) acc[pos] = [];
+                          acc[pos].push(emp);
+                          return acc;
+                        },
+                        {} as Record<string, Employee[]>,
+                      ),
                   ).map(([position, emps]) => (
                     <optgroup key={position} label={position}>
-                      {emps.map(e => (
+                      {emps.map((e) => (
                         <option key={e.id} value={e.id}>
-                          [{e.employeeCode || 'No ID'}] {e.fullName}
+                          [{e.employeeCode || "No ID"}] {e.fullName}
                         </option>
                       ))}
                     </optgroup>
@@ -972,9 +1179,9 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
           const isLocked = checkIsPastShiftForAdmin(sch.date, sch.shift);
 
           return (
-            <div 
-              key={sch.id} 
-              className={`p-1 rounded text-[10px] flex justify-between items-center border cursor-pointer hover:opacity-80 transition-opacity ${sch.employeeId ? 'bg-blue-50 border-blue-200 text-blue-800' : 'bg-orange-50 border-orange-200 text-orange-800'}`}
+            <div
+              key={sch.id}
+              className={`p-1 rounded text-[10px] flex justify-between items-center border cursor-pointer hover:opacity-80 transition-opacity ${sch.employeeId ? "bg-blue-50 border-blue-200 text-blue-800" : "bg-orange-50 border-orange-200 text-orange-800"}`}
               onClick={(e) => {
                 e.stopPropagation();
                 if (!isLocked) setEditingSlot(sch.id);
@@ -982,19 +1189,27 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
               title={!isLocked ? "Nhấn để gán/đổi nhân viên" : "Ca đã khóa"}
             >
               <span className="truncate mr-1 font-medium">
-                {sch.employeeId ? sch.employeeName : `Ca trống${viewBranchId === 'ALL' && sch.branchName ? ` (${sch.branchName})` : ''}`}
+                {sch.employeeId
+                  ? sch.employeeName
+                  : `Ca trống${viewBranchId === "ALL" && sch.branchName ? ` (${sch.branchName})` : ""}`}
               </span>
               {!isLocked ? (
                 <div className="flex gap-1 flex-shrink-0">
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); setEditingSlot(sch.id); }} 
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingSlot(sch.id);
+                    }}
                     className="text-gray-400 hover:text-blue-600"
                     title="Gán/đổi nhân viên"
                   >
                     <Edit2 size={12} />
                   </button>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); handleDelete(sch.id); }} 
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(sch.id);
+                    }}
                     className="text-red-500 hover:text-red-700"
                     title="Xóa ca này"
                   >
@@ -1002,7 +1217,9 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
                   </button>
                 </div>
               ) : (
-                <span className="text-gray-400 text-[9px] italic flex-shrink-0">Đã khóa</span>
+                <span className="text-gray-400 text-[9px] italic flex-shrink-0">
+                  Đã khóa
+                </span>
               )}
             </div>
           );
@@ -1011,14 +1228,13 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
     );
   };
 
-
-
   return (
     <div className="space-y-6">
-      {userRole === 'SUPER_ADMIN' && (
+      {userRole === "SUPER_ADMIN" && (
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex justify-between items-center mb-6">
           <h2 className="text-lg font-bold text-gray-800 flex items-center">
-            <CalendarDays className="mr-2 text-blue-600" size={20} /> Cơ sở đang quản lý:
+            <CalendarDays className="mr-2 text-blue-600" size={20} /> Cơ sở đang
+            quản lý:
           </h2>
           <select
             value={viewBranchId}
@@ -1026,158 +1242,234 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
             className="w-64 px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 font-medium text-gray-700"
           >
             <option value="ALL">Tất cả cơ sở</option>
-            {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
           </select>
         </div>
       )}
 
       {/* ---------------- ADMIN VIEW: XẾP LỊCH ---------------- */}
-      {(userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') && mode === 'CREATE' && (
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-6">
-          <div className="flex-1">
-            <h2 className="text-xl font-bold text-gray-800 flex items-center mb-4">
-              <CalendarDays className="mr-2 text-blue-600" /> Quản lý Ca làm việc
-            </h2>
-            <form onSubmit={handleAddSchedule} className="space-y-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                <div className="md:col-span-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nhân viên nhận ca</label>
-                  <select
-                    value={formData.employeeId}
-                    onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none"
-                  >
-                    <option value="">-- Tạo Ca Trống (Cho NV tự đăng ký) --</option>
-                    {Object.entries(
-                      employees
-                        .filter(emp => userRole !== 'SUPER_ADMIN' || viewBranchId === 'ALL' || emp.branchId === viewBranchId)
-                        .reduce((acc, emp) => {
-                          const pos = emp.position || 'Nhân viên';
-                          if (!acc[pos]) acc[pos] = [];
-                          acc[pos].push(emp);
-                          return acc;
-                        }, {} as Record<string, Employee[]>)
-                    ).map(([position, emps]) => (
-                      <optgroup key={position} label={position}>
-                        {emps.map(e => (
-                          <option key={e.id} value={e.id}>
-                            [{e.employeeCode || 'No ID'}] {e.fullName} ({e.branchName})
-                          </option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
-                </div>
-
-                {formData.employeeId === '' && (
+      {(userRole === "SUPER_ADMIN" || userRole === "BRANCH_ADMIN") &&
+        mode === "CREATE" && (
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-6">
+            <div className="flex-1">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center mb-4">
+                <CalendarDays className="mr-2 text-blue-600" /> Quản lý Ca làm
+                việc
+              </h2>
+              <form
+                onSubmit={handleAddSchedule}
+                className="space-y-4 bg-gray-50 p-4 rounded-lg border border-gray-200"
+              >
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                   <div className="md:col-span-1">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Số lượng người cần (Slots)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Nhân viên nhận ca
+                    </label>
+                    <select
+                      value={formData.employeeId}
+                      onChange={(e) =>
+                        setFormData({ ...formData, employeeId: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none"
+                    >
+                      <option value="">
+                        -- Tạo Ca Trống (Cho NV tự đăng ký) --
+                      </option>
+                      {Object.entries(
+                        employees
+                          .filter(
+                            (emp) =>
+                              userRole !== "SUPER_ADMIN" ||
+                              viewBranchId === "ALL" ||
+                              emp.branchId === viewBranchId,
+                          )
+                          .reduce(
+                            (acc, emp) => {
+                              const pos = emp.position || "Nhân viên";
+                              if (!acc[pos]) acc[pos] = [];
+                              acc[pos].push(emp);
+                              return acc;
+                            },
+                            {} as Record<string, Employee[]>,
+                          ),
+                      ).map(([position, emps]) => (
+                        <optgroup key={position} label={position}>
+                          {emps.map((e) => (
+                            <option key={e.id} value={e.id}>
+                              [{e.employeeCode || "No ID"}] {e.fullName} (
+                              {e.branchName})
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </div>
+
+                  {formData.employeeId === "" && (
+                    <div className="md:col-span-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Số lượng người cần (Slots)
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        max="20"
+                        value={formData.slots}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            slots: parseInt(e.target.value),
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none"
+                      />
+                    </div>
+                  )}
+
+                  <div className="md:col-span-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Ngày làm việc
+                    </label>
                     <input
-                      type="number" required min="1" max="20"
-                      value={formData.slots}
-                      onChange={(e) => setFormData({ ...formData, slots: parseInt(e.target.value) })}
+                      type="date"
+                      required
+                      value={formData.date}
+                      onChange={(e) =>
+                        setFormData({ ...formData, date: e.target.value })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none"
                     />
                   </div>
-                )}
 
-                <div className="md:col-span-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Ngày làm việc</label>
-                  <input
-                    type="date" required
-                    value={formData.date}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none"
-                  />
-                </div>
+                  <div className="md:col-span-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Thời gian (Từ - Đến)
+                    </label>
+                    <div className="flex items-center space-x-2">
+                      <TimeInput24
+                        value={formData.startTime}
+                        onChange={(val) =>
+                          setFormData({ ...formData, startTime: val })
+                        }
+                        className="w-full px-2 py-2 border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-blue-500 bg-white"
+                      />
+                      <span>-</span>
+                      <TimeInput24
+                        value={formData.endTime}
+                        onChange={(val) =>
+                          setFormData({ ...formData, endTime: val })
+                        }
+                        className="w-full px-2 py-2 border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-blue-500 bg-white"
+                      />
+                    </div>
+                  </div>
 
-                <div className="md:col-span-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Thời gian (Từ - Đến)</label>
-                  <div className="flex items-center space-x-2">
-                    <TimeInput24
-                      value={formData.startTime}
-                      onChange={(val) => setFormData({ ...formData, startTime: val })}
-                      className="w-full px-2 py-2 border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-blue-500 bg-white"
-                    />
-                    <span>-</span>
-                    <TimeInput24
-                      value={formData.endTime}
-                      onChange={(val) => setFormData({ ...formData, endTime: val })}
-                      className="w-full px-2 py-2 border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-blue-500 bg-white"
+                  <div className="md:col-span-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Hệ số lương (Tùy chọn)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="1"
+                      max="10"
+                      value={formData.salaryMultiplier}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          salaryMultiplier: parseFloat(e.target.value) || 1,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none bg-yellow-50 focus:border-yellow-500 focus:ring-yellow-500 font-semibold text-yellow-700"
                     />
                   </div>
                 </div>
+                <div className="md:col-span-2 flex items-center h-full pt-6 space-x-4">
+                  <button
+                    type="submit"
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center flex-1 justify-center"
+                  >
+                    <Plus size={18} className="mr-2" /> Phân ca / Thêm ca trống
+                  </button>
+                  <label className="flex items-center space-x-2 cursor-pointer bg-white border border-gray-200 px-3 py-2 rounded-lg shadow-sm">
+                    <input
+                      type="checkbox"
+                      checked={applyWholeWeek}
+                      onChange={(e) => setApplyWholeWeek(e.target.checked)}
+                      className="w-4 h-4 text-blue-600 rounded"
+                    />
+                    <span className="text-sm font-medium text-gray-700">
+                      Áp dụng cả tuần
+                    </span>
+                  </label>
+                </div>
+              </form>
 
-                <div className="md:col-span-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Hệ số lương (Tùy chọn)</label>
+              <form
+                onSubmit={handleSaveDeadline}
+                className="mt-4 flex items-end space-x-4 bg-yellow-50 p-4 rounded-lg border border-yellow-200"
+              >
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-yellow-800 mb-1">
+                    Thời gian xem trước (Tùy chọn)
+                  </label>
                   <input
-                    type="number" step="0.1" min="1" max="10"
-                    value={formData.salaryMultiplier}
-                    onChange={(e) => setFormData({ ...formData, salaryMultiplier: parseFloat(e.target.value) || 1 })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none bg-yellow-50 focus:border-yellow-500 focus:ring-yellow-500 font-semibold text-yellow-700"
+                    type="datetime-local"
+                    value={localPreviewTime}
+                    onChange={(e) => setLocalPreviewTime(e.target.value)}
+                    className="w-full px-3 py-2 border border-yellow-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
+                    disabled={!!deadlines[weekDatesStr[0]]}
                   />
                 </div>
-              </div>
-              <div className="md:col-span-2 flex items-center h-full pt-6 space-x-4">
-                <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center flex-1 justify-center">
-                  <Plus size={18} className="mr-2" /> Phân ca / Thêm ca trống
-                </button>
-                <label className="flex items-center space-x-2 cursor-pointer bg-white border border-gray-200 px-3 py-2 rounded-lg shadow-sm">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-yellow-800 mb-1">
+                    Thời gian mở đăng ký (Tùy chọn)
+                  </label>
                   <input
-                    type="checkbox"
-                    checked={applyWholeWeek}
-                    onChange={(e) => setApplyWholeWeek(e.target.checked)}
-                    className="w-4 h-4 text-blue-600 rounded"
+                    type="datetime-local"
+                    value={localOpenTime}
+                    onChange={(e) => setLocalOpenTime(e.target.value)}
+                    className="w-full px-3 py-2 border border-yellow-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
+                    disabled={!!deadlines[weekDatesStr[0]]}
                   />
-                  <span className="text-sm font-medium text-gray-700">Áp dụng cả tuần</span>
-                </label>
-              </div>
-            </form>
-
-            <form onSubmit={handleSaveDeadline} className="mt-4 flex items-end space-x-4 bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-yellow-800 mb-1">Thời gian xem trước (Tùy chọn)</label>
-                <input
-                  type="datetime-local"
-                  value={localPreviewTime}
-                  onChange={(e) => setLocalPreviewTime(e.target.value)}
-                  className="w-full px-3 py-2 border border-yellow-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
-                  disabled={!!deadlines[weekDatesStr[0]]}
-                />
-              </div>
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-yellow-800 mb-1">Thời gian mở đăng ký (Tùy chọn)</label>
-                <input
-                  type="datetime-local"
-                  value={localOpenTime}
-                  onChange={(e) => setLocalOpenTime(e.target.value)}
-                  className="w-full px-3 py-2 border border-yellow-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
-                  disabled={!!deadlines[weekDatesStr[0]]}
-                />
-              </div>
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-yellow-800 mb-1">Hạn chót đăng ký (Bắt buộc)</label>
-                <input
-                  type="datetime-local"
-                  value={localDeadline}
-                  onChange={(e) => setLocalDeadline(e.target.value)}
-                  className="w-full px-3 py-2 border border-yellow-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
-                  disabled={!!deadlines[weekDatesStr[0]]}
-                />
-              </div>
-              {deadlines[weekDatesStr[0]] ? (
-                <button type="button" onClick={handleRemoveDeadline} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
-                  Xóa giới hạn (Mở khóa)
-                </button>
-              ) : (
-                <button type="submit" className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
-                  Lưu thiết lập
-                </button>
-              )}
-            </form>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-yellow-800 mb-1">
+                    Hạn chót đăng ký (Bắt buộc)
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={localDeadline}
+                    onChange={(e) => setLocalDeadline(e.target.value)}
+                    className="w-full px-3 py-2 border border-yellow-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
+                    disabled={!!deadlines[weekDatesStr[0]]}
+                  />
+                </div>
+                {deadlines[weekDatesStr[0]] ? (
+                  <button
+                    type="button"
+                    onClick={handleRemoveDeadline}
+                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                  >
+                    Xóa giới hạn (Mở khóa)
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                  >
+                    Lưu thiết lập
+                  </button>
+                )}
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* ---------------- EMPLOYEE VIEW: XEM VÀ ĐĂNG KÝ CA ---------------- */}
 
@@ -1186,242 +1478,402 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
         <div className="flex justify-between items-center p-4 bg-white border-b border-gray-200">
           <h3 className="font-bold text-gray-800 text-lg flex items-center">
             <CalendarDays className="mr-2 text-[#253e7a]" />
-            {mode === 'REGISTER' ? 'Đăng ký Lịch Làm Việc (Theo tuần)' : 'Bảng Lịch Làm Việc (Theo tuần)'}
+            {mode === "REGISTER"
+              ? "Đăng ký Lịch Làm Việc (Theo tuần)"
+              : "Bảng Lịch Làm Việc (Theo tuần)"}
           </h3>
           <div className="flex items-center space-x-2">
-            <button onClick={() => setWeekOffset(prev => prev - 1)} className="p-1 hover:bg-gray-100 rounded text-gray-500">
+            <button
+              onClick={() => setWeekOffset((prev) => prev - 1)}
+              className="p-1 hover:bg-gray-100 rounded text-gray-500"
+            >
               <ChevronLeft size={18} />
             </button>
             <span className="font-medium text-gray-700 text-sm">
               Tuần từ {weekDates[0].displayDate} - {weekDates[6].displayDate}
             </span>
-            <button onClick={() => setWeekOffset(prev => prev + 1)} className="p-1 hover:bg-gray-100 rounded text-gray-500">
+            <button
+              onClick={() => setWeekOffset((prev) => prev + 1)}
+              className="p-1 hover:bg-gray-100 rounded text-gray-500"
+            >
               <ChevronRight size={18} />
             </button>
           </div>
         </div>
 
-        {mode === 'REGISTER' && (() => {
-          const deadlineStr = deadlines[weekDatesStr[0]];
-          const previewTimeStr = previewTimes[weekDatesStr[0]];
-
-          if (deadlineStr && new Date() > new Date(deadlineStr)) {
-            return (
-              <div className="flex flex-col items-center justify-center p-16 bg-gray-50">
-                <Clock size={48} className="text-gray-400 mb-4" />
-                <h3 className="text-xl font-bold text-gray-700 mb-2">Đăng ký lịch làm việc đã khóa</h3>
-                <p className="text-gray-500 text-center">
-                  Thời gian đăng ký ca tuần này đã kết thúc vào lúc <span className="font-bold text-gray-700">{new Date(deadlineStr).toLocaleString('vi-VN')}</span>.<br />
-                  Vui lòng xem lịch làm việc chính thức tại màn hình Trang chủ.
-                </p>
-              </div>
-            );
-          }
-          if (previewTimeStr && new Date() < new Date(previewTimeStr)) {
-            return (
-              <div className="flex flex-col items-center justify-center p-16 bg-gray-50">
-                <Clock size={48} className="text-blue-400 mb-4" />
-                <h3 className="text-xl font-bold text-blue-700 mb-2">Chưa tới thời gian xem lịch</h3>
-                <p className="text-gray-500 text-center">
-                  Hệ thống sẽ mở xem trước ca làm việc vào lúc: <span className="font-bold text-blue-700">{new Date(previewTimeStr).toLocaleString('vi-VN')}</span>.<br />
-                  Vui lòng quay lại sau!
-                </p>
-              </div>
-            );
-          }
-          return null;
-        })()}
-
-        {!(mode === 'REGISTER' && (
-          (deadlines[weekDatesStr[0]] && new Date() > new Date(deadlines[weekDatesStr[0]])) ||
-          (previewTimes[weekDatesStr[0]] && new Date() < new Date(previewTimes[weekDatesStr[0]]))
-        )) && (
-            loading ? (
-              <div className="p-12 flex items-center justify-center text-gray-500">Đang tải bảng lịch...</div>
+        {mode === "REGISTER" && (
+          <div className="px-4 py-3 border-b border-gray-100 bg-blue-50/60">
+            {currentWeekOpenTime && currentWeekDeadline ? (
+              <p className="text-sm text-blue-900">
+                Thời gian đăng ký tuần này:{" "}
+                <span className="font-semibold">
+                  từ {formatDateTimeVi(currentWeekOpenTime)}
+                </span>{" "}
+                đến{" "}
+                <span className="font-semibold">
+                  {formatDateTimeVi(currentWeekDeadline)}
+                </span>
+                .
+              </p>
+            ) : currentWeekDeadline ? (
+              <p className="text-sm text-blue-900">
+                Hạn chót đăng ký tuần này:{" "}
+                <span className="font-semibold">
+                  {formatDateTimeVi(currentWeekDeadline)}
+                </span>
+                .
+              </p>
             ) : (
-              <div className="overflow-x-auto">
-                <div className="min-w-[800px]">
-                  {/* Days Header */}
-                  <div className="flex bg-white border-b border-gray-200">
-                    <div className="w-16 flex-shrink-0 border-r border-gray-200 p-2 flex flex-col items-center justify-center bg-gray-50/30">
-                      <Clock size={16} className="text-gray-400 mb-1" />
-                      <span className="text-[10px] text-gray-500 font-medium uppercase">Giờ VN</span>
-                    </div>
-                    <div className="flex flex-1">
-                      {weekDates.map((d: any) => {
-                        const isToday = d.dateStr === new Date().toLocaleDateString('en-CA');
-                        return (
-                          <div key={d.dateStr} className={`flex-1 p-2 border-r border-gray-200 text-center last:border-r-0 ${isToday ? 'bg-blue-50/50' : ''}`}>
-                            <div className={`font-bold text-sm ${isToday ? 'text-blue-700' : 'text-gray-800'}`}>{d.displayDate}</div>
-                            <div className={`text-xs ${isToday ? 'text-blue-600 font-medium' : 'text-gray-500'}`}>{d.dayName}</div>
+              <p className="text-sm text-gray-600">
+                Tuần này chưa thiết lập thời gian mở/hạn chót đăng ký.
+              </p>
+            )}
+          </div>
+        )}
+
+        {mode === "REGISTER" &&
+          (() => {
+            const deadlineStr = deadlines[weekDatesStr[0]];
+            const previewTimeStr = previewTimes[weekDatesStr[0]];
+
+            if (
+              deadlineStr &&
+              currentTime.getTime() > new Date(deadlineStr).getTime()
+            ) {
+              return (
+                <div className="flex flex-col items-center justify-center p-16 bg-gray-50">
+                  <Clock size={48} className="text-gray-400 mb-4" />
+                  <h3 className="text-xl font-bold text-gray-700 mb-2">
+                    Đăng ký lịch làm việc đã khóa
+                  </h3>
+                  <p className="text-gray-500 text-center">
+                    Thời gian đăng ký ca tuần này đã kết thúc vào lúc{" "}
+                    <span className="font-bold text-gray-700">
+                      {new Date(deadlineStr).toLocaleString("vi-VN")}
+                    </span>
+                    .<br />
+                    Vui lòng xem lịch làm việc chính thức tại màn hình Trang
+                    chủ.
+                  </p>
+                </div>
+              );
+            }
+            if (
+              previewTimeStr &&
+              currentTime.getTime() < new Date(previewTimeStr).getTime()
+            ) {
+              return (
+                <div className="flex flex-col items-center justify-center p-16 bg-gray-50">
+                  <Clock size={48} className="text-blue-400 mb-4" />
+                  <h3 className="text-xl font-bold text-blue-700 mb-2">
+                    Chưa tới thời gian xem lịch
+                  </h3>
+                  <p className="text-gray-500 text-center">
+                    Hệ thống sẽ mở xem trước ca làm việc vào lúc:{" "}
+                    <span className="font-bold text-blue-700">
+                      {new Date(previewTimeStr).toLocaleString("vi-VN")}
+                    </span>
+                    .<br />
+                    Vui lòng quay lại sau!
+                  </p>
+                </div>
+              );
+            }
+            return null;
+          })()}
+
+        {!(
+          mode === "REGISTER" &&
+          ((deadlines[weekDatesStr[0]] &&
+            currentTime.getTime() >
+              new Date(deadlines[weekDatesStr[0]]).getTime()) ||
+            (previewTimes[weekDatesStr[0]] &&
+              currentTime.getTime() <
+                new Date(previewTimes[weekDatesStr[0]]).getTime()))
+        ) &&
+          (loading ? (
+            <div className="p-12 flex items-center justify-center text-gray-500">
+              Đang tải bảng lịch...
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <div className="min-w-[800px]">
+                {/* Days Header */}
+                <div className="flex bg-white border-b border-gray-200">
+                  <div className="w-16 flex-shrink-0 border-r border-gray-200 p-2 flex flex-col items-center justify-center bg-gray-50/30">
+                    <Clock size={16} className="text-gray-400 mb-1" />
+                    <span className="text-[10px] text-gray-500 font-medium uppercase">
+                      Giờ VN
+                    </span>
+                  </div>
+                  <div className="flex flex-1">
+                    {weekDates.map((d: any) => {
+                      const isToday =
+                        d.dateStr === currentTime.toLocaleDateString("en-CA");
+                      return (
+                        <div
+                          key={d.dateStr}
+                          className={`flex-1 p-2 border-r border-gray-200 text-center last:border-r-0 ${isToday ? "bg-blue-50/50" : ""}`}
+                        >
+                          <div
+                            className={`font-bold text-sm ${isToday ? "text-blue-700" : "text-gray-800"}`}
+                          >
+                            {d.displayDate}
                           </div>
-                        );
-                      })}
+                          <div
+                            className={`text-xs ${isToday ? "text-blue-600 font-medium" : "text-gray-500"}`}
+                          >
+                            {d.dayName}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Body */}
+                {(viewBranchId && viewBranchId !== "ALL"
+                  ? schedules.filter((s) => s.branchId === viewBranchId)
+                  : schedules
+                ).filter((s) => weekDatesStr.includes(s.date)).length === 0 ? (
+                  <div className="p-16 flex flex-col items-center justify-center bg-white min-h-[400px]">
+                    <div className="p-8 border border-dashed border-gray-300 rounded-xl text-center bg-gray-50">
+                      <CalendarDays
+                        size={40}
+                        className="mx-auto text-gray-300 mb-3"
+                      />
+                      <p className="text-gray-500 text-sm font-medium">
+                        Chủ quán chưa đăng ca làm việc nào cho tuần này.
+                      </p>
                     </div>
                   </div>
-
-                  {/* Body */}
-                  {(viewBranchId && viewBranchId !== 'ALL' ? schedules.filter(s => s.branchId === viewBranchId) : schedules).filter(s => weekDatesStr.includes(s.date)).length === 0 ? (
-                    <div className="p-16 flex flex-col items-center justify-center bg-white min-h-[400px]">
-                      <div className="p-8 border border-dashed border-gray-300 rounded-xl text-center bg-gray-50">
-                        <CalendarDays size={40} className="mx-auto text-gray-300 mb-3" />
-                        <p className="text-gray-500 text-sm font-medium">Chủ quán chưa đăng ca làm việc nào cho tuần này.</p>
-                      </div>
+                ) : (
+                  <div className="flex bg-white relative pb-8">
+                    {/* Time Labels */}
+                    <div className="w-16 flex-shrink-0 border-r border-gray-200 relative bg-gray-50/30">
+                      {hoursList.map((h) => (
+                        <div
+                          key={h}
+                          className="h-[60px] text-[11px] font-bold text-gray-700 text-center pr-2 relative -top-2"
+                        >
+                          {h >= 24 ? h - 24 : h}:00
+                        </div>
+                      ))}
                     </div>
-                  ) : (
-                    <div className="flex bg-white relative pb-8">
-                      {/* Time Labels */}
-                      <div className="w-16 flex-shrink-0 border-r border-gray-200 relative bg-gray-50/30">
-                        {hoursList.map(h => (
-                          <div key={h} className="h-[60px] text-[11px] font-bold text-gray-700 text-center pr-2 relative -top-2">
-                            {h >= 24 ? h - 24 : h}:00
-                          </div>
+
+                    {/* Days Columns */}
+                    <div className="flex flex-1 relative bg-white">
+                      {/* Grid Lines */}
+                      <div className="absolute inset-0 pointer-events-none flex flex-col">
+                        {hoursList.map((h) => (
+                          <div
+                            key={h}
+                            className="h-[60px] border-b border-gray-100 w-full"
+                          ></div>
                         ))}
                       </div>
 
-                      {/* Days Columns */}
-                      <div className="flex flex-1 relative bg-white">
-                        {/* Grid Lines */}
-                        <div className="absolute inset-0 pointer-events-none flex flex-col">
-                          {hoursList.map(h => (
-                            <div key={h} className="h-[60px] border-b border-gray-100 w-full"></div>
-                          ))}
-                        </div>
+                      {/* Event Columns */}
+                      {weekDates.map((d: any) => {
+                        const dayShifts = schedules.filter(
+                          (s) =>
+                            s.date === d.dateStr &&
+                            (viewBranchId === "" ||
+                              viewBranchId === "ALL" ||
+                              s.branchId === viewBranchId),
+                        );
+                        const isToday =
+                          d.dateStr === currentTime.toLocaleDateString("en-CA");
+                        // Lấy danh sách các loại ca duy nhất trong ngày
+                        const uniqueShiftTypes = Array.from(
+                          new Set(dayShifts.map((s) => s.shift)),
+                        );
 
-                        {/* Event Columns */}
-                        {weekDates.map((d: any) => {
-                          const dayShifts = schedules.filter(s => s.date === d.dateStr && (viewBranchId === '' || viewBranchId === 'ALL' || s.branchId === viewBranchId));
-                          const isToday = d.dateStr === new Date().toLocaleDateString('en-CA');
-                          // Lấy danh sách các loại ca duy nhất trong ngày
-                          const uniqueShiftTypes = Array.from(new Set(dayShifts.map(s => s.shift)));
-
-                          // Calculate overlap styles
-                          const parsedShifts = uniqueShiftTypes.map((type, index) => {
-                            const match = type.match(/\((\d{2}):\d{2} - (\d{2}):\d{2}\)/);
-                            let start = 0, end = 1;
+                        // Calculate overlap styles
+                        const parsedShifts = uniqueShiftTypes.map(
+                          (type, index) => {
+                            const match = type.match(
+                              /\((\d{2}):\d{2} - (\d{2}):\d{2}\)/,
+                            );
+                            let start = 0,
+                              end = 1;
                             if (match) {
                               start = parseInt(match[1]);
                               end = parseInt(match[2]);
                               if (end < start) end += 24;
                             }
                             return { type, start, end, index };
-                          });
+                          },
+                        );
 
-                          // Sort shifts by start time, then by longest duration
-                          parsedShifts.sort((a, b) => {
-                            if (a.start !== b.start) return a.start - b.start;
-                            return b.end - a.end;
-                          });
+                        // Sort shifts by start time, then by longest duration
+                        parsedShifts.sort((a, b) => {
+                          if (a.start !== b.start) return a.start - b.start;
+                          return b.end - a.end;
+                        });
 
-                          // Group into isolated overlap blocks
-                          const blocks: typeof parsedShifts[] = [];
-                          let currentBlock: typeof parsedShifts = [];
-                          let currentBlockEnd = -1;
+                        // Group into isolated overlap blocks
+                        const blocks: (typeof parsedShifts)[] = [];
+                        let currentBlock: typeof parsedShifts = [];
+                        let currentBlockEnd = -1;
 
-                          parsedShifts.forEach(shift => {
-                            if (currentBlock.length === 0) {
-                              currentBlock.push(shift);
+                        parsedShifts.forEach((shift) => {
+                          if (currentBlock.length === 0) {
+                            currentBlock.push(shift);
+                            currentBlockEnd = shift.end;
+                          } else if (shift.start < currentBlockEnd) {
+                            currentBlock.push(shift);
+                            if (shift.end > currentBlockEnd)
                               currentBlockEnd = shift.end;
-                            } else if (shift.start < currentBlockEnd) {
-                              currentBlock.push(shift);
-                              if (shift.end > currentBlockEnd) currentBlockEnd = shift.end;
-                            } else {
-                              blocks.push(currentBlock);
-                              currentBlock = [shift];
-                              currentBlockEnd = shift.end;
+                          } else {
+                            blocks.push(currentBlock);
+                            currentBlock = [shift];
+                            currentBlockEnd = shift.end;
+                          }
+                        });
+                        if (currentBlock.length > 0) blocks.push(currentBlock);
+
+                        // Assign columns
+                        const shiftLayout: Record<
+                          string,
+                          { col: number; maxCols: number }
+                        > = {};
+                        blocks.forEach((block) => {
+                          const columns: (typeof parsedShifts)[] = [];
+                          block.forEach((shift) => {
+                            let placed = false;
+                            for (let i = 0; i < columns.length; i++) {
+                              const lastShiftInCol =
+                                columns[i][columns[i].length - 1];
+                              if (shift.start >= lastShiftInCol.end) {
+                                columns[i].push(shift);
+                                shiftLayout[shift.type] = {
+                                  col: i,
+                                  maxCols: 1,
+                                };
+                                placed = true;
+                                break;
+                              }
+                            }
+                            if (!placed) {
+                              columns.push([shift]);
+                              shiftLayout[shift.type] = {
+                                col: columns.length - 1,
+                                maxCols: 1,
+                              };
                             }
                           });
-                          if (currentBlock.length > 0) blocks.push(currentBlock);
 
-                          // Assign columns
-                          const shiftLayout: Record<string, { col: number, maxCols: number }> = {};
-                          blocks.forEach(block => {
-                            const columns: typeof parsedShifts[] = [];
-                            block.forEach(shift => {
-                              let placed = false;
-                              for (let i = 0; i < columns.length; i++) {
-                                const lastShiftInCol = columns[i][columns[i].length - 1];
-                                if (shift.start >= lastShiftInCol.end) {
-                                  columns[i].push(shift);
-                                  shiftLayout[shift.type] = { col: i, maxCols: 1 };
-                                  placed = true;
-                                  break;
-                                }
-                              }
-                              if (!placed) {
-                                columns.push([shift]);
-                                shiftLayout[shift.type] = { col: columns.length - 1, maxCols: 1 };
-                              }
-                            });
-
-                            const maxCols = columns.length;
-                            block.forEach(shift => {
-                              shiftLayout[shift.type].maxCols = maxCols;
-                            });
+                          const maxCols = columns.length;
+                          block.forEach((shift) => {
+                            shiftLayout[shift.type].maxCols = maxCols;
                           });
+                        });
 
-                          const getOverlapStyle = (shiftType: string) => {
-                            const layout = shiftLayout[shiftType];
-                            if (!layout || layout.maxCols <= 1) return { left: '4px', right: '4px', width: 'auto' };
+                        const getOverlapStyle = (shiftType: string) => {
+                          const layout = shiftLayout[shiftType];
+                          if (!layout || layout.maxCols <= 1)
+                            return { left: "4px", right: "4px", width: "auto" };
 
-                            const widthPercent = 100 / layout.maxCols;
-                            const leftPercent = layout.col * widthPercent;
+                          const widthPercent = 100 / layout.maxCols;
+                          const leftPercent = layout.col * widthPercent;
 
-                            return {
-                              left: `calc(${leftPercent}% + 2px)`,
-                              width: `calc(${widthPercent}% - 4px)`,
-                              right: 'auto'
-                            };
+                          return {
+                            left: `calc(${leftPercent}% + 2px)`,
+                            width: `calc(${widthPercent}% - 4px)`,
+                            right: "auto",
                           };
+                        };
 
-                          return (
-                            <div key={d.dateStr} className={`flex-1 relative border-r border-gray-100 last:border-r-0 ${isToday ? 'bg-blue-50/20' : ''}`}>
-                              {uniqueShiftTypes.map((shiftType) => {
-                                const shiftsInSlot = dayShifts.filter(s => s.shift === shiftType);
-                                const style = getEventStyle(shiftType);
-                                const overlapStyle = getOverlapStyle(shiftType);
+                        return (
+                          <div
+                            key={d.dateStr}
+                            className={`flex-1 relative border-r border-gray-100 last:border-r-0 ${isToday ? "bg-blue-50/20" : ""}`}
+                          >
+                            {uniqueShiftTypes.map((shiftType) => {
+                              const shiftsInSlot = dayShifts.filter(
+                                (s) => s.shift === shiftType,
+                              );
+                              const style = getEventStyle(shiftType);
+                              const overlapStyle = getOverlapStyle(shiftType);
 
-                                return (
-                                  <div
-                                    key={shiftType}
-                                    className={`absolute rounded-md p-1.5 overflow-y-auto shadow-sm flex flex-col z-10 hover:z-20 transition-all border bg-white border-gray-200 ${mode === 'CREATE' ? 'cursor-pointer hover:bg-blue-50/50' : ''}`}
-                                    style={{ top: style.top, height: style.height, minHeight: '60px', ...overlapStyle }}
-                                    onClick={() => {
-                                      if (mode === 'CREATE') {
-                                        setViewBlockModal({ isOpen: true, shiftsInSlot });
-                                      }
-                                    }}
-                                    title={mode === 'CREATE' ? "Nhấn vào ca để xem chi tiết" : ""}
-                                  >
-                                    <div
-                                      className="flex justify-between items-start rounded-t-md -mx-1.5 -mt-1.5 mb-1.5 px-2 py-1 bg-blue-600 text-white shadow-sm"
-                                    >
-                                      <div>
-                                        <div className="font-bold text-[11px] flex items-center gap-1 flex-wrap">
-                                          {getShiftName(shiftType)}
-                                          {(shiftsInSlot[0]?.salaryMultiplier || 1) > 1 && (
-                                            <span className="text-[9px] bg-red-500 text-white px-1 rounded-sm shadow-sm border border-red-400">
-                                              x{shiftsInSlot[0].salaryMultiplier}
-                                            </span>
-                                          )}
-                                        </div>
-                                        <div className="text-[9px] text-blue-100 mb-0.5">{getShiftTime(shiftType)}</div>
+                              return (
+                                <div
+                                  key={shiftType}
+                                  className={`absolute rounded-md p-1.5 overflow-y-auto shadow-sm flex flex-col z-10 hover:z-20 transition-all border bg-white border-gray-200 ${mode === "CREATE" ? "cursor-pointer hover:bg-blue-50/50" : ""}`}
+                                  style={{
+                                    top: style.top,
+                                    height: style.height,
+                                    minHeight: "60px",
+                                    ...overlapStyle,
+                                  }}
+                                  onClick={() => {
+                                    if (mode === "CREATE") {
+                                      setViewBlockModal({
+                                        isOpen: true,
+                                        shiftsInSlot,
+                                      });
+                                    }
+                                  }}
+                                  title={
+                                    mode === "CREATE"
+                                      ? "Nhấn vào ca để xem chi tiết"
+                                      : ""
+                                  }
+                                >
+                                  <div className="flex justify-between items-start rounded-t-md -mx-1.5 -mt-1.5 mb-1.5 px-2 py-1 bg-blue-600 text-white shadow-sm">
+                                    <div>
+                                      <div className="font-bold text-[11px] flex items-center gap-1 flex-wrap">
+                                        {getShiftName(shiftType)}
+                                        {(shiftsInSlot[0]?.salaryMultiplier ||
+                                          1) > 1 && (
+                                          <span className="text-[9px] bg-red-500 text-white px-1 rounded-sm shadow-sm border border-red-400">
+                                            x{shiftsInSlot[0].salaryMultiplier}
+                                          </span>
+                                        )}
                                       </div>
-                                      {(mode === 'CREATE') && (userRole === 'SUPER_ADMIN' || userRole === 'BRANCH_ADMIN') && (
-                                        <div className="flex flex-col gap-1 items-center" onClick={e => e.stopPropagation()}>
-                                          {shiftsInSlot.some(s => checkIsPastShiftForAdmin(s.date, s.shift)) ? (
-                                            <div className="text-[9px] text-blue-200 italic" title="Ca này đã có người làm và trong quá khứ nên bị khóa sửa đổi">Đã khóa</div>
+                                      <div className="text-[9px] text-blue-100 mb-0.5">
+                                        {getShiftTime(shiftType)}
+                                      </div>
+                                    </div>
+                                    {mode === "CREATE" &&
+                                      (userRole === "SUPER_ADMIN" ||
+                                        userRole === "BRANCH_ADMIN") && (
+                                        <div
+                                          className="flex flex-col gap-1 items-center"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          {shiftsInSlot.some((s) =>
+                                            checkIsPastShiftForAdmin(
+                                              s.date,
+                                              s.shift,
+                                            ),
+                                          ) ? (
+                                            <div
+                                              className="text-[9px] text-blue-200 italic"
+                                              title="Ca này đã có người làm và trong quá khứ nên bị khóa sửa đổi"
+                                            >
+                                              Đã khóa
+                                            </div>
                                           ) : (
                                             <>
                                               <button
-                                                onClick={() => handleOpenEditBlock(shiftsInSlot)}
+                                                onClick={() =>
+                                                  handleOpenEditBlock(
+                                                    shiftsInSlot,
+                                                  )
+                                                }
                                                 className="text-white hover:text-white p-1 hover:bg-blue-500 rounded transition-colors"
                                                 title="Sửa cấu trúc ca này"
                                               >
                                                 <Edit2 size={12} />
                                               </button>
                                               <button
-                                                onClick={() => handleDeleteShiftBlock(shiftsInSlot)}
+                                                onClick={() =>
+                                                  handleDeleteShiftBlock(
+                                                    shiftsInSlot,
+                                                  )
+                                                }
                                                 className="text-white hover:text-white p-1 hover:bg-red-500 rounded transition-colors"
                                                 title="Xóa toàn bộ ca này"
                                               >
@@ -1431,73 +1883,114 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
                                           )}
                                         </div>
                                       )}
-                                    </div>
-
-                                    <div className="mt-auto">
-                                      {mode === 'REGISTER'
-                                        ? renderEmployeeSlot(shiftsInSlot)
-                                        : renderAdminSlot(shiftsInSlot)
-                                      }
-                                    </div>
                                   </div>
-                                );
-                              })}
-                            </div>
-                          );
-                        })}
-                      </div>
+
+                                  <div className="mt-auto">
+                                    {mode === "REGISTER"
+                                      ? renderEmployeeSlot(shiftsInSlot)
+                                      : renderAdminSlot(shiftsInSlot)}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
-            ))}
+            </div>
+          ))}
       </div>
 
       {/* Modal Edit Shift Block */}
       {editBlockModal.isOpen && (
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[100]">
           <div className="bg-white p-6 rounded-xl w-96 shadow-lg">
-            <h3 className="text-lg font-bold mb-4 text-gray-800">Sửa thông tin Ca</h3>
+            <h3 className="text-lg font-bold mb-4 text-gray-800">
+              Sửa thông tin Ca
+            </h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Đổi khung giờ Ca (Từ - Đến)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Đổi khung giờ Ca (Từ - Đến)
+                </label>
                 <div className="flex items-center space-x-2">
                   <TimeInput24
                     value={editBlockModal.newStartTime}
-                    onChange={(val) => setEditBlockModal({ ...editBlockModal, newStartTime: val })}
+                    onChange={(val) =>
+                      setEditBlockModal({
+                        ...editBlockModal,
+                        newStartTime: val,
+                      })
+                    }
                     className="w-full border border-gray-300 p-2 rounded focus-within:ring-2 focus-within:ring-blue-500 bg-white"
                   />
                   <span>-</span>
                   <TimeInput24
                     value={editBlockModal.newEndTime}
-                    onChange={(val) => setEditBlockModal({ ...editBlockModal, newEndTime: val })}
+                    onChange={(val) =>
+                      setEditBlockModal({ ...editBlockModal, newEndTime: val })
+                    }
                     className="w-full border border-gray-300 p-2 rounded focus-within:ring-2 focus-within:ring-blue-500 bg-white"
                   />
                 </div>
               </div>
               <div className="flex gap-4">
                 <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Số lượng nhân viên cần (Slots)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Số lượng nhân viên cần (Slots)
+                  </label>
                   <input
-                    type="number" min="1" max="20"
+                    type="number"
+                    min="1"
+                    max="20"
                     className="w-full border border-gray-300 p-2 rounded outline-none focus:ring-2 focus:ring-blue-500"
                     value={editBlockModal.newSlots}
-                    onChange={e => setEditBlockModal({ ...editBlockModal, newSlots: parseInt(e.target.value) || 1 })}
+                    onChange={(e) =>
+                      setEditBlockModal({
+                        ...editBlockModal,
+                        newSlots: parseInt(e.target.value) || 1,
+                      })
+                    }
                   />
                 </div>
                 <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Hệ số lương</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Hệ số lương
+                  </label>
                   <input
-                    type="number" step="0.1" min="0" max="10"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="10"
                     className="w-full border border-gray-300 p-2 rounded outline-none focus:ring-2 focus:ring-blue-500 bg-yellow-50"
                     value={editBlockModal.newSalaryMultiplier}
-                    onChange={e => setEditBlockModal({ ...editBlockModal, newSalaryMultiplier: parseFloat(e.target.value) || 1 })}
+                    onChange={(e) =>
+                      setEditBlockModal({
+                        ...editBlockModal,
+                        newSalaryMultiplier: parseFloat(e.target.value) || 1,
+                      })
+                    }
                   />
                 </div>
               </div>
               <div className="flex justify-end gap-2 mt-6">
-                <button onClick={() => setEditBlockModal({ ...editBlockModal, isOpen: false })} className="px-4 py-2 bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 rounded-lg transition-colors">Hủy</button>
-                <button onClick={handleSaveEditBlock} className="px-4 py-2 bg-blue-600 text-white font-medium hover:bg-blue-700 rounded-lg transition-colors">Lưu thay đổi</button>
+                <button
+                  onClick={() =>
+                    setEditBlockModal({ ...editBlockModal, isOpen: false })
+                  }
+                  className="px-4 py-2 bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 rounded-lg transition-colors"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={handleSaveEditBlock}
+                  className="px-4 py-2 bg-blue-600 text-white font-medium hover:bg-blue-700 rounded-lg transition-colors"
+                >
+                  Lưu thay đổi
+                </button>
               </div>
             </div>
           </div>
@@ -1506,65 +1999,129 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
 
       {/* Modal View Shift Block Details */}
       {viewBlockModal.isOpen && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[100]" onClick={() => setViewBlockModal({ ...viewBlockModal, isOpen: false })}>
-          <div className="bg-white p-6 rounded-xl w-96 shadow-lg max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[100]"
+          onClick={() =>
+            setViewBlockModal({ ...viewBlockModal, isOpen: false })
+          }
+        >
+          <div
+            className="bg-white p-6 rounded-xl w-96 shadow-lg max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-gray-800">Chi tiết Ca làm việc</h3>
-              <button onClick={() => setViewBlockModal({ ...viewBlockModal, isOpen: false })} className="text-gray-500 hover:text-red-500">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              <h3 className="text-lg font-bold text-gray-800">
+                Chi tiết Ca làm việc
+              </h3>
+              <button
+                onClick={() =>
+                  setViewBlockModal({ ...viewBlockModal, isOpen: false })
+                }
+                className="text-gray-500 hover:text-red-500"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-6 w-6"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
               </button>
             </div>
 
             <div className="space-y-4">
               <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
-                <div className="font-semibold text-blue-800">{viewBlockModal.shiftsInSlot[0]?.shift}</div>
-                <div className="text-sm text-blue-600 mt-1">
-                  <strong>Ngày:</strong> {viewBlockModal.shiftsInSlot[0]?.date ? new Date(viewBlockModal.shiftsInSlot[0].date).toLocaleDateString('vi-VN') : ''}
+                <div className="font-semibold text-blue-800">
+                  {viewBlockModal.shiftsInSlot[0]?.shift}
                 </div>
                 <div className="text-sm text-blue-600 mt-1">
-                  <strong>Cơ sở:</strong> {viewBlockModal.shiftsInSlot[0]?.branchName || 'Tất cả'}
+                  <strong>Ngày:</strong>{" "}
+                  {viewBlockModal.shiftsInSlot[0]?.date
+                    ? new Date(
+                        viewBlockModal.shiftsInSlot[0].date,
+                      ).toLocaleDateString("vi-VN")
+                    : ""}
                 </div>
                 <div className="text-sm text-blue-600 mt-1">
-                  <strong>Hệ số lương:</strong> x{viewBlockModal.shiftsInSlot[0]?.salaryMultiplier || 1}
+                  <strong>Cơ sở:</strong>{" "}
+                  {viewBlockModal.shiftsInSlot[0]?.branchName || "Tất cả"}
+                </div>
+                <div className="text-sm text-blue-600 mt-1">
+                  <strong>Hệ số lương:</strong> x
+                  {viewBlockModal.shiftsInSlot[0]?.salaryMultiplier || 1}
                 </div>
               </div>
 
               <div>
                 <h4 className="font-semibold text-gray-700 mb-2 border-b pb-1">
-                  Danh sách nhân viên ({viewBlockModal.shiftsInSlot.filter(s => s.employeeId).length}/{viewBlockModal.shiftsInSlot.length})
+                  Danh sách nhân viên (
+                  {
+                    viewBlockModal.shiftsInSlot.filter((s) => s.employeeId)
+                      .length
+                  }
+                  /{viewBlockModal.shiftsInSlot.length})
                 </h4>
                 {viewBlockModal.shiftsInSlot.length > 0 ? (
                   <ul className="space-y-2">
                     {viewBlockModal.shiftsInSlot.map((s, idx) => {
-                      const empInfo = s.employeeId ? (s.employeeId === currentEmployeeId ? myInfo : employees.find(e => e.id === s.employeeId)) : null;
-                      const empCode = empInfo?.employeeCode || '';
-                      const empPos = empInfo?.position || 'Khác';
-                      
+                      const empInfo = s.employeeId
+                        ? s.employeeId === currentEmployeeId
+                          ? myInfo
+                          : employees.find((e) => e.id === s.employeeId)
+                        : null;
+                      const empCode = empInfo?.employeeCode || "";
+                      const empPos = empInfo?.position || "Khác";
+
                       return (
-                      <li key={s.id || idx} className="flex items-center gap-2 text-sm p-2 rounded bg-gray-50 border border-gray-100">
-                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${s.employeeId ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                        {s.employeeId ? (
-                          <div className="flex flex-col">
-                            <span className="font-medium text-gray-800 flex items-center gap-1.5">
-                              {empCode && <span className="text-[11px] text-gray-500 font-normal">[{empCode}]</span>}
-                              {s.employeeName}
+                        <li
+                          key={s.id || idx}
+                          className="flex items-center gap-2 text-sm p-2 rounded bg-gray-50 border border-gray-100"
+                        >
+                          <div
+                            className={`w-2 h-2 rounded-full flex-shrink-0 ${s.employeeId ? "bg-green-500" : "bg-gray-300"}`}
+                          ></div>
+                          {s.employeeId ? (
+                            <div className="flex flex-col">
+                              <span className="font-medium text-gray-800 flex items-center gap-1.5">
+                                {empCode && (
+                                  <span className="text-[11px] text-gray-500 font-normal">
+                                    [{empCode}]
+                                  </span>
+                                )}
+                                {s.employeeName}
+                              </span>
+                              <span className="text-[11px] text-gray-500">
+                                {empPos}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-orange-500 font-bold italic truncate">
+                              Ca trống{" "}
+                              {viewBranchId === "ALL" && s.branchName
+                                ? `(${s.branchName})`
+                                : ""}
                             </span>
-                            <span className="text-[11px] text-gray-500">{empPos}</span>
-                          </div>
-                        ) : (
-                          <span className="text-orange-500 font-bold italic truncate">
-                            Ca trống {viewBranchId === 'ALL' && s.branchName ? `(${s.branchName})` : ''}
-                          </span>
-                        )}
-                        {s.employeeId === currentEmployeeId && (
-                          <span className="ml-auto text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded self-start mt-0.5">Bạn</span>
-                        )}
-                      </li>
+                          )}
+                          {s.employeeId === currentEmployeeId && (
+                            <span className="ml-auto text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded self-start mt-0.5">
+                              Bạn
+                            </span>
+                          )}
+                        </li>
                       );
                     })}
                   </ul>
                 ) : (
-                  <p className="text-sm text-gray-500 italic">Không có dữ liệu.</p>
+                  <p className="text-sm text-gray-500 italic">
+                    Không có dữ liệu.
+                  </p>
                 )}
               </div>
             </div>
@@ -1576,4 +2133,3 @@ const Schedules: React.FC<{ mode?: 'REGISTER' | 'CREATE' }> = ({ mode = 'REGISTE
 };
 
 export default Schedules;
-
