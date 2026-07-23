@@ -488,6 +488,9 @@ const TableOrder: React.FC = () => {
               <div className="flex-1 flex flex-col justify-between py-1">
                 <div>
                   <h3 className="font-bold text-gray-800 leading-tight mb-1">{item.name}</h3>
+                  {item.description && (
+                    <p className="text-[11px] text-gray-500 line-clamp-2 mb-1.5 leading-relaxed">{item.description}</p>
+                  )}
                   <p className="text-blue-600 font-black text-sm">
                     {new Intl.NumberFormat('vi-VN').format(item.price)}đ
                   </p>
