@@ -62,6 +62,7 @@ interface Branch {
   latitude?: number | null;
   longitude?: number | null;
   allowedDistance?: number;
+  enableLocationCheck?: boolean;
 }
 
 const Branches: React.FC = () => {
@@ -70,7 +71,6 @@ const Branches: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
   const [bankList, setBankList] = useState<{bin: string, shortName: string, name: string}[]>([]);
-  const [showMap, setShowMap] = useState(true);
 
   useEffect(() => {
     fetch('https://api.vietqr.io/v2/banks')
@@ -95,6 +95,7 @@ const Branches: React.FC = () => {
     latitude: null as number | null,
     longitude: null as number | null,
     allowedDistance: 200,
+    enableLocationCheck: false,
   });
 
   const fetchBranches = async (silent = false) => {
@@ -203,11 +204,12 @@ const Branches: React.FC = () => {
         bankAccountName: branch.bankAccountName || '',
         latitude: branch.latitude || null,
         longitude: branch.longitude || null,
-        allowedDistance: branch.allowedDistance || 200
+        allowedDistance: branch.allowedDistance || 200,
+        enableLocationCheck: branch.enableLocationCheck ?? false
       });
     } else {
       setEditingBranch(null);
-      setFormData({ name: '', address: '', phone: '', status: 'ACTIVE', bankId: '', bankAccount: '', bankAccountName: '', latitude: null, longitude: null, allowedDistance: 200 });
+      setFormData({ name: '', address: '', phone: '', status: 'ACTIVE', bankId: '', bankAccount: '', bankAccountName: '', latitude: null, longitude: null, allowedDistance: 200, enableLocationCheck: false });
     }
     setIsModalOpen(true);
   };
@@ -396,104 +398,108 @@ const Branches: React.FC = () => {
                 </select>
               </div>
 
-              <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
-                <div className="flex justify-between items-center mb-2">
-                  <label className="block text-sm font-medium text-blue-800">Tọa độ Vị trí (Phục vụ khách Quét QR)</label>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowMap(!showMap)}
-                      className="flex items-center gap-1 text-xs font-semibold bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-300 transition-colors"
-                    >
-                      {showMap ? <Map size={14} className="opacity-50" /> : <Map size={14} />}
-                      {showMap ? 'Ẩn Bản Đồ' : 'Hiện Bản Đồ'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!navigator.geolocation) {
-                          toast.error('Trình duyệt không hỗ trợ GPS');
-                          return;
-                        }
-                        const toastId = toast.loading('Đang lấy vị trí...');
-                        navigator.geolocation.getCurrentPosition(
-                          (pos) => {
-                            setFormData(prev => ({ ...prev, latitude: pos.coords.latitude, longitude: pos.coords.longitude }));
-                            toast.success('Đã lấy vị trí thành công', { id: toastId });
-                          },
-                          (err) => {
-                            console.error(err);
-                            toast.error('Không thể lấy vị trí. Vui lòng cấp quyền!', { id: toastId });
-                          },
-                          { enableHighAccuracy: true }
-                        );
-                      }}
-                      className="flex items-center gap-1 text-xs font-semibold bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      <MapPin size={14} />
-                      Lấy Tọa Độ Hiện Tại
-                    </button>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <input 
-                      type="number" 
-                      step="any"
-                      value={formData.latitude || ''}
-                      onChange={(e) => setFormData({...formData, latitude: parseFloat(e.target.value) || null})}
-                      className="w-full px-3 py-2 border border-blue-200 rounded-lg outline-none bg-white text-sm"
-                      placeholder="Vĩ độ"
-                    />
-                  </div>
-                  <div>
-                    <input 
-                      type="number" 
-                      step="any"
-                      value={formData.longitude || ''}
-                      onChange={(e) => setFormData({...formData, longitude: parseFloat(e.target.value) || null})}
-                      className="w-full px-3 py-2 border border-blue-200 rounded-lg outline-none bg-white text-sm"
-                      placeholder="Kinh độ"
-                    />
-                  </div>
-                </div>
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <label className="flex items-center gap-2 cursor-pointer mb-3">
+                  <input 
+                    type="checkbox"
+                    checked={formData.enableLocationCheck || false}
+                    onChange={(e) => setFormData({...formData, enableLocationCheck: e.target.checked})}
+                    className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span className="text-base font-semibold text-blue-800 cursor-pointer">Bật kiểm tra vị trí (Chống đặt hàng ảo)</span>
+                </label>
 
-                {showMap && formData.latitude && formData.longitude && (
-                  <div className="mt-3 border border-blue-200 rounded-lg overflow-hidden h-64 shadow-inner relative z-0">
-                    <MapContainer 
-                      center={[formData.latitude, formData.longitude]} 
-                      zoom={18} 
-                      scrollWheelZoom={true} 
-                      style={{ height: '100%', width: '100%' }}
-                    >
-                      <TileLayer
-                        attribution='&copy; Google Maps'
-                        url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
+                {formData.enableLocationCheck && (
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 shadow-sm transition-all">
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="block text-sm font-medium text-blue-800">Tọa độ Vị trí (Phục vụ khách Quét QR)</label>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!navigator.geolocation) {
+                              toast.error('Trình duyệt không hỗ trợ GPS');
+                              return;
+                            }
+                            const toastId = toast.loading('Đang lấy vị trí...');
+                            navigator.geolocation.getCurrentPosition(
+                              (pos) => {
+                                setFormData(prev => ({ ...prev, latitude: pos.coords.latitude, longitude: pos.coords.longitude }));
+                                toast.success('Đã lấy vị trí thành công', { id: toastId });
+                              },
+                              (err) => {
+                                console.error(err);
+                                toast.error('Không thể lấy vị trí. Vui lòng cấp quyền!', { id: toastId });
+                              },
+                              { enableHighAccuracy: true }
+                            );
+                          }}
+                          className="flex items-center gap-1 text-xs font-semibold bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                          <MapPin size={14} />
+                          Lấy Tọa Độ Hiện Tại
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <input 
+                          type="number" 
+                          step="any"
+                          value={formData.latitude || ''}
+                          onChange={(e) => setFormData({...formData, latitude: parseFloat(e.target.value) || null})}
+                          className="w-full px-3 py-2 border border-blue-200 rounded-lg outline-none bg-white text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                          placeholder="Vĩ độ"
+                        />
+                      </div>
+                      <div>
+                        <input 
+                          type="number" 
+                          step="any"
+                          value={formData.longitude || ''}
+                          onChange={(e) => setFormData({...formData, longitude: parseFloat(e.target.value) || null})}
+                          className="w-full px-3 py-2 border border-blue-200 rounded-lg outline-none bg-white text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                          placeholder="Kinh độ"
+                        />
+                      </div>
+                    </div>
+
+                    {formData.latitude && formData.longitude && (
+                      <div className="mt-3 border border-blue-200 rounded-lg overflow-hidden h-64 shadow-inner relative z-0">
+                        <MapContainer 
+                          center={[formData.latitude, formData.longitude]} 
+                          zoom={19} 
+                          maxZoom={22}
+                          scrollWheelZoom={true} 
+                          style={{ height: '100%', width: '100%' }}
+                        >
+                          <TileLayer
+                            attribution='&copy; Google Maps'
+                            url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
+                            maxZoom={22}
+                          />
+                          <LocationMarker 
+                            position={[formData.latitude, formData.longitude]} 
+                            setPosition={(pos) => setFormData({...formData, latitude: pos[0], longitude: pos[1]})} 
+                          />
+                        </MapContainer>
+                      </div>
+                    )}
+                    
+                    <div className="mt-4 border-t border-blue-200/50 pt-4">
+                      <label className="block text-sm font-medium text-blue-800 mb-1">Giới hạn khoảng cách (mét)</label>
+                      <input 
+                        type="number" 
+                        value={formData.allowedDistance || ''}
+                        onChange={(e) => setFormData({...formData, allowedDistance: parseInt(e.target.value) || 0})}
+                        className="w-full px-3 py-2 border border-blue-200 rounded-lg outline-none bg-white text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                        placeholder="Khoảng cách cho phép quét QR (mặc định 200)"
+                        min="1"
                       />
-                      <LocationMarker 
-                        position={[formData.latitude, formData.longitude]} 
-                        setPosition={(pos) => setFormData({...formData, latitude: pos[0], longitude: pos[1]})} 
-                      />
-                    </MapContainer>
+                      <p className="text-xs text-blue-600 mt-1">Khoảng cách lớn nhất cho phép khách hàng cách xa vị trí bản đồ để có thể quét mã QR gọi món.</p>
+                    </div>
                   </div>
                 )}
-                
-                <div className="mt-3 border-t border-blue-200/50 pt-3">
-                  <label className="block text-sm font-medium text-blue-800 mb-1">Giới hạn khoảng cách (mét)</label>
-                  <input 
-                    type="number" 
-                    value={formData.allowedDistance || ''}
-                    onChange={(e) => setFormData({...formData, allowedDistance: parseInt(e.target.value) || 0})}
-                    className="w-full px-3 py-2 border border-blue-200 rounded-lg outline-none bg-white text-sm"
-                    placeholder="Khoảng cách cho phép quét QR (mặc định 200)"
-                    min="1"
-                  />
-                  <p className="text-xs text-blue-600 mt-1">Khoảng cách cho phép khách hàng cách xa tọa độ quán lớn nhất để có thể gọi món.</p>
-                </div>
-
-                <p className="text-xs text-blue-600 mt-2">
-                  * Yêu cầu bạn đang đứng trực tiếp tại quán và dùng điện thoại để lấy tọa độ chính xác nhất.
-                </p>
               </div>
               
               <div className="pt-4 border-t border-gray-100 flex justify-end space-x-3">

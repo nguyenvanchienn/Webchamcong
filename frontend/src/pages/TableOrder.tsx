@@ -135,8 +135,8 @@ const TableOrder: React.FC = () => {
           const bData = branchDoc.data();
           setBranchName(bData.name);
 
-          // Check Geolocation if branch has coordinates set
-          if (bData.latitude && bData.longitude) {
+          // Check Geolocation if branch has coordinates set and location check is enabled
+          if (bData.enableLocationCheck && bData.latitude && bData.longitude) {
             try {
               const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
                 if (!navigator.geolocation) {
