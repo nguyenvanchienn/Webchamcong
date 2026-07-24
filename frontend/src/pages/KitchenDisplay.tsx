@@ -99,22 +99,7 @@ const KitchenDisplay: React.FC = () => {
     navigate('/dashboard');
   };
 
-  const markTableItemDone = async (orderId: string, cartItemId: string) => {
-    const order = tableOrders.find(o => o.id === orderId);
-    if (!order) return;
-    const newItems = order.items.map((item: any) => 
-      item.cartItemId === cartItemId ? { ...item, isServed: true } : item
-    );
-    
-    try {
-      await updateDoc(doc(db, 'active_table_orders', orderId), {
-        items: newItems
-      });
-    } catch (error) {
-      console.error('Lỗi khi cập nhật trạng thái món:', error);
-      toast.error('Có lỗi xảy ra');
-    }
-  };
+
 
   const markTableOrderDone = async (orderId: string) => {
     const order = tableOrders.find(o => o.id === orderId);
@@ -131,28 +116,7 @@ const KitchenDisplay: React.FC = () => {
     }
   };
 
-  const markTakeawayItemDone = async (orderId: string, menuItemId: string, selectedSize: string | null) => {
-    const order = takeawayOrders.find(o => o.id === orderId);
-    if (!order) return;
-    
-    const newItems = order.items.map((item: any) => {
-      if (item.menuItemId === menuItemId && item.selectedSize === selectedSize) {
-        return { ...item, isServed: true };
-      }
-      return item;
-    });
 
-    const isAllDone = newItems.every((item: any) => item.isServed);
-
-    try {
-      await updateDoc(doc(db, 'orders', orderId), {
-        items: newItems,
-        kitchenStatus: isAllDone ? 'DONE' : 'PENDING'
-      });
-    } catch (error) {
-      console.error('Lỗi khi cập nhật:', error);
-    }
-  };
 
   const markTakeawayOrderDone = async (orderId: string) => {
     const order = takeawayOrders.find(o => o.id === orderId);
