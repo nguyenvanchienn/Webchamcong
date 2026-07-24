@@ -3,7 +3,7 @@ import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase
 import { db } from '../config/firebase';
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
-import { Plus, Edit2, Trash2, X, MapPin, Map } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, MapPin } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
