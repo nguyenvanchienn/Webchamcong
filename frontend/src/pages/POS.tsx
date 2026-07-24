@@ -51,6 +51,7 @@ const POS: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [billModalData, setBillModalData] = useState<any | null>(null);
   const [storeName, setStoreName] = useState<string>('Bơ Food');
+  const [brandName, setBrandName] = useState<string>('Tiệm nhà Bơ');
   const [storeNameColor, setStoreNameColor] = useState<string>('#2563eb');
   const [storeLogo, setStoreLogo] = useState<string>('');
   const [storeAddress, setStoreAddress] = useState<string | null>(null);
@@ -114,7 +115,7 @@ const POS: React.FC = () => {
           if (data.customerOrderExitPassword) {
             setNewExitPassword(data.customerOrderExitPassword);
           }
-          if (data.storeName) setStoreName(data.storeName);
+          if (data.storeName) setBrandName(data.storeName);
           if (data.storeNameColor) setStoreNameColor(data.storeNameColor);
           if (data.storeLogo) setStoreLogo(data.storeLogo);
         }
@@ -1790,10 +1791,10 @@ const POS: React.FC = () => {
               {storeLogo ? (
                 <div className="flex items-center gap-2">
                   <img src={storeLogo} alt="Logo" className="w-8 h-8 object-contain rounded-md" />
-                  <h1 className="text-2xl font-bold" style={{ color: storeNameColor }}>{storeName}</h1>
+                  <h1 className="text-2xl font-bold" style={{ color: storeNameColor }}>{brandName}</h1>
                 </div>
               ) : (
-                <h1 className="text-2xl font-bold" style={{ color: storeNameColor }}>{storeName}</h1>
+                <h1 className="text-2xl font-bold" style={{ color: storeNameColor }}>{brandName}</h1>
               )}
               <span className="text-xs font-medium text-gray-500 uppercase tracking-widest mt-1">MÁY ORDER</span>
 
