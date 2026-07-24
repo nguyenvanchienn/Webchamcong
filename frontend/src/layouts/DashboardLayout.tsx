@@ -104,6 +104,19 @@ const DashboardLayout: React.FC = () => {
       }
     };
     fetchSettings();
+
+    const handleBrandingUpdate = () => {
+      setStoreName(localStorage.getItem('storeName') || 'Tiệm Nhà Bơ');
+      setStoreNameColor(localStorage.getItem('storeNameColor') || '#2563eb');
+      setStoreNameFont(localStorage.getItem('storeNameFont') || 'system-ui, sans-serif');
+      setStoreLogo(localStorage.getItem('storeLogo') || '');
+    };
+
+    window.addEventListener('brandingUpdated', handleBrandingUpdate);
+
+    return () => {
+      window.removeEventListener('brandingUpdated', handleBrandingUpdate);
+    };
   }, []);
 
   useEffect(() => {

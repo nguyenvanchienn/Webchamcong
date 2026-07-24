@@ -94,9 +94,14 @@ const Settings: React.FC = () => {
   const [storeNameColor, setStoreNameColor] = useState(localStorage.getItem('storeNameColor') || '#2563eb');
   const [storeNameFont, setStoreNameFont] = useState(localStorage.getItem('storeNameFont') || 'system-ui, sans-serif');
   const [storeLogo, setStoreLogo] = useState(localStorage.getItem('storeLogo') || '');
+  const [dbStoreName, setDbStoreName] = useState(localStorage.getItem('storeName') || 'Tiệm nhà Bơ');
+  const [dbStoreNameColor, setDbStoreNameColor] = useState(localStorage.getItem('storeNameColor') || '#2563eb');
+  const [dbStoreNameFont, setDbStoreNameFont] = useState(localStorage.getItem('storeNameFont') || 'system-ui, sans-serif');
+  const [dbStoreLogo, setDbStoreLogo] = useState(localStorage.getItem('storeLogo') || '');
   const [localLogoFile, setLocalLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState(localStorage.getItem('storeLogo') || '');
   const [isSavingBranding, setIsSavingBranding] = useState(false);
+  const isBrandingModified = storeName !== dbStoreName || storeNameColor !== dbStoreNameColor || storeNameFont !== dbStoreNameFont || storeLogo !== dbStoreLogo || localLogoFile !== null;
 
   const userRole = localStorage.getItem('userRole') || 'EMPLOYEE';
   const employeeId = localStorage.getItem('employeeId');
@@ -128,11 +133,12 @@ const Settings: React.FC = () => {
           } else if (typeof data.lateGracePeriod === 'object') {
             sm = { ...sm, ...data.lateGracePeriod };
           }
-          if (data.storeName) { setStoreName(data.storeName); localStorage.setItem('storeName', data.storeName); }
-          if (data.storeNameColor) { setStoreNameColor(data.storeNameColor); localStorage.setItem('storeNameColor', data.storeNameColor); }
-          if (data.storeNameFont) { setStoreNameFont(data.storeNameFont); localStorage.setItem('storeNameFont', data.storeNameFont); }
+          if (data.storeName) { setStoreName(data.storeName); setDbStoreName(data.storeName); localStorage.setItem('storeName', data.storeName); }
+          if (data.storeNameColor) { setStoreNameColor(data.storeNameColor); setDbStoreNameColor(data.storeNameColor); localStorage.setItem('storeNameColor', data.storeNameColor); }
+          if (data.storeNameFont) { setStoreNameFont(data.storeNameFont); setDbStoreNameFont(data.storeNameFont); localStorage.setItem('storeNameFont', data.storeNameFont); }
           if (data.storeLogo) {
             setStoreLogo(data.storeLogo);
+            setDbStoreLogo(data.storeLogo);
             setLogoPreview(data.storeLogo);
             localStorage.setItem('storeLogo', data.storeLogo);
           }
@@ -246,10 +252,18 @@ const Settings: React.FC = () => {
       }, { merge: true });
       
       setStoreLogo(finalLogo);
+      setDbStoreName(storeName);
+      setDbStoreNameColor(storeNameColor);
+      setDbStoreNameFont(storeNameFont);
+      setDbStoreLogo(finalLogo);
+      setLocalLogoFile(null);
       localStorage.setItem('storeName', storeName);
       localStorage.setItem('storeNameColor', storeNameColor);
       localStorage.setItem('storeNameFont', storeNameFont);
       localStorage.setItem('storeLogo', finalLogo);
+      
+      window.dispatchEvent(new CustomEvent('brandingUpdated'));
+      
       toast.success('Đã cập nhật thông tin thương hiệu!');
     } catch (error) {
       console.error(error);
@@ -448,10 +462,10 @@ const Settings: React.FC = () => {
           <div className="pt-2">
             <button
               onClick={handleSaveBranding}
-              disabled={isSavingBranding}
+              disabled={isSavingBranding || !isBrandingModified}
               className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
             >
-              {isSavingBranding ? 'Đang lưu...' : 'Lưu Thông Tin Thương Hiệu'}
+              {isSavingBranding ? 'Đang lưu...' : (isBrandingModified ? 'Lưu Thông Tin Thương Hiệu' : 'Đã lưu')}
             </button>
           </div>
         </div>
