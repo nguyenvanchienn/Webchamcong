@@ -305,9 +305,9 @@ const Branches: React.FC = () => {
 
       {/* Modal Thêm/Sửa */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
-            <div className="flex justify-between items-center p-4 border-b border-gray-200">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className={`bg-white rounded-xl shadow-xl w-full overflow-hidden flex flex-col max-h-[95vh] transition-all duration-300 ease-in-out ${formData.enableLocationCheck ? 'max-w-4xl' : 'max-w-lg'}`}>
+            <div className="flex justify-between items-center p-4 border-b border-gray-200 shrink-0">
               <h3 className="font-bold text-lg text-gray-800">
                 {editingBranch ? 'Cập nhật Cơ sở' : 'Thêm Cơ sở mới'}
               </h3>
@@ -316,8 +316,12 @@ const Branches: React.FC = () => {
               </button>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-4 space-y-4">
-              <div>
+            <form onSubmit={handleSubmit} className="flex flex-col overflow-hidden min-h-0">
+              <div className="p-6 overflow-y-auto">
+                <div className="flex flex-col md:flex-row gap-8">
+                  {/* Cột trái */}
+                  <div className="flex-1 space-y-4">
+                    <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tên cơ sở <span className="text-red-500">*</span></label>
                 <input 
                   type="text" required
@@ -398,19 +402,23 @@ const Branches: React.FC = () => {
                 </select>
               </div>
 
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <label className="flex items-center gap-2 cursor-pointer mb-3">
+              <div className="pt-4 mt-2 border-t border-gray-100">
+                <label className="flex items-center gap-2 cursor-pointer">
                   <input 
                     type="checkbox"
                     checked={formData.enableLocationCheck || false}
                     onChange={(e) => setFormData({...formData, enableLocationCheck: e.target.checked})}
                     className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
                   />
-                  <span className="text-base font-semibold text-blue-800 cursor-pointer">Bật kiểm tra vị trí (Chống đặt hàng ảo)</span>
+                  <span className="text-base font-semibold text-blue-800 cursor-pointer">Bật kiểm tra vị trí (Chống đặt ảo)</span>
                 </label>
+              </div>
+            </div>
 
-                {formData.enableLocationCheck && (
-                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 shadow-sm transition-all">
+                  {/* Cột phải */}
+                  {formData.enableLocationCheck && (
+                    <div className="flex-1 md:pl-6 md:border-l border-gray-200 mt-6 md:mt-0 pt-6 md:pt-0 border-t md:border-t-0">
+                        <div className="space-y-4">
                     <div className="flex justify-between items-center mb-2">
                       <label className="block text-sm font-medium text-blue-800">Tọa độ Vị trí (Phục vụ khách Quét QR)</label>
                       <div className="flex items-center gap-2">
@@ -442,30 +450,26 @@ const Branches: React.FC = () => {
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <input 
-                          type="number" 
-                          step="any"
-                          value={formData.latitude || ''}
-                          onChange={(e) => setFormData({...formData, latitude: parseFloat(e.target.value) || null})}
-                          className="w-full px-3 py-2 border border-blue-200 rounded-lg outline-none bg-white text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                          placeholder="Vĩ độ"
-                        />
-                      </div>
-                      <div>
-                        <input 
-                          type="number" 
-                          step="any"
-                          value={formData.longitude || ''}
-                          onChange={(e) => setFormData({...formData, longitude: parseFloat(e.target.value) || null})}
-                          className="w-full px-3 py-2 border border-blue-200 rounded-lg outline-none bg-white text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                          placeholder="Kinh độ"
-                        />
-                      </div>
+                      <input 
+                        type="number" 
+                        step="any"
+                        value={formData.latitude || ''}
+                        onChange={(e) => setFormData({...formData, latitude: parseFloat(e.target.value) || null})}
+                        className="w-full px-3 py-2 border border-blue-200 rounded-lg outline-none bg-white text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                        placeholder="Vĩ độ"
+                      />
+                      <input 
+                        type="number" 
+                        step="any"
+                        value={formData.longitude || ''}
+                        onChange={(e) => setFormData({...formData, longitude: parseFloat(e.target.value) || null})}
+                        className="w-full px-3 py-2 border border-blue-200 rounded-lg outline-none bg-white text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                        placeholder="Kinh độ"
+                      />
                     </div>
 
                     {formData.latitude && formData.longitude && (
-                      <div className="mt-3 border border-blue-200 rounded-lg overflow-hidden h-64 shadow-inner relative z-0">
+                      <div className="border border-blue-200 rounded-lg overflow-hidden h-48 md:h-64 shadow-inner relative z-0">
                         <MapContainer 
                           center={[formData.latitude, formData.longitude]} 
                           zoom={19} 
@@ -486,23 +490,23 @@ const Branches: React.FC = () => {
                       </div>
                     )}
                     
-                    <div className="mt-4 border-t border-blue-200/50 pt-4">
+                    <div>
                       <label className="block text-sm font-medium text-blue-800 mb-1">Giới hạn khoảng cách (mét)</label>
                       <input 
                         type="number" 
                         value={formData.allowedDistance || ''}
                         onChange={(e) => setFormData({...formData, allowedDistance: parseInt(e.target.value) || 0})}
                         className="w-full px-3 py-2 border border-blue-200 rounded-lg outline-none bg-white text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                        placeholder="Khoảng cách cho phép quét QR (mặc định 200)"
-                        min="1"
-                      />
-                      <p className="text-xs text-blue-600 mt-1">Khoảng cách lớn nhất cho phép khách hàng cách xa vị trí bản đồ để có thể quét mã QR gọi món.</p>
+                            />
+                            <p className="text-xs text-blue-600 mt-1">Khoảng cách lớn nhất cho phép quét mã QR.</p>
+                          </div>
+                        </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
               
-              <div className="pt-4 border-t border-gray-100 flex justify-end space-x-3">
+              <div className="p-4 border-t border-gray-200 flex justify-end space-x-3 shrink-0 bg-gray-50">
                 <button 
                   type="button" 
                   onClick={closeModal}
