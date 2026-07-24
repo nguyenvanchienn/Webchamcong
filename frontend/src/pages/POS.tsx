@@ -617,7 +617,8 @@ const POS: React.FC = () => {
             name: item.name,
             price: item.price,
             quantity: item.quantity,
-            selectedSize: item.selectedSize || null
+            selectedSize: item.selectedSize || null,
+            isServed: false
           });
         }
       });
@@ -633,6 +634,7 @@ const POS: React.FC = () => {
         cashierEmail: finalCashierName || null, // Store cashierName in this field for display
         branchId: localStorage.getItem('branchId') || null,
         status: 'COMPLETED',
+        kitchenStatus: currentTableOrderId ? 'DONE' : 'PENDING', // Table orders are already cooked
         tableName: currentTableName || null
       };
 

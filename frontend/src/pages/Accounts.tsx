@@ -150,7 +150,7 @@ const Accounts: React.FC = () => {
       
       const userCredential = await createUserWithEmailAndPassword(secondaryAuth, formData.email, formData.password);
       
-      const needsPasswordChange = !['SUPER_ADMIN', 'ADMIN', 'KIOSK', 'POS'].includes(formData.role);
+      const needsPasswordChange = !['SUPER_ADMIN', 'ADMIN', 'KIOSK', 'POS', 'KITCHEN_SCREEN'].includes(formData.role);
 
       await setDoc(doc(db, 'users', userCredential.user.uid), {
         email: formData.email,
@@ -414,10 +414,12 @@ const Accounts: React.FC = () => {
                       acc.role === 'SUPER_ADMIN' ? 'bg-red-100 text-red-700' : 
                       acc.role === 'BRANCH_ADMIN' ? 'bg-purple-100 text-purple-700' : 
                       acc.role === 'KIOSK' ? 'bg-yellow-100 text-yellow-700' : 
+                      acc.role === 'KITCHEN_SCREEN' ? 'bg-orange-100 text-orange-700' : 
                       acc.role === 'POS' ? 'bg-pink-100 text-pink-700' : 
+                      acc.role === 'ACCOUNTANT' ? 'bg-teal-100 text-teal-700' : 
                       'bg-blue-100 text-blue-700'
                     }`}>
-                      {acc.role === 'KIOSK' ? 'Máy điểm danh' : acc.role === 'POS' ? 'Máy Order' : acc.role}
+                      {acc.role === 'KIOSK' ? 'Máy điểm danh' : acc.role === 'POS' ? 'Máy Order' : acc.role === 'KITCHEN_SCREEN' ? 'Màn hình Bếp' : acc.role === 'ACCOUNTANT' ? 'Kế toán' : acc.role}
                     </span>
                   </td>
                   <td className="p-4 text-sm text-gray-600 font-medium">
@@ -432,6 +434,7 @@ const Accounts: React.FC = () => {
                     {acc.role === 'SUPER_ADMIN' ? 'Toàn quyền hệ thống' : 
                      acc.role === 'KIOSK' ? 'Dùng chung cho cơ sở' :
                      acc.role === 'POS' ? 'Dùng chung cho cơ sở (Menu)' :
+                     acc.role === 'KITCHEN_SCREEN' ? 'Màn hình Bếp chung' :
                      (employees.find(e => e.id === acc.employeeId) 
                         ? `${employees.find(e => e.id === acc.employeeId)?.employeeCode || 'No ID'} - ${employees.find(e => e.id === acc.employeeId)?.fullName}`
                         : 'Chưa liên kết')}
@@ -447,7 +450,7 @@ const Accounts: React.FC = () => {
                           <Edit2 size={18} />
                         </button>
                         
-                        {['KIOSK', 'POS'].includes(acc.role) && (
+                        {['KIOSK', 'POS', 'KITCHEN_SCREEN'].includes(acc.role) && (
                           <>
                             <button 
                               onClick={() => openPasswordModal(acc)}
@@ -585,13 +588,15 @@ const Accounts: React.FC = () => {
                   <option value="BARTENDER">Pha chế</option>
                   <option value="KITCHEN">Bếp</option>
                   <option value="GUARD">Bảo vệ</option>
+                  {userRole === 'SUPER_ADMIN' && <option value="ACCOUNTANT">Kế toán</option>}
                   {userRole === 'SUPER_ADMIN' && <option value="BRANCH_ADMIN">Quản lý cơ sở</option>}
                   {userRole === 'SUPER_ADMIN' && <option value="KIOSK">Thiết bị điểm danh (Kiosk)</option>}
                   <option value="POS">Máy Order (Menu)</option>
+                  <option value="KITCHEN_SCREEN">Màn hình Tivi Bếp</option>
                 </select>
               </div>
 
-              {['KIOSK', 'POS'].includes(formData.role) && (
+              {['KIOSK', 'POS', 'KITCHEN_SCREEN'].includes(formData.role) && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Cơ sở áp dụng <span className="text-red-500">*</span></label>
                   <select 
@@ -609,7 +614,7 @@ const Accounts: React.FC = () => {
                 </div>
               )}
 
-              {!['KIOSK', 'POS'].includes(formData.role) && (
+              {!['KIOSK', 'POS', 'KITCHEN_SCREEN'].includes(formData.role) && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Liên kết Hồ sơ Nhân viên</label>
                   <select 

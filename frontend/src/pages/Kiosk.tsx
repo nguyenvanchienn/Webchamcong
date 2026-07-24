@@ -553,7 +553,10 @@ const Kiosk: React.FC = () => {
     <div className="min-h-screen bg-blue-50 flex flex-col">
       {/* Header */}
       <header className="bg-white shadow-sm p-3 md:p-4 flex justify-center sm:justify-start items-center">
-        <div className="flex items-center gap-3">
+        <div 
+          className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+          onDoubleClick={() => navigate('/dashboard')}
+        >
           {storeLogo ? (
             <img src={storeLogo} alt="Logo" className="hidden sm:block w-10 h-10 object-contain rounded-md" />
           ) : (

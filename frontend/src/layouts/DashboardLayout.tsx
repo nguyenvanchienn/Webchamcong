@@ -188,14 +188,16 @@ const DashboardLayout: React.FC = () => {
   };
 
   const confirmLogout = async () => {
-    if (userRole === "POS" && !logoutPassword) {
+    const isSpecialRole = userRole === "POS" || userRole === "KIOSK" || userRole === "KITCHEN_SCREEN";
+    
+    if (isSpecialRole && !logoutPassword) {
       toast.error("Vui lòng nhập mật khẩu để đăng xuất");
       return;
     }
 
     setIsLoggingOut(true);
     try {
-      if (userRole === "POS" && auth.currentUser && auth.currentUser.email) {
+      if (isSpecialRole && auth.currentUser && auth.currentUser.email) {
         const credential = EmailAuthProvider.credential(
           auth.currentUser.email,
           logoutPassword,
@@ -234,6 +236,7 @@ const DashboardLayout: React.FC = () => {
         "BARTENDER",
         "KITCHEN",
         "GUARD",
+        "ACCOUNTANT",
       ],
     },
     {
@@ -264,7 +267,7 @@ const DashboardLayout: React.FC = () => {
       name: "Bàn giao ca",
       path: "/dashboard/shift-handovers",
       icon: <ClipboardCheck size={20} />,
-      roles: ["SUPER_ADMIN", "BRANCH_ADMIN", "CASHIER", "POS"],
+      roles: ["SUPER_ADMIN", "BRANCH_ADMIN", "CASHIER", "POS", "ACCOUNTANT"],
     },
     {
       name: "Quản lý Thực đơn",
@@ -294,7 +297,7 @@ const DashboardLayout: React.FC = () => {
       name: "Chấm công (Admin)",
       path: "/dashboard/attendance",
       icon: <Clock size={20} />,
-      roles: ["SUPER_ADMIN", "BRANCH_ADMIN"],
+      roles: ["SUPER_ADMIN", "BRANCH_ADMIN", "ACCOUNTANT"],
     },
     {
       name: "Đăng ký lịch làm việc",
@@ -307,6 +310,7 @@ const DashboardLayout: React.FC = () => {
         "BARTENDER",
         "KITCHEN",
         "GUARD",
+        "ACCOUNTANT",
       ],
     },
     {
@@ -327,13 +331,14 @@ const DashboardLayout: React.FC = () => {
         "BARTENDER",
         "KITCHEN",
         "GUARD",
+        "ACCOUNTANT",
       ],
     },
     {
       name: "Bảng công",
       path: "/dashboard/timesheets",
       icon: <ClipboardList size={20} />,
-      roles: ["SUPER_ADMIN", "BRANCH_ADMIN"],
+      roles: ["SUPER_ADMIN", "BRANCH_ADMIN", "ACCOUNTANT"],
     },
     {
       name: "Bảng lương",
@@ -347,6 +352,7 @@ const DashboardLayout: React.FC = () => {
         "BARTENDER",
         "KITCHEN",
         "GUARD",
+        "ACCOUNTANT",
       ],
     },
     {
@@ -361,6 +367,7 @@ const DashboardLayout: React.FC = () => {
         "BARTENDER",
         "KITCHEN",
         "GUARD",
+        "ACCOUNTANT",
       ],
     },
     {
@@ -375,19 +382,20 @@ const DashboardLayout: React.FC = () => {
         "BARTENDER",
         "KITCHEN",
         "GUARD",
+        "ACCOUNTANT",
       ],
     },
     {
       name: "Báo cáo",
       path: "/dashboard/reports",
       icon: <BarChart3 size={20} />,
-      roles: ["SUPER_ADMIN", "BRANCH_ADMIN"],
+      roles: ["SUPER_ADMIN", "BRANCH_ADMIN", "ACCOUNTANT"],
     },
     {
       name: "Doanh thu",
       path: "/dashboard/revenue",
       icon: <CircleDollarSign size={20} />,
-      roles: ["SUPER_ADMIN", "BRANCH_ADMIN"],
+      roles: ["SUPER_ADMIN", "BRANCH_ADMIN", "ACCOUNTANT"],
     },
     {
       name: "Xuất Excel",
@@ -401,6 +409,7 @@ const DashboardLayout: React.FC = () => {
         "BARTENDER",
         "KITCHEN",
         "GUARD",
+        "ACCOUNTANT",
       ],
     },
     {
@@ -439,22 +448,40 @@ const DashboardLayout: React.FC = () => {
         {/* Mobile close button */}
         <button
           className="md:hidden absolute top-4 right-4 text-gray-500 hover:text-gray-800"
-          onClick={() => setIsMobileMenuOpen(false)}
+          onClick={() => {
+            if (userRole === 'KIOSK') {
+              navigate('/kiosk');
+            } else if (userRole === 'KITCHEN_SCREEN') {
+              navigate('/kitchen');
+            } else {
+              setIsMobileMenuOpen(false);
+            }
+          }}
         >
           <X size={24} />
         </button>
 
         {/* Toggle Button for Desktop */}
-        <button
-          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          className="hidden md:flex absolute -right-3 top-6 bg-white border border-gray-200 rounded-full p-1 shadow-md text-gray-500 hover:text-blue-600 z-50 items-center justify-center"
-        >
-          {isSidebarCollapsed ? (
-            <ChevronRight size={14} />
-          ) : (
-            <ChevronLeft size={14} />
-          )}
-        </button>
+        {userRole === 'KIOSK' || userRole === 'KITCHEN_SCREEN' ? (
+          <button
+            onClick={() => navigate(userRole === 'KIOSK' ? '/kiosk' : '/kitchen')}
+            className="hidden md:flex absolute right-3 top-6 bg-white border border-red-200 rounded-full p-1 shadow-sm text-red-500 hover:text-red-700 hover:bg-red-50 z-50 items-center justify-center transition-colors"
+            title={`Đóng (Về ${userRole === 'KIOSK' ? 'Kiosk' : 'Bếp'})`}
+          >
+            <X size={14} />
+          </button>
+        ) : (
+          <button
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className="hidden md:flex absolute -right-3 top-6 bg-white border border-gray-200 rounded-full p-1 shadow-md text-gray-500 hover:text-blue-600 z-50 items-center justify-center"
+          >
+            {isSidebarCollapsed ? (
+              <ChevronRight size={14} />
+            ) : (
+              <ChevronLeft size={14} />
+            )}
+          </button>
+        )}
 
         <div className="h-16 flex flex-col items-center justify-center border-b border-gray-200 mt-2 md:mt-0">
           {isSidebarCollapsed ? (
@@ -625,12 +652,12 @@ const DashboardLayout: React.FC = () => {
               Đăng xuất khỏi hệ thống
             </h3>
             <p className="text-gray-600 mb-6 text-sm md:text-base">
-              {userRole === "POS"
-                ? "Vui lòng nhập mật khẩu của tài khoản Máy Order để khóa máy và đăng xuất."
+              {userRole === "POS" || userRole === "KIOSK" || userRole === "KITCHEN_SCREEN"
+                ? `Vui lòng nhập mật khẩu của tài khoản ${userRole === "POS" ? "Máy Order" : userRole === "KIOSK" ? "Máy Chấm Công" : "Màn hình Bếp"} để khóa máy và đăng xuất.`
                 : "Bạn có chắc chắn muốn đăng xuất không? Phiên làm việc của bạn sẽ được đóng lại."}
             </p>
 
-            {userRole === "POS" && (
+            {(userRole === "POS" || userRole === "KIOSK" || userRole === "KITCHEN_SCREEN") && (
               <div className="relative mb-6">
                 <input
                   type={showLogoutPassword ? "text" : "password"}
@@ -665,7 +692,7 @@ const DashboardLayout: React.FC = () => {
               <button
                 onClick={confirmLogout}
                 disabled={
-                  (userRole === "POS" && !logoutPassword) || isLoggingOut
+                  ((userRole === "POS" || userRole === "KIOSK" || userRole === "KITCHEN_SCREEN") && !logoutPassword) || isLoggingOut
                 }
                 className="px-4 py-2 md:px-5 md:py-2.5 rounded-xl font-medium text-white bg-red-600 hover:bg-red-700 transition-colors shadow-md shadow-red-200 text-sm md:text-base disabled:bg-gray-300 disabled:shadow-none flex-1 md:flex-none"
               >
