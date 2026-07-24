@@ -466,15 +466,13 @@ const Accounts: React.FC = () => {
                           </>
                         )}
 
-                        {!['KIOSK', 'POS', 'SUPER_ADMIN'].includes(acc.role) && (
-                          <button 
-                            onClick={() => handleResetPasswordEmail(acc.email)}
-                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                            title="Gửi email khôi phục mật khẩu"
-                          >
-                            <Mail size={18} />
-                          </button>
-                        )}
+                        <button 
+                          onClick={() => handleResetPasswordEmail(acc.email)}
+                          className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                          title="Gửi email khôi phục mật khẩu"
+                        >
+                          <Mail size={18} />
+                        </button>
 
                         <button 
                           onClick={() => handleDelete(acc.id)}
