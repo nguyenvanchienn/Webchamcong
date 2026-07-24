@@ -284,7 +284,7 @@ const CustomerOrder: React.FC = () => {
             )}
           </button>
           <div className="flex-1">
-            <h1 className="text-3xl sm:text-4xl font-black tracking-tight uppercase" style={{ color: storeNameColor, fontFamily: storeNameFont }}>
+            <h1 className="text-3xl sm:text-4xl font-black tracking-tight" style={{ color: storeNameColor, fontFamily: storeNameFont }}>
               {storeName}
             </h1>
             {branchName && (

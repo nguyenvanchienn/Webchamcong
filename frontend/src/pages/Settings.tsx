@@ -376,16 +376,24 @@ const Settings: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Kiểu chữ</label>
               <select
-                className="w-40 px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-48 px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
                 value={storeNameFont}
                 onChange={e => setStoreNameFont(e.target.value)}
                 style={{ fontFamily: storeNameFont }}
               >
-                <option value="system-ui, sans-serif" style={{ fontFamily: 'system-ui, sans-serif' }}>Mặc định</option>
-                <option value="ui-serif, Georgia, Cambria, serif" style={{ fontFamily: 'ui-serif, Georgia, Cambria, serif' }}>Mềm mại (Serif)</option>
-                <option value='"Comic Sans MS", "Chalkboard SE", "Comic Neue", cursive' style={{ fontFamily: '"Comic Sans MS", "Chalkboard SE", "Comic Neue", cursive' }}>Chữ viết tay</option>
-                <option value='ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}>Cứng cáp (Mono)</option>
-                <option value='Impact, fantasy' style={{ fontFamily: 'Impact, fantasy' }}>Nét đậm (Impact)</option>
+                <option value="system-ui, sans-serif" style={{ fontFamily: 'system-ui, sans-serif' }}>Mặc định hệ thống</option>
+                <option value="Arial, Helvetica, sans-serif" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>Arial</option>
+                <option value="Verdana, Geneva, sans-serif" style={{ fontFamily: 'Verdana, Geneva, sans-serif' }}>Verdana</option>
+                <option value="Tahoma, Geneva, sans-serif" style={{ fontFamily: 'Tahoma, Geneva, sans-serif' }}>Tahoma</option>
+                <option value="'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif" style={{ fontFamily: "'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif" }}>Trebuchet MS</option>
+                <option value="'Times New Roman', Times, serif" style={{ fontFamily: "'Times New Roman', Times, serif" }}>Times New Roman</option>
+                <option value="Georgia, serif" style={{ fontFamily: 'Georgia, serif' }}>Georgia</option>
+                <option value="'Courier New', Courier, monospace" style={{ fontFamily: "'Courier New', Courier, monospace" }}>Courier New</option>
+                <option value="'Comic Sans MS', cursive, sans-serif" style={{ fontFamily: "'Comic Sans MS', cursive, sans-serif" }}>Comic Sans (Viết tay)</option>
+                <option value="Impact, Charcoal, sans-serif" style={{ fontFamily: 'Impact, Charcoal, sans-serif' }}>Impact (Nét đậm)</option>
+                <option value="'Brush Script MT', cursive" style={{ fontFamily: "'Brush Script MT', cursive" }}>Brush Script (Nghệ thuật)</option>
+                <option value="'Palatino Linotype', 'Book Antiqua', Palatino, serif" style={{ fontFamily: "'Palatino Linotype', 'Book Antiqua', Palatino, serif" }}>Palatino Linotype</option>
+                <option value="'Arial Black', Gadget, sans-serif" style={{ fontFamily: "'Arial Black', Gadget, sans-serif" }}>Arial Black</option>
               </select>
             </div>
             <div>

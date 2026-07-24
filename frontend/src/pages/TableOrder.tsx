@@ -372,7 +372,7 @@ const TableOrder: React.FC = () => {
                   <ChefHat size={28} />
                 </div>
               )}
-              <h1 className="text-3xl sm:text-4xl font-black tracking-tight uppercase" style={{ color: storeNameColor, fontFamily: storeNameFont }}>
+              <h1 className="text-3xl sm:text-4xl font-black tracking-tight" style={{ color: storeNameColor, fontFamily: storeNameFont }}>
                 {storeName}
               </h1>
             </div>
