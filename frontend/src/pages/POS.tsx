@@ -51,6 +51,8 @@ const POS: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [billModalData, setBillModalData] = useState<any | null>(null);
   const [storeName, setStoreName] = useState<string>('Bơ Food');
+  const [storeNameColor, setStoreNameColor] = useState<string>('#2563eb');
+  const [storeLogo, setStoreLogo] = useState<string>('');
   const [storeAddress, setStoreAddress] = useState<string | null>(null);
   const [storePhone, setStorePhone] = useState<string | null>(null);
   const [storeBankId, setStoreBankId] = useState<string | null>(null);
@@ -107,8 +109,14 @@ const POS: React.FC = () => {
     const fetchSettings = async () => {
       try {
         const docSnap = await getDoc(doc(db, 'settings', 'general'));
-        if (docSnap.exists() && docSnap.data().customerOrderExitPassword) {
-          setNewExitPassword(docSnap.data().customerOrderExitPassword);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.customerOrderExitPassword) {
+            setNewExitPassword(data.customerOrderExitPassword);
+          }
+          if (data.storeName) setStoreName(data.storeName);
+          if (data.storeNameColor) setStoreNameColor(data.storeNameColor);
+          if (data.storeLogo) setStoreLogo(data.storeLogo);
         }
       } catch (e) {
         console.error(e);
@@ -1779,7 +1787,14 @@ const POS: React.FC = () => {
           <div className="fixed inset-y-0 left-0 w-64 bg-white shadow-2xl z-50 flex flex-col border-r border-gray-200 animate-slide-right">
 
             <div className="h-20 flex flex-col items-center justify-center border-b border-gray-200 relative">
-              <h1 className="text-2xl font-bold text-blue-600">Tiệm Nhà Bơ</h1>
+              {storeLogo ? (
+                <div className="flex items-center gap-2">
+                  <img src={storeLogo} alt="Logo" className="w-8 h-8 object-contain rounded-md" />
+                  <h1 className="text-2xl font-bold" style={{ color: storeNameColor }}>{storeName}</h1>
+                </div>
+              ) : (
+                <h1 className="text-2xl font-bold" style={{ color: storeNameColor }}>{storeName}</h1>
+              )}
               <span className="text-xs font-medium text-gray-500 uppercase tracking-widest mt-1">MÁY ORDER</span>
 
               <button onClick={() => setShowSidebar(false)} className="absolute right-2 top-2 p-1.5 hover:bg-gray-100 rounded-full text-gray-400 transition-colors">

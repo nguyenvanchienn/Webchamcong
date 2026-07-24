@@ -60,6 +60,7 @@ const CustomerOrder: React.FC = () => {
   
   const [branchName, setBranchName] = useState<string>('');
   const [storeName, setStoreName] = useState<string>('Tiệm nhà Bơ');
+  const [storeNameColor, setStoreNameColor] = useState<string>('#2563eb');
   const [storeLogo, setStoreLogo] = useState<string>('');
   
   const navigate = useNavigate();
@@ -150,6 +151,7 @@ const CustomerOrder: React.FC = () => {
             setNewExitPassword(data.customerOrderExitPassword);
           }
           if (data.storeName) setStoreName(data.storeName);
+          if (data.storeNameColor) setStoreNameColor(data.storeNameColor);
           if (data.storeLogo) setStoreLogo(data.storeLogo);
         }
       } catch (e) {
@@ -268,12 +270,14 @@ const CustomerOrder: React.FC = () => {
                 setShowSidebar(true);
               }
             }}
-            className="w-12 h-12 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-lg hover:bg-blue-700 transition-colors cursor-pointer overflow-hidden p-0 border-0"
+            className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg transition-colors cursor-pointer overflow-hidden p-0 border-0"
           >
             {storeLogo ? (
               <img src={storeLogo} alt="Logo" className="w-full h-full object-cover" />
             ) : (
-              <Store size={28} />
+              <div className="w-12 h-12 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-sm">
+                <Store size={28} />
+              </div>
             )}
           </button>
           <div className="flex-1">
@@ -287,7 +291,7 @@ const CustomerOrder: React.FC = () => {
                 {storeName} - {branchName.toLowerCase().includes('cơ sở') ? branchName : `Cơ sở ${branchName}`}
               </p>
             )}
-            <h1 className="text-2xl font-black text-gray-800 tracking-tight">Xin chào Quý khách!</h1>
+            <h1 className="text-2xl font-black tracking-tight" style={{ color: storeNameColor }}>{storeName}</h1>
             <p className="text-gray-500 font-medium">Vui lòng chọn món ăn bên dưới</p>
           </div>
         </div>

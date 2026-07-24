@@ -61,7 +61,7 @@ const compressImage = (file: File): Promise<string> => {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx?.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/png', 0.8));
+        resolve(canvas.toDataURL('image/webp', 0.8));
       };
       img.onerror = (error) => reject(error);
     };
@@ -91,6 +91,7 @@ const Settings: React.FC = () => {
 
   // Branding States
   const [storeName, setStoreName] = useState('Tiệm nhà Bơ');
+  const [storeNameColor, setStoreNameColor] = useState('#2563eb');
   const [storeLogo, setStoreLogo] = useState('');
   const [localLogoFile, setLocalLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState('');
@@ -127,6 +128,7 @@ const Settings: React.FC = () => {
             sm = { ...sm, ...data.lateGracePeriod };
           }
           if (data.storeName) setStoreName(data.storeName);
+          if (data.storeNameColor) setStoreNameColor(data.storeNameColor);
           if (data.storeLogo) {
             setStoreLogo(data.storeLogo);
             setLogoPreview(data.storeLogo);
@@ -235,6 +237,7 @@ const Settings: React.FC = () => {
       
       await setDoc(doc(db, 'settings', 'general'), {
         storeName: storeName.trim(),
+        storeNameColor: storeNameColor,
         storeLogo: finalLogo
       }, { merge: true });
       
@@ -356,15 +359,26 @@ const Settings: React.FC = () => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-4 max-w-2xl">
           <h3 className="text-lg font-semibold text-gray-800 border-b border-gray-100 pb-3">Thông tin thương hiệu (Toàn hệ thống)</h3>
           
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Tên quán / Thương hiệu</label>
-            <input
-              type="text"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
-              value={storeName}
-              onChange={e => setStoreName(e.target.value)}
-              placeholder="VD: Tiệm nhà Bơ"
-            />
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Tên quán / Thương hiệu</label>
+              <input
+                type="text"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+                value={storeName}
+                onChange={e => setStoreName(e.target.value)}
+                placeholder="VD: Tiệm nhà Bơ"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Màu tên quán</label>
+              <input
+                type="color"
+                className="w-14 h-10 p-0.5 border border-gray-300 rounded-lg cursor-pointer bg-white"
+                value={storeNameColor}
+                onChange={e => setStoreNameColor(e.target.value)}
+              />
+            </div>
           </div>
 
           <div>

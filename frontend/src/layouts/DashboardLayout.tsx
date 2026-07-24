@@ -78,6 +78,7 @@ const DashboardLayout: React.FC = () => {
     useState(true);
 
   const [storeName, setStoreName] = useState("Tiệm Nhà Bơ");
+  const [storeNameColor, setStoreNameColor] = useState("#2563eb");
   const [storeLogo, setStoreLogo] = useState("");
 
   useEffect(() => {
@@ -93,6 +94,7 @@ const DashboardLayout: React.FC = () => {
             setEnablePersonalSalaryCalc(data.enablePersonalSalaryCalc);
           }
           if (data.storeName) setStoreName(data.storeName);
+          if (data.storeNameColor) setStoreNameColor(data.storeNameColor);
           if (data.storeLogo) setStoreLogo(data.storeLogo);
         }
       } catch (e) {
@@ -439,9 +441,9 @@ const DashboardLayout: React.FC = () => {
         <div className="h-16 flex flex-col items-center justify-center border-b border-gray-200 mt-2 md:mt-0">
           {isSidebarCollapsed ? (
             storeLogo ? (
-              <img src={storeLogo} alt="Logo" className="hidden md:block w-8 h-8 object-cover rounded-md" />
+              <img src={storeLogo} alt="Logo" className="hidden md:block w-10 h-10 object-contain rounded-md" />
             ) : (
-              <h1 className="hidden md:block text-xl font-bold text-blue-600">
+              <h1 className="hidden md:block text-xl font-bold" style={{ color: storeNameColor }}>
                 {storeName.substring(0, 2).toUpperCase()}
               </h1>
             )
@@ -449,11 +451,11 @@ const DashboardLayout: React.FC = () => {
             <>
               {storeLogo ? (
                 <div className="flex items-center gap-2">
-                  <img src={storeLogo} alt="Logo" className="w-6 h-6 object-cover rounded-md" />
-                  <h1 className="text-xl font-bold text-blue-600">{storeName}</h1>
+                  <img src={storeLogo} alt="Logo" className="w-10 h-10 object-contain rounded-md" />
+                  <h1 className="text-xl font-bold" style={{ color: storeNameColor }}>{storeName}</h1>
                 </div>
               ) : (
-                <h1 className="text-xl font-bold text-blue-600">{storeName}</h1>
+                <h1 className="text-xl font-bold" style={{ color: storeNameColor }}>{storeName}</h1>
               )}
               <span className="text-xs font-medium text-gray-500 uppercase tracking-widest mt-1">
                 {userRole === "POS"
