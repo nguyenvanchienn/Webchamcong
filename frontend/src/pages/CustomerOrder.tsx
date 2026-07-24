@@ -282,11 +282,11 @@ const CustomerOrder: React.FC = () => {
           </button>
           <div className="flex-1">
             {branchName && (
-              <p className="md:hidden text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+              <p className="md:hidden text-sm font-bold text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-2">
                 {storeLogo ? (
-                  <img src={storeLogo} alt="Logo" className="w-3.5 h-3.5 rounded-sm object-cover" />
+                  <img src={storeLogo} alt="Logo" className="w-6 h-6 rounded-md object-contain" />
                 ) : (
-                  <Store size={12} />
+                  <Store size={20} />
                 )}
                 {storeName} - {branchName.toLowerCase().includes('cơ sở') ? branchName : `Cơ sở ${branchName}`}
               </p>
