@@ -92,6 +92,7 @@ const Settings: React.FC = () => {
   // Branding States
   const [storeName, setStoreName] = useState('Tiệm nhà Bơ');
   const [storeNameColor, setStoreNameColor] = useState('#2563eb');
+  const [storeNameFont, setStoreNameFont] = useState('system-ui, sans-serif');
   const [storeLogo, setStoreLogo] = useState('');
   const [localLogoFile, setLocalLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState('');
@@ -129,6 +130,7 @@ const Settings: React.FC = () => {
           }
           if (data.storeName) setStoreName(data.storeName);
           if (data.storeNameColor) setStoreNameColor(data.storeNameColor);
+          if (data.storeNameFont) setStoreNameFont(data.storeNameFont);
           if (data.storeLogo) {
             setStoreLogo(data.storeLogo);
             setLogoPreview(data.storeLogo);
@@ -236,8 +238,9 @@ const Settings: React.FC = () => {
       }
       
       await setDoc(doc(db, 'settings', 'general'), {
-        storeName: storeName.trim(),
+        storeName: storeName,
         storeNameColor: storeNameColor,
+        storeNameFont: storeNameFont,
         storeLogo: finalLogo
       }, { merge: true });
       
@@ -369,6 +372,21 @@ const Settings: React.FC = () => {
                 onChange={e => setStoreName(e.target.value)}
                 placeholder="VD: Tiệm nhà Bơ"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Kiểu chữ</label>
+              <select
+                className="w-40 px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+                value={storeNameFont}
+                onChange={e => setStoreNameFont(e.target.value)}
+                style={{ fontFamily: storeNameFont }}
+              >
+                <option value="system-ui, sans-serif" style={{ fontFamily: 'system-ui, sans-serif' }}>Mặc định</option>
+                <option value="ui-serif, Georgia, Cambria, serif" style={{ fontFamily: 'ui-serif, Georgia, Cambria, serif' }}>Mềm mại (Serif)</option>
+                <option value='"Comic Sans MS", "Chalkboard SE", "Comic Neue", cursive' style={{ fontFamily: '"Comic Sans MS", "Chalkboard SE", "Comic Neue", cursive' }}>Chữ viết tay</option>
+                <option value='ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}>Cứng cáp (Mono)</option>
+                <option value='Impact, fantasy' style={{ fontFamily: 'Impact, fantasy' }}>Nét đậm (Impact)</option>
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Màu tên quán</label>

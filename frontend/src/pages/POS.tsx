@@ -53,6 +53,7 @@ const POS: React.FC = () => {
   const [storeName, setStoreName] = useState<string>('Bơ Food');
   const [brandName, setBrandName] = useState<string>('Tiệm nhà Bơ');
   const [storeNameColor, setStoreNameColor] = useState<string>('#2563eb');
+  const [storeNameFont, setStoreNameFont] = useState<string>('system-ui, sans-serif');
   const [storeLogo, setStoreLogo] = useState<string>('');
   const [storeAddress, setStoreAddress] = useState<string | null>(null);
   const [storePhone, setStorePhone] = useState<string | null>(null);
@@ -118,6 +119,7 @@ const POS: React.FC = () => {
           }
           if (data.storeName) setBrandName(data.storeName);
           if (data.storeNameColor) setStoreNameColor(data.storeNameColor);
+          if (data.storeNameFont) setStoreNameFont(data.storeNameFont);
           if (data.storeLogo) setStoreLogo(data.storeLogo);
         }
       } catch (e) {
@@ -1826,10 +1828,10 @@ const POS: React.FC = () => {
               {storeLogo ? (
                 <div className="flex items-center gap-2">
                   <img src={storeLogo} alt="Logo" className="w-8 h-8 object-contain rounded-md" />
-                  <h1 className="text-2xl font-bold" style={{ color: storeNameColor }}>{brandName}</h1>
+                  <h1 className="text-2xl font-bold" style={{ color: storeNameColor, fontFamily: storeNameFont }}>{brandName}</h1>
                 </div>
               ) : (
-                <h1 className="text-2xl font-bold" style={{ color: storeNameColor }}>{brandName}</h1>
+                <h1 className="text-2xl font-bold" style={{ color: storeNameColor, fontFamily: storeNameFont }}>{brandName}</h1>
               )}
               <span className="text-xs font-medium text-gray-500 uppercase tracking-widest mt-1">MÁY ORDER</span>
 

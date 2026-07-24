@@ -58,6 +58,7 @@ const TableOrder: React.FC = () => {
   const [storeName, setStoreName] = useState<string>('Tiệm nhà Bơ');
   const [storeLogo, setStoreLogo] = useState<string>('');
   const [storeNameColor, setStoreNameColor] = useState<string>('#2563eb');
+  const [storeNameFont, setStoreNameFont] = useState<string>('system-ui, sans-serif');
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isOrderExpanded, setIsOrderExpanded] = useState(false);
@@ -105,6 +106,7 @@ const TableOrder: React.FC = () => {
           if (data.storeName) setStoreName(data.storeName);
           if (data.storeLogo) setStoreLogo(data.storeLogo);
           if (data.storeNameColor) setStoreNameColor(data.storeNameColor);
+          if (data.storeNameFont) setStoreNameFont(data.storeNameFont);
         }
 
         // Fetch Menu
@@ -370,7 +372,7 @@ const TableOrder: React.FC = () => {
                   <ChefHat size={28} />
                 </div>
               )}
-              <h1 className="text-3xl sm:text-4xl font-black tracking-tight uppercase" style={{ color: storeNameColor }}>
+              <h1 className="text-3xl sm:text-4xl font-black tracking-tight uppercase" style={{ color: storeNameColor, fontFamily: storeNameFont }}>
                 {storeName}
               </h1>
             </div>

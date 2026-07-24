@@ -62,6 +62,7 @@ const CustomerOrder: React.FC = () => {
   const [branchName, setBranchName] = useState<string>('');
   const [storeName, setStoreName] = useState<string>('Tiệm nhà Bơ');
   const [storeNameColor, setStoreNameColor] = useState<string>('#2563eb');
+  const [storeNameFont, setStoreNameFont] = useState<string>('system-ui, sans-serif');
   const [storeLogo, setStoreLogo] = useState<string>('');
 
   const navigate = useNavigate();
@@ -153,6 +154,7 @@ const CustomerOrder: React.FC = () => {
           }
           if (data.storeName) setStoreName(data.storeName);
           if (data.storeNameColor) setStoreNameColor(data.storeNameColor);
+          if (data.storeNameFont) setStoreNameFont(data.storeNameFont);
           if (data.storeLogo) setStoreLogo(data.storeLogo);
         }
       } catch (e) {
@@ -271,29 +273,27 @@ const CustomerOrder: React.FC = () => {
                 setShowSidebar(true);
               }
             }}
-            className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg transition-colors cursor-pointer overflow-hidden p-0 border-0"
+            className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center shadow-lg transition-colors cursor-pointer overflow-hidden p-0 border-0 shrink-0"
           >
             {storeLogo ? (
               <img src={storeLogo} alt="Logo" className="w-full h-full object-cover" />
             ) : (
-              <div className="w-12 h-12 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-sm">
-                <Store size={28} />
+              <div className="w-full h-full bg-blue-600 text-white flex items-center justify-center shadow-sm">
+                <Store size={36} />
               </div>
             )}
           </button>
           <div className="flex-1">
+            <h1 className="text-3xl sm:text-4xl font-black tracking-tight uppercase" style={{ color: storeNameColor, fontFamily: storeNameFont }}>
+              {storeName}
+            </h1>
             {branchName && (
-              <p className="md:hidden text-sm font-bold text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-2">
-                {storeLogo ? (
-                  <img src={storeLogo} alt="Logo" className="w-6 h-6 rounded-md object-contain" />
-                ) : (
-                  <Store size={20} />
-                )}
-                {storeName} - {branchName.toLowerCase().includes('cơ sở') ? branchName : `Cơ sở ${branchName}`}
+              <p className="text-sm sm:text-base font-bold text-gray-500 uppercase tracking-wider mt-1 flex items-center gap-1.5">
+                <Store size={16} />
+                {branchName.toLowerCase().includes('cơ sở') ? branchName : `Cơ sở ${branchName}`}
               </p>
             )}
-            <h1 className="text-2xl font-black tracking-tight" style={{ color: storeNameColor }}>{storeName}</h1>
-            <p className="text-gray-500 font-medium">Vui lòng chọn món ăn bên dưới</p>
+            <p className="text-gray-500 font-medium mt-1">Vui lòng chọn món ăn bên dưới</p>
           </div>
         </div>
 
@@ -564,10 +564,10 @@ const CustomerOrder: React.FC = () => {
               {storeLogo ? (
                 <div className="flex items-center gap-2">
                   <img src={storeLogo} alt="Logo" className="w-8 h-8 object-contain rounded-md" />
-                  <h1 className="text-2xl font-bold" style={{ color: storeNameColor }}>{storeName}</h1>
+                  <h1 className="text-2xl font-bold" style={{ color: storeNameColor, fontFamily: storeNameFont }}>{storeName}</h1>
                 </div>
               ) : (
-                <h1 className="text-2xl font-bold" style={{ color: storeNameColor }}>{storeName}</h1>
+                <h1 className="text-2xl font-bold" style={{ color: storeNameColor, fontFamily: storeNameFont }}>{storeName}</h1>
               )}
               <span className="text-xs font-medium text-gray-500 uppercase tracking-widest mt-1">MÁY ORDER</span>
 
