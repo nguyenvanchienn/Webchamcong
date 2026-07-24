@@ -37,6 +37,7 @@ interface EmployeeInfo {
 
 interface PayrollItem {
   date: string;
+  endDate?: string;
   checkInStr: string;
   checkOutStr: string;
   hoursWorked: number;
@@ -335,8 +336,22 @@ const Payroll: React.FC = () => {
                 status += " - Ngắt quãng";
               }
 
+              let endDateStr: string | undefined;
+              if (outTime) {
+                const outDateStr = outTime.toLocaleDateString("en-CA");
+                if (outDateStr !== data.date) {
+                  endDateStr = outDateStr;
+                }
+              } else {
+                const todayStr = new Date().toLocaleDateString("en-CA");
+                if (todayStr !== data.date) {
+                  endDateStr = todayStr;
+                }
+              }
+
               records.push({
                 date: data.date,
+                endDate: endDateStr,
                 checkInStr: inTime.toLocaleTimeString("vi-VN", {
                   hour: "2-digit",
                   minute: "2-digit",
@@ -1104,6 +1119,7 @@ const Payroll: React.FC = () => {
                   >
                     <td className="p-4 text-sm font-medium text-gray-800">
                       {new Date(item.date).toLocaleDateString("vi-VN")}
+                      {item.endDate && ` - ${new Date(item.endDate).toLocaleDateString("vi-VN")}`}
                     </td>
                     <td className="p-4 text-sm text-gray-600">
                       Từ{" "}
