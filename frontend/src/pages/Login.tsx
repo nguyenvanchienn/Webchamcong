@@ -121,7 +121,7 @@ const Login: React.FC = () => {
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Nhập email (vd: admin@chamcong.com)"
+              placeholder="Nhập email"
             />
           </div>
 
@@ -135,7 +135,7 @@ const Login: React.FC = () => {
                 className="block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Nhập mật khẩu (vd: admin123)"
+                placeholder="Nhập mật khẩu"
               />
               <button
                 type="button"

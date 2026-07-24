@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { collection, getDocs, doc, updateDoc, setDoc } from 'firebase/firestore';
 import { db, firebaseConfig } from '../config/firebase';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, updatePassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword, updatePassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
-import { Plus, Trash2, X, ShieldAlert, Eye, EyeOff, Edit2, Key, LogOut } from 'lucide-react';
+import { Plus, Trash2, X, ShieldAlert, Eye, EyeOff, Edit2, Key, LogOut, Mail } from 'lucide-react';
 
 interface UserAccount {
   id: string;
@@ -216,6 +216,28 @@ const Accounts: React.FC = () => {
       } catch (error) {
         console.error("Lỗi đăng xuất từ xa:", error);
         toast.error('Lỗi khi gửi lệnh đăng xuất!');
+      }
+    }
+  };
+
+  const handleResetPasswordEmail = async (email: string) => {
+    const result = await Swal.fire({
+      title: 'Gửi link khôi phục mật khẩu?',
+      text: `Hệ thống sẽ gửi một đường link đặt lại mật khẩu tới hộp thư ${email}. Bạn có chắc chắn không?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Gửi email',
+      cancelButtonText: 'Hủy'
+    });
+
+    if (result.isConfirmed) {
+      try {
+        const auth = getAuth();
+        await sendPasswordResetEmail(auth, email);
+        toast.success(`Đã gửi link khôi phục mật khẩu tới ${email}!`);
+      } catch (error: any) {
+        console.error("Lỗi gửi email reset password:", error);
+        toast.error('Có lỗi xảy ra: ' + error.message);
       }
     }
   };
@@ -442,6 +464,16 @@ const Accounts: React.FC = () => {
                               <LogOut size={18} />
                             </button>
                           </>
+                        )}
+
+                        {!['KIOSK', 'POS', 'SUPER_ADMIN'].includes(acc.role) && (
+                          <button 
+                            onClick={() => handleResetPasswordEmail(acc.email)}
+                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                            title="Gửi email khôi phục mật khẩu"
+                          >
+                            <Mail size={18} />
+                          </button>
                         )}
 
                         <button 
