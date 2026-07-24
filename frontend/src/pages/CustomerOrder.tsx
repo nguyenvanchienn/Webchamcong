@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { collection, getDocs, query, where, doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { ShoppingCart, Trash2, Plus, Minus, Store, X, LayoutDashboard, Receipt, QrCode, ClipboardCheck, LogOut, Lock, Edit2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { ShoppingCart, Trash2, Plus, Minus, Store, X, Edit2, QrCode } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface MenuItem {
@@ -39,13 +38,8 @@ const CustomerOrder: React.FC = () => {
   const [amountTendered, setAmountTendered] = useState<string>('0');
   const [pendingOrderCode, setPendingOrderCode] = useState<string | null>(null);
 
-  const [showSidebar, setShowSidebar] = useState(false);
   const [showMobileCart, setShowMobileCart] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  const [showExitPasswordModal, setShowExitPasswordModal] = useState(false);
-  const [exitPasswordInput, setExitPasswordInput] = useState('');
-  const [requiredExitPassword, setRequiredExitPassword] = useState('');
 
   const [selectedItemForSize, setSelectedItemForSize] = useState<MenuItem | null>(null);
   const [showSizeModal, setShowSizeModal] = useState(false);
@@ -55,9 +49,7 @@ const CustomerOrder: React.FC = () => {
   const [storeBankAccount, setStoreBankAccount] = useState<string | null>(null);
   const [storeBankAccountName, setStoreBankAccountName] = useState<string | null>(null);
 
-  const [showSetPasswordModal, setShowSetPasswordModal] = useState(false);
-  const [newExitPassword, setNewExitPassword] = useState('');
-  const [isSavingPassword, setIsSavingPassword] = useState(false);
+
 
   const [branchName, setBranchName] = useState<string>('');
   const [storeName, setStoreName] = useState<string>(localStorage.getItem('storeName') || 'Tiệm nhà Bơ');
@@ -65,7 +57,6 @@ const CustomerOrder: React.FC = () => {
   const [storeNameFont, setStoreNameFont] = useState<string>(localStorage.getItem('storeNameFont') || 'system-ui, sans-serif');
   const [storeLogo, setStoreLogo] = useState<string>(localStorage.getItem('storeLogo') || '');
 
-  const navigate = useNavigate();
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollTimeoutRef = useRef<any>(null);
@@ -148,10 +139,7 @@ const CustomerOrder: React.FC = () => {
         const docSnap = await getDoc(doc(db, 'settings', 'general'));
         if (docSnap.exists()) {
           const data = docSnap.data();
-          if (data.customerOrderExitPassword) {
-            setRequiredExitPassword(data.customerOrderExitPassword);
-            setNewExitPassword(data.customerOrderExitPassword);
-          }
+
           if (data.storeName) { setStoreName(data.storeName); localStorage.setItem('storeName', data.storeName); }
           if (data.storeNameColor) { setStoreNameColor(data.storeNameColor); localStorage.setItem('storeNameColor', data.storeNameColor); }
           if (data.storeNameFont) { setStoreNameFont(data.storeNameFont); localStorage.setItem('storeNameFont', data.storeNameFont); }
@@ -265,15 +253,8 @@ const CustomerOrder: React.FC = () => {
       {/* Cột trái: Menu */}
       <div className="flex-1 flex flex-col p-3 md:p-6 h-full pointer-events-auto">
         <div className="flex items-center gap-4 mb-6">
-          <button
-            onDoubleClick={() => {
-              if (requiredExitPassword) {
-                setShowExitPasswordModal(true);
-              } else {
-                setShowSidebar(true);
-              }
-            }}
-            className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center shadow-lg transition-colors cursor-pointer overflow-hidden p-0 border-0 shrink-0"
+          <div
+            className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center shadow-lg overflow-hidden shrink-0"
           >
             {storeLogo ? (
               <img src={storeLogo} alt="Logo" className="w-full h-full object-cover" />
@@ -282,7 +263,7 @@ const CustomerOrder: React.FC = () => {
                 <Store size={36} />
               </div>
             )}
-          </button>
+          </div>
           <div className="flex-1">
             <h1 className="text-3xl sm:text-4xl font-black tracking-tight" style={{ color: storeNameColor, fontFamily: storeNameFont }}>
               {storeName}
@@ -554,228 +535,6 @@ const CustomerOrder: React.FC = () => {
         </div>
       )}
 
-      {/* Sidebar ẩn */}
-      {showSidebar && (
-        <>
-          <div className="fixed inset-0 bg-black/20 z-40 backdrop-blur-sm transition-opacity" onClick={() => setShowSidebar(false)}></div>
-          <div className="fixed inset-y-0 left-0 w-64 bg-white shadow-2xl z-50 flex flex-col border-r border-gray-200 animate-slide-right">
-
-            <div className="h-20 flex flex-col items-center justify-center border-b border-gray-200 relative">
-              {storeLogo ? (
-                <div className="flex items-center gap-2">
-                  <img src={storeLogo} alt="Logo" className="w-8 h-8 object-contain rounded-md" />
-                  <h1 className="text-2xl font-bold" style={{ color: storeNameColor, fontFamily: storeNameFont }}>{storeName}</h1>
-                </div>
-              ) : (
-                <h1 className="text-2xl font-bold" style={{ color: storeNameColor, fontFamily: storeNameFont }}>{storeName}</h1>
-              )}
-              <span className="text-xs font-medium text-gray-500 uppercase tracking-widest mt-1">MÁY ORDER</span>
-
-              <button onClick={() => setShowSidebar(false)} className="absolute right-2 top-2 p-1.5 hover:bg-gray-100 rounded-full text-gray-400 transition-colors">
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto py-4">
-              <nav className="space-y-1 px-2">
-                <div
-                  onClick={() => {
-                    navigate('/pos');
-                    if (!document.fullscreenElement) {
-                      document.documentElement.requestFullscreen().catch(() => { });
-                    }
-                  }}
-                  className="flex items-center py-3 px-4 text-sm font-medium rounded-lg transition-colors relative text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer mt-1"
-                >
-                  <span className="mr-3 relative text-gray-400"><ShoppingCart size={20} /></span>
-                  <span className="flex-1">Bán hàng (POS)</span>
-                </div>
-
-                <div className="flex items-center py-3 px-4 text-sm font-medium rounded-lg transition-colors relative bg-blue-50 text-blue-700 cursor-default">
-                  <span className="mr-3 relative text-blue-700"><Store size={20} /></span>
-                  <span className="flex-1">Màn hình Khách Order</span>
-                </div>
-
-                <div
-                  onClick={() => {
-                    navigate('/dashboard/orders');
-                    if (document.fullscreenElement) document.exitFullscreen().catch(() => { });
-                  }}
-                  className="flex items-center py-3 px-4 text-sm font-medium rounded-lg transition-colors relative text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer mt-1"
-                >
-                  <span className="mr-3 relative text-gray-400"><Receipt size={20} /></span>
-                  <span className="flex-1">Lịch sử Hóa đơn</span>
-                </div>
-
-                <div
-                  onClick={() => {
-                    navigate('/dashboard/tables');
-                    if (document.fullscreenElement) document.exitFullscreen().catch(() => { });
-                  }}
-                  className="flex items-center py-3 px-4 text-sm font-medium rounded-lg transition-colors relative text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer mt-1"
-                >
-                  <span className="mr-3 relative text-gray-400"><QrCode size={20} /></span>
-                  <span className="flex-1">Quản lý Bàn / QR</span>
-                </div>
-
-                <div
-                  onClick={() => {
-                    navigate('/dashboard/shift-handovers');
-                    if (document.fullscreenElement) document.exitFullscreen().catch(() => { });
-                  }}
-                  className="flex items-center py-3 px-4 text-sm font-medium rounded-lg transition-colors relative text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer mt-1"
-                >
-                  <span className="mr-3 relative text-gray-400"><ClipboardCheck size={20} /></span>
-                  <span className="flex-1">Bàn giao ca</span>
-                </div>
-
-                {localStorage.getItem('userRole') !== 'POS' && (
-                  <div
-                    onClick={() => {
-                      navigate('/dashboard');
-                      if (document.fullscreenElement) document.exitFullscreen().catch(() => { });
-                    }}
-                    className="flex items-center py-3 px-4 text-sm font-medium rounded-lg transition-colors relative text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer mt-1"
-                  >
-                    <span className="mr-3 relative text-gray-400"><LayoutDashboard size={20} /></span>
-                    <span className="flex-1">Quay lại Dashboard</span>
-                  </div>
-                )}
-
-                {localStorage.getItem('userRole') === 'POS' && (
-                  <div
-                    onClick={() => {
-                      setShowSidebar(false);
-                      setShowSetPasswordModal(true);
-                    }}
-                    className="flex items-center py-3 px-4 text-sm font-medium rounded-lg transition-colors relative text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer mt-1 border-t border-gray-100"
-                  >
-                    <span className="mr-3 relative text-gray-400"><Lock size={20} /></span>
-                    <span className="flex-1">Cài mật khẩu Màn hình Khách</span>
-                  </div>
-                )}
-              </nav>
-            </div>
-
-            <div className="p-4 border-t border-gray-200">
-              <button
-                onClick={() => navigate('/pos')}
-                className="flex items-center w-full py-2 px-4 text-sm font-medium text-red-600 rounded-lg hover:bg-red-50 transition-colors"
-                title="Về màn hình POS để Đăng xuất"
-              >
-                <LogOut size={20} className="mr-3" />
-                <span>Đăng xuất</span>
-              </button>
-            </div>
-
-          </div>
-        </>
-      )}
-
-      {/* Exit Password Modal */}
-      {showExitPasswordModal && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-scale-up">
-            <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gray-50">
-              <h3 className="text-lg font-bold text-gray-800">Nhập mật khẩu</h3>
-              <button onClick={() => {
-                setShowExitPasswordModal(false);
-                setExitPasswordInput('');
-              }} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
-                <X size={20} className="text-gray-500" />
-              </button>
-            </div>
-
-            <div className="p-6">
-              <p className="text-sm text-gray-600 mb-4">Vui lòng nhập mật khẩu để mở khóa menu điều khiển.</p>
-
-              <input
-                type="password"
-                className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 transition-all font-medium mb-6 text-center text-xl tracking-[0.3em]"
-                placeholder="••••••"
-                value={exitPasswordInput}
-                onChange={e => setExitPasswordInput(e.target.value)}
-                autoFocus
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    if (exitPasswordInput === requiredExitPassword) {
-                      setShowExitPasswordModal(false);
-                      setExitPasswordInput('');
-                      setShowSidebar(true);
-                    } else {
-                      toast.error('Mật khẩu không chính xác!');
-                      setExitPasswordInput('');
-                    }
-                  }
-                }}
-              />
-
-              <button
-                onClick={() => {
-                  if (exitPasswordInput === requiredExitPassword) {
-                    setShowExitPasswordModal(false);
-                    setExitPasswordInput('');
-                    setShowSidebar(true);
-                  } else {
-                    toast.error('Mật khẩu không chính xác!');
-                    setExitPasswordInput('');
-                  }
-                }}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-3 font-bold transition-all shadow-lg shadow-blue-600/30 active:scale-[0.98]"
-              >
-                Xác nhận
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Cài đặt mật khẩu Màn hình khách */}
-      {showSetPasswordModal && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl max-w-sm w-full p-6 animate-scale-up">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">Mật khẩu Màn hình Khách</h3>
-            <p className="text-sm text-gray-600 mb-4">Thiết lập mật khẩu để mở khóa menu ẩn ở màn hình Khách Order (Để trống nếu không cần).</p>
-            <input
-              type="text"
-              placeholder="Nhập mật khẩu..."
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none mb-6 text-center text-lg tracking-widest"
-              value={newExitPassword}
-              onChange={(e) => setNewExitPassword(e.target.value)}
-              autoFocus
-            />
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowSetPasswordModal(false)}
-                className="flex-1 py-2 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-              >
-                Hủy
-              </button>
-              <button
-                onClick={async () => {
-                  setIsSavingPassword(true);
-                  try {
-                    await setDoc(doc(db, 'settings', 'general'), {
-                      customerOrderExitPassword: newExitPassword
-                    }, { merge: true });
-                    toast.success('Lưu mật khẩu thành công!');
-                    setRequiredExitPassword(newExitPassword);
-                    setShowSetPasswordModal(false);
-                  } catch (error) {
-                    toast.error('Lỗi khi lưu mật khẩu');
-                  } finally {
-                    setIsSavingPassword(false);
-                  }
-                }}
-                disabled={isSavingPassword}
-                className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
-              >
-                {isSavingPassword ? 'Đang lưu...' : 'Lưu lại'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Modal Xác nhận Xóa giỏ hàng */}
       {showClearConfirm && (

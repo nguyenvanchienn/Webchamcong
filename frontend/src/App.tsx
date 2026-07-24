@@ -22,6 +22,7 @@ import ForceChangePassword from './pages/ForceChangePassword';
 import Kiosk from './pages/Kiosk';
 import POS from './pages/POS';
 import KitchenDisplay from './pages/KitchenDisplay';
+import OrderTracking from './pages/OrderTracking';
 import CustomerOrder from './pages/CustomerOrder';
 import MenuManager from './pages/MenuManager';
 import PersonalSalaryCalc from './pages/PersonalSalaryCalc';
@@ -49,6 +50,7 @@ function App() {
         <Route path="/kiosk" element={<Kiosk />} />
         <Route path="/pos" element={<POS />} />
         <Route path="/kitchen" element={<KitchenDisplay />} />
+        <Route path="/order-tracking" element={<OrderTracking />} />
         <Route path="/customer-order" element={<CustomerOrder />} />
         <Route path="/order/:branchId/:tableId" element={<TableOrder />} />
         

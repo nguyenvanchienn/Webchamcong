@@ -40,7 +40,43 @@ interface ActiveTableOrder {
   notifications?: any[];
   customerRequests?: any[];
 }
-
+const playNotificationSound = () => {
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(1.0, ctx.currentTime + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+    
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.5);
+    
+    setTimeout(() => {
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.type = 'triangle';
+        osc2.frequency.setValueAtTime(1046.5, ctx.currentTime);
+        gain2.gain.setValueAtTime(0, ctx.currentTime);
+        gain2.gain.linearRampToValueAtTime(1.0, ctx.currentTime + 0.05);
+        gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+        osc2.start(ctx.currentTime);
+        osc2.stop(ctx.currentTime + 0.5);
+    }, 150);
+  } catch (e) {
+    // Ignore error
+  }
+};
 
 const POS: React.FC = () => {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -80,11 +116,9 @@ const POS: React.FC = () => {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showLogoutPassword, setShowLogoutPassword] = useState(false);
 
-  const [showSetPasswordModal, setShowSetPasswordModal] = useState(false);
-  const [newExitPassword, setNewExitPassword] = useState('');
-  const [isSavingPassword, setIsSavingPassword] = useState(false);
 
   const [activeTableOrders, setActiveTableOrders] = useState<ActiveTableOrder[]>([]);
+  const [prevPendingIds, setPrevPendingIds] = useState<string>('');
   const [showTableOrdersModal, setShowTableOrdersModal] = useState(false);
   const [currentTableOrderId, setCurrentTableOrderId] = useState<string | null>(null);
   const [currentTableId, setCurrentTableId] = useState<string | null>(null);
@@ -133,7 +167,32 @@ const POS: React.FC = () => {
   const activeOrdersRef = React.useRef<ActiveTableOrder[]>([]);
   useEffect(() => {
     activeOrdersRef.current = activeTableOrders;
-  }, [activeTableOrders]);
+
+    // Track pending IDs to play sound on new items/requests
+    const currentIds: string[] = [];
+    activeTableOrders.forEach(o => {
+      currentIds.push(o.id);
+      if (o.customerRequests) {
+        o.customerRequests.filter((r:any) => !r.isCompleted).forEach((r:any) => currentIds.push(r.id));
+      }
+      if (o.items) {
+        o.items.filter((i:any) => !i.isServed).forEach((i:any) => currentIds.push(i.cartItemId || `${i.id}-${i.selectedSize}`));
+        o.items.filter((i:any) => i.cancelRequested).forEach((i:any) => currentIds.push(`cancel-${i.cartItemId || i.id}`));
+      }
+    });
+    const currentPendingStr = currentIds.join(',');
+
+    const prevArr = prevPendingIds.split(',').filter(Boolean);
+    const currArr = currentPendingStr.split(',').filter(Boolean);
+    
+    const hasNewItems = currArr.some(id => !prevArr.includes(id));
+    
+    if (hasNewItems && prevPendingIds !== '') {
+       playNotificationSound();
+    }
+    
+    setPrevPendingIds(currentPendingStr);
+  }, [activeTableOrders, prevPendingIds]);
 
   useEffect(() => {
     const notifyTimer = setInterval(() => {
@@ -771,6 +830,15 @@ const POS: React.FC = () => {
           >
             {isSyncToCustomerEnabled ? <MonitorSmartphone size={18} /> : <MonitorOff size={18} />}
             {isSyncToCustomerEnabled ? 'Đồng bộ KH' : 'Tắt đồng bộ'}
+          </button>
+
+          <button
+            onClick={() => window.open('/customer-order', '_blank')}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm shadow-sm transition-colors border bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+            title="Mở màn hình Khách Order"
+          >
+            <MonitorSmartphone size={18} className="text-blue-500" />
+            Màn hình Khách
           </button>
 
           <div className="w-px h-8 bg-gray-300 mx-2 shrink-0"></div>
@@ -1543,7 +1611,7 @@ const POS: React.FC = () => {
                                     })()}
                                   </span>
                                   {item.cancelRequested && (
-                                    <span className="text-[10px] font-bold text-red-500 bg-red-100 px-1.5 rounded animate-pulse">Khách đòi huỷ</span>
+                                    <span className="text-[10px] font-bold text-red-500 bg-red-100 px-1.5 rounded animate-pulse">Khách yêu cầu huỷ</span>
                                   )}
                                 </div>
                               </div>
@@ -1859,18 +1927,6 @@ const POS: React.FC = () => {
                   <span className="flex-1">Bán hàng (POS)</span>
                 </div>
 
-                <div
-                  onClick={() => {
-                    navigate('/customer-order');
-                    if (!document.fullscreenElement) {
-                      document.documentElement.requestFullscreen().catch(() => { });
-                    }
-                  }}
-                  className="flex items-center py-3 px-4 text-sm font-medium rounded-lg transition-colors relative text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer mt-1"
-                >
-                  <span className="mr-3 relative text-gray-400"><Store size={20} /></span>
-                  <span className="flex-1">Màn hình Khách Order</span>
-                </div>
 
                 <div
                   onClick={() => {
@@ -1918,18 +1974,7 @@ const POS: React.FC = () => {
                   </div>
                 )}
 
-                {localStorage.getItem('userRole') === 'POS' && (
-                  <div
-                    onClick={() => {
-                      setShowSidebar(false);
-                      setShowSetPasswordModal(true);
-                    }}
-                    className="flex items-center py-3 px-4 text-sm font-medium rounded-lg transition-colors relative text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer mt-1 border-t border-gray-100"
-                  >
-                    <span className="mr-3 relative text-gray-400"><Lock size={20} /></span>
-                    <span className="flex-1">Cài mật khẩu Màn hình Khách</span>
-                  </div>
-                )}
+
               </nav>
             </div>
 
@@ -1947,51 +1992,6 @@ const POS: React.FC = () => {
         </>
       )}
 
-      {/* Cài đặt mật khẩu Màn hình khách */}
-      {showSetPasswordModal && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl max-w-sm w-full p-6 animate-scale-up">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">Mật khẩu Màn hình Khách</h3>
-            <p className="text-sm text-gray-600 mb-4">Thiết lập mật khẩu để mở khóa menu ẩn ở màn hình Khách Order (Để trống nếu không cần).</p>
-            <input
-              type="text"
-              placeholder="Nhập mật khẩu..."
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none mb-6 text-center text-lg tracking-widest"
-              value={newExitPassword}
-              onChange={(e) => setNewExitPassword(e.target.value)}
-              autoFocus
-            />
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowSetPasswordModal(false)}
-                className="flex-1 py-2 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-              >
-                Hủy
-              </button>
-              <button
-                onClick={async () => {
-                  setIsSavingPassword(true);
-                  try {
-                    await setDoc(doc(db, 'settings', 'general'), {
-                      customerOrderExitPassword: newExitPassword
-                    }, { merge: true });
-                    toast.success('Lưu mật khẩu thành công!');
-                    setShowSetPasswordModal(false);
-                  } catch (error) {
-                    toast.error('Lỗi khi lưu mật khẩu');
-                  } finally {
-                    setIsSavingPassword(false);
-                  }
-                }}
-                disabled={isSavingPassword}
-                className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
-              >
-                {isSavingPassword ? 'Đang lưu...' : 'Lưu lại'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Chọn Size Modal */}
       {showSizeModal && selectedItemForSize && (

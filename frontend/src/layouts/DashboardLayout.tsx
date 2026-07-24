@@ -40,12 +40,11 @@ import {
   Receipt,
   Utensils,
   CircleDollarSign,
-  Store,
   QrCode,
-  Lock,
   Calculator,
   Eye,
-  EyeOff
+  EyeOff,
+  MonitorSmartphone
 } from "lucide-react";
 
 const DashboardLayout: React.FC = () => {
@@ -245,12 +244,7 @@ const DashboardLayout: React.FC = () => {
       icon: <ShoppingCart size={20} />,
       roles: ["POS"],
     },
-    {
-      name: "Màn hình Khách Order",
-      path: "/customer-order",
-      icon: <Store size={20} />,
-      roles: ["POS"],
-    },
+
     {
       name: "Lịch sử Hóa đơn",
       path: "/dashboard/orders",
@@ -569,25 +563,27 @@ const DashboardLayout: React.FC = () => {
               );
             })}
 
-            {/* Nút cài mật khẩu khách order */}
-            {userRole === "POS" && (
+
+
+            {/* Nút mở Kiosk */}
+            {(userRole === "SUPER_ADMIN" || userRole === "BRANCH_ADMIN") && (
               <div
                 onClick={() => {
+                  window.open('/kiosk', '_blank');
                   setIsMobileMenuOpen(false);
-                  setShowSetPasswordModal(true);
                 }}
-                className={`flex items-center py-3 text-sm font-medium rounded-lg transition-colors relative text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer mt-1 border-t border-gray-100 ${isSidebarCollapsed ? "md:justify-center px-4 md:px-0" : "px-4"}`}
-                title={isSidebarCollapsed ? "Mật khẩu MH Khách" : ""}
+                className={`flex items-center py-3 text-sm font-medium rounded-lg transition-colors relative text-white bg-blue-600 hover:bg-blue-700 cursor-pointer mt-4 mx-2 shadow-md ${isSidebarCollapsed ? "md:justify-center px-4 md:px-0" : "px-4"}`}
+                title={isSidebarCollapsed ? "Mở Máy Điểm Danh" : ""}
               >
                 <span
-                  className={`${isSidebarCollapsed ? "md:mr-0 mr-3" : "mr-3"} relative text-gray-400`}
+                  className={`${isSidebarCollapsed ? "md:mr-0 mr-3" : "mr-3"} relative`}
                 >
-                  <Lock size={20} />
+                  <MonitorSmartphone size={20} />
                 </span>
                 <span
                   className={`${isSidebarCollapsed ? "md:hidden" : ""} flex-1`}
                 >
-                  Cài mật khẩu MH Khách
+                  Mở Máy Điểm Danh
                 </span>
               </div>
             )}

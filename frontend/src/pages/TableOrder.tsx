@@ -19,6 +19,30 @@ function getDistanceFromLatLonInM(lat1: number, lon1: number, lat2: number, lon2
 }
 import toast from 'react-hot-toast';
 
+const playNotificationSound = () => {
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.1);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+    
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.5);
+  } catch (e) {
+    console.error('Audio play failed', e);
+  }
+};
+
 interface MenuItem {
   id: string;
   name: string;
@@ -212,6 +236,7 @@ const TableOrder: React.FC = () => {
     if (activeOrder?.notifications) {
       const currentCount = activeOrder.notifications.length;
       if (currentCount > prevNotificationsCount.current && prevNotificationsCount.current > 0) {
+        let playedSound = false;
         const newNotifs = activeOrder.notifications.slice(prevNotificationsCount.current);
         newNotifs.forEach(n => {
           if (!n.isRead) {
@@ -220,6 +245,10 @@ const TableOrder: React.FC = () => {
               duration: 5000, 
               style: { background: '#fff3cd', color: '#856404', fontWeight: 'bold', border: '1px solid #ffeeba' } 
             });
+            if (!playedSound) {
+              playNotificationSound();
+              playedSound = true;
+            }
           }
         });
       }
