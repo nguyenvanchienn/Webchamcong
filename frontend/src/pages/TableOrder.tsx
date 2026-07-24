@@ -57,6 +57,7 @@ const TableOrder: React.FC = () => {
   const [branchName, setBranchName] = useState<string>('');
   const [storeName, setStoreName] = useState<string>('Tiệm nhà Bơ');
   const [storeLogo, setStoreLogo] = useState<string>('');
+  const [storeNameColor, setStoreNameColor] = useState<string>('#2563eb');
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isOrderExpanded, setIsOrderExpanded] = useState(false);
@@ -103,6 +104,7 @@ const TableOrder: React.FC = () => {
           const data = settingsDoc.data();
           if (data.storeName) setStoreName(data.storeName);
           if (data.storeLogo) setStoreLogo(data.storeLogo);
+          if (data.storeNameColor) setStoreNameColor(data.storeNameColor);
         }
 
         // Fetch Menu
@@ -360,17 +362,24 @@ const TableOrder: React.FC = () => {
       <div className="bg-white px-4 pt-6 pb-4 sticky top-0 z-20 shadow-sm rounded-b-2xl">
         <div className="flex justify-between items-start mb-4">
           <div>
+            <div className="flex items-center gap-3 mb-2">
+              {storeLogo ? (
+                <img src={storeLogo} alt="Logo" className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl object-contain shadow-sm" />
+              ) : (
+                <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-sm">
+                  <ChefHat size={28} />
+                </div>
+              )}
+              <h1 className="text-3xl sm:text-4xl font-black tracking-tight uppercase" style={{ color: storeNameColor }}>
+                {storeName}
+              </h1>
+            </div>
             {branchName && (
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1 flex items-center gap-1">
-                {storeLogo ? (
-                  <img src={storeLogo} alt="Logo" className="w-3.5 h-3.5 rounded-sm object-cover" />
-                ) : (
-                  <ChefHat size={12} />
-                )} 
-                {storeName} - {branchName.toLowerCase().includes('cơ sở') ? branchName : `Cơ sở ${branchName}`}
+              <p className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                <ChefHat size={14} />
+                {branchName.toLowerCase().includes('cơ sở') ? branchName : `Cơ sở ${branchName}`}
               </p>
             )}
-            <h1 className="text-2xl font-black text-gray-800 tracking-tight">Gọi món</h1>
             <p className="text-sm font-medium text-blue-600 flex items-center gap-1 mt-0.5">
               <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
               Bạn đang ngồi tại: <span className="font-bold text-lg ml-1">{tableName}</span>

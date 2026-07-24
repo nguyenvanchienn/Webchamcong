@@ -271,27 +271,29 @@ const CustomerOrder: React.FC = () => {
                 setShowSidebar(true);
               }
             }}
-            className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center shadow-lg transition-colors cursor-pointer overflow-hidden p-0 border-0 shrink-0"
+            className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg transition-colors cursor-pointer overflow-hidden p-0 border-0"
           >
             {storeLogo ? (
               <img src={storeLogo} alt="Logo" className="w-full h-full object-cover" />
             ) : (
-              <div className="w-full h-full bg-blue-600 text-white flex items-center justify-center shadow-sm">
-                <Store size={36} />
+              <div className="w-12 h-12 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-sm">
+                <Store size={28} />
               </div>
             )}
           </button>
           <div className="flex-1">
-            <h1 className="text-3xl sm:text-4xl font-black tracking-tight uppercase" style={{ color: storeNameColor }}>
-              {storeName}
-            </h1>
             {branchName && (
-              <p className="text-sm sm:text-base font-bold text-gray-500 uppercase tracking-wider mt-1 flex items-center gap-1.5">
-                <Store size={16} />
-                {branchName.toLowerCase().includes('cơ sở') ? branchName : `Cơ sở ${branchName}`}
+              <p className="md:hidden text-sm font-bold text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-2">
+                {storeLogo ? (
+                  <img src={storeLogo} alt="Logo" className="w-6 h-6 rounded-md object-contain" />
+                ) : (
+                  <Store size={20} />
+                )}
+                {storeName} - {branchName.toLowerCase().includes('cơ sở') ? branchName : `Cơ sở ${branchName}`}
               </p>
             )}
-            <p className="text-gray-500 font-medium mt-1">Vui lòng chọn món ăn bên dưới</p>
+            <h1 className="text-2xl font-black tracking-tight" style={{ color: storeNameColor }}>{storeName}</h1>
+            <p className="text-gray-500 font-medium">Vui lòng chọn món ăn bên dưới</p>
           </div>
         </div>
 
