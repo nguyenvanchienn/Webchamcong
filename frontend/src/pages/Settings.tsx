@@ -513,6 +513,18 @@ const Settings: React.FC = () => {
             const isModified = isPenaltyModified || isGraceModified;
             const hasCustomConfig = dbPenaltyMap[selectedBranch] !== undefined || dbLateGracePeriodMap[selectedBranch] !== undefined;
 
+            if (selectedBranch === 'ALL') {
+              return (
+                <button
+                  onClick={handleSave}
+                  disabled={loading || !isModified}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                >
+                  {loading ? 'Đang lưu...' : (isModified ? 'Lưu Cấu Hình Mặc Định' : 'Đã lưu')}
+                </button>
+              );
+            }
+
             if (isModified) {
               return (
                 <button
@@ -520,7 +532,7 @@ const Settings: React.FC = () => {
                   disabled={loading}
                   className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
                 >
-                  {loading ? 'Đang lưu...' : 'Lưu Cấu Hình Mới'}
+                  {loading ? 'Đang lưu...' : 'Lưu Cấu Hình Riêng'}
                 </button>
               );
             } else if (hasCustomConfig) {
@@ -530,7 +542,7 @@ const Settings: React.FC = () => {
                   disabled={loading}
                   className="bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
                 >
-                  {loading ? 'Đang xóa...' : 'Xóa Cấu Hình'}
+                  {loading ? 'Đang xóa...' : 'Xóa Cấu Hình Riêng'}
                 </button>
               );
             } else {
