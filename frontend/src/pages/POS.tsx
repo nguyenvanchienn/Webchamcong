@@ -73,6 +73,7 @@ const POS: React.FC = () => {
   const [showSizeModal, setShowSizeModal] = useState(false);
   const [editingCartItemId, setEditingCartItemId] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [tableToClose, setTableToClose] = useState<any | null>(null);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [logoutPassword, setLogoutPassword] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -1612,17 +1613,9 @@ const POS: React.FC = () => {
                         </span>
                         {order.items.length === 0 && (!order.customerRequests || order.customerRequests.every((r: any) => r.isCompleted)) ? (
                           <button
-                            onClick={async (e) => {
+                            onClick={(e) => {
                               e.stopPropagation();
-                              if (window.confirm('Bàn này không có món nào. Bạn muốn kết thúc bàn?')) {
-                                try {
-                                  await deleteDoc(doc(db, 'active_table_orders', order.id));
-                                  await updateDoc(doc(db, 'tables', order.tableId), { status: 'AVAILABLE' });
-                                  toast.success(`Đã đóng ${order.tableName}`);
-                                } catch (err) {
-                                  toast.error('Lỗi khi đóng bàn');
-                                }
-                              }
+                              setTableToClose(order);
                             }}
                             className="bg-red-100 text-red-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-200 transition-colors flex items-center gap-1"
                             title="Bàn trống, nhấn để dọn bàn"
@@ -1735,6 +1728,48 @@ const POS: React.FC = () => {
                 className={`flex-1 py-3 ${itemToDelete.type === 'REJECT_CANCEL' ? 'bg-orange-500 hover:bg-orange-600 shadow-orange-200' : 'bg-red-600 hover:bg-red-700 shadow-red-200'} text-white font-bold rounded-xl transition-colors shadow-lg`}
               >
                 {itemToDelete.type === 'REJECT_CANCEL' ? 'Từ chối huỷ' : 'Xác nhận xoá'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Xác nhận Đóng bàn */}
+      {tableToClose && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-scale-up relative">
+            <button onClick={() => setTableToClose(null)} className="absolute right-4 top-4 text-gray-400 hover:text-gray-600">
+              <X size={20} />
+            </button>
+            <div className="flex justify-center mb-4 mt-2">
+              <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center">
+                <Coffee size={32} className="text-amber-600" />
+              </div>
+            </div>
+            <h3 className="text-xl font-bold text-center text-gray-800 mb-2">Đóng {tableToClose.tableName}?</h3>
+            <p className="text-gray-500 text-center mb-6 text-sm">Bàn này hiện không có món nào. Bạn có chắc chắn muốn kết thúc bàn này không?</p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setTableToClose(null)}
+                className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    await deleteDoc(doc(db, 'active_table_orders', tableToClose.id));
+                    await updateDoc(doc(db, 'tables', tableToClose.tableId), { status: 'AVAILABLE' });
+                    toast.success(`Đã đóng ${tableToClose.tableName}`);
+                  } catch (err) {
+                    toast.error('Lỗi khi đóng bàn');
+                  }
+                  setTableToClose(null);
+                }}
+                className="flex-1 py-3 bg-amber-600 text-white font-bold rounded-xl hover:bg-amber-700 transition-colors"
+              >
+                Đóng bàn
               </button>
             </div>
           </div>
