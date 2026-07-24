@@ -51,10 +51,10 @@ const POS: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [billModalData, setBillModalData] = useState<any | null>(null);
   const [storeName, setStoreName] = useState<string>('Bơ Food');
-  const [brandName, setBrandName] = useState<string>('Tiệm nhà Bơ');
-  const [storeNameColor, setStoreNameColor] = useState<string>('#2563eb');
-  const [storeNameFont, setStoreNameFont] = useState<string>('system-ui, sans-serif');
-  const [storeLogo, setStoreLogo] = useState<string>('');
+  const [brandName, setBrandName] = useState<string>(localStorage.getItem('storeName') || 'Tiệm nhà Bơ');
+  const [storeNameColor, setStoreNameColor] = useState<string>(localStorage.getItem('storeNameColor') || '#2563eb');
+  const [storeNameFont, setStoreNameFont] = useState<string>(localStorage.getItem('storeNameFont') || 'system-ui, sans-serif');
+  const [storeLogo, setStoreLogo] = useState<string>(localStorage.getItem('storeLogo') || '');
   const [storeAddress, setStoreAddress] = useState<string | null>(null);
   const [storePhone, setStorePhone] = useState<string | null>(null);
   const [storeBankId, setStoreBankId] = useState<string | null>(null);
@@ -117,10 +117,10 @@ const POS: React.FC = () => {
           if (data.customerOrderExitPassword) {
             setNewExitPassword(data.customerOrderExitPassword);
           }
-          if (data.storeName) setBrandName(data.storeName);
-          if (data.storeNameColor) setStoreNameColor(data.storeNameColor);
-          if (data.storeNameFont) setStoreNameFont(data.storeNameFont);
-          if (data.storeLogo) setStoreLogo(data.storeLogo);
+          if (data.storeName) { setBrandName(data.storeName); localStorage.setItem('storeName', data.storeName); }
+          if (data.storeLogo) { setStoreLogo(data.storeLogo); localStorage.setItem('storeLogo', data.storeLogo); }
+          if (data.storeNameFont) { setStoreNameFont(data.storeNameFont); localStorage.setItem('storeNameFont', data.storeNameFont); }
+          if (data.storeNameColor) { setStoreNameColor(data.storeNameColor); localStorage.setItem('storeNameColor', data.storeNameColor); }
         }
       } catch (e) {
         console.error(e);

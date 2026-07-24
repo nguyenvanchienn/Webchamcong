@@ -77,10 +77,10 @@ const DashboardLayout: React.FC = () => {
   const [enablePersonalSalaryCalc, setEnablePersonalSalaryCalc] =
     useState(true);
 
-  const [storeName, setStoreName] = useState("Tiệm Nhà Bơ");
-  const [storeNameColor, setStoreNameColor] = useState("#2563eb");
-  const [storeNameFont, setStoreNameFont] = useState("system-ui, sans-serif");
-  const [storeLogo, setStoreLogo] = useState("");
+  const [storeName, setStoreName] = useState<string>(localStorage.getItem('storeName') || 'Tiệm Nhà Bơ');
+  const [storeNameColor, setStoreNameColor] = useState<string>(localStorage.getItem('storeNameColor') || '#2563eb');
+  const [storeNameFont, setStoreNameFont] = useState<string>(localStorage.getItem('storeNameFont') || 'system-ui, sans-serif');
+  const [storeLogo, setStoreLogo] = useState<string>(localStorage.getItem('storeLogo') || '');
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -94,10 +94,10 @@ const DashboardLayout: React.FC = () => {
           if (data.enablePersonalSalaryCalc !== undefined) {
             setEnablePersonalSalaryCalc(data.enablePersonalSalaryCalc);
           }
-          if (data.storeName) setStoreName(data.storeName);
-          if (data.storeNameColor) setStoreNameColor(data.storeNameColor);
-          if (data.storeNameFont) setStoreNameFont(data.storeNameFont);
-          if (data.storeLogo) setStoreLogo(data.storeLogo);
+          if (data.storeName) { setStoreName(data.storeName); localStorage.setItem('storeName', data.storeName); }
+          if (data.storeNameColor) { setStoreNameColor(data.storeNameColor); localStorage.setItem('storeNameColor', data.storeNameColor); }
+          if (data.storeNameFont) { setStoreNameFont(data.storeNameFont); localStorage.setItem('storeNameFont', data.storeNameFont); }
+          if (data.storeLogo) { setStoreLogo(data.storeLogo); localStorage.setItem('storeLogo', data.storeLogo); }
         }
       } catch (e) {
         console.error(e);

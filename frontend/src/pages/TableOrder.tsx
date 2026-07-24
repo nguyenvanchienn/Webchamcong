@@ -55,10 +55,10 @@ const TableOrder: React.FC = () => {
   
   const [tableName, setTableName] = useState<string>('');
   const [branchName, setBranchName] = useState<string>('');
-  const [storeName, setStoreName] = useState<string>('Tiệm nhà Bơ');
-  const [storeLogo, setStoreLogo] = useState<string>('');
-  const [storeNameColor, setStoreNameColor] = useState<string>('#2563eb');
-  const [storeNameFont, setStoreNameFont] = useState<string>('system-ui, sans-serif');
+  const [storeName, setStoreName] = useState<string>(localStorage.getItem('storeName') || 'Tiệm nhà Bơ');
+  const [storeNameColor, setStoreNameColor] = useState<string>(localStorage.getItem('storeNameColor') || '#2563eb');
+  const [storeNameFont, setStoreNameFont] = useState<string>(localStorage.getItem('storeNameFont') || 'system-ui, sans-serif');
+  const [storeLogo, setStoreLogo] = useState<string>(localStorage.getItem('storeLogo') || '');
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isOrderExpanded, setIsOrderExpanded] = useState(false);
@@ -103,10 +103,10 @@ const TableOrder: React.FC = () => {
         const settingsDoc = await getDoc(doc(db, 'settings', 'general'));
         if (settingsDoc.exists()) {
           const data = settingsDoc.data();
-          if (data.storeName) setStoreName(data.storeName);
-          if (data.storeLogo) setStoreLogo(data.storeLogo);
-          if (data.storeNameColor) setStoreNameColor(data.storeNameColor);
-          if (data.storeNameFont) setStoreNameFont(data.storeNameFont);
+          if (data.storeName) { setStoreName(data.storeName); localStorage.setItem('storeName', data.storeName); }
+          if (data.storeNameColor) { setStoreNameColor(data.storeNameColor); localStorage.setItem('storeNameColor', data.storeNameColor); }
+          if (data.storeNameFont) { setStoreNameFont(data.storeNameFont); localStorage.setItem('storeNameFont', data.storeNameFont); }
+          if (data.storeLogo) { setStoreLogo(data.storeLogo); localStorage.setItem('storeLogo', data.storeLogo); }
         }
 
         // Fetch Menu

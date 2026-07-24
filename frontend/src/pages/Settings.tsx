@@ -90,12 +90,12 @@ const Settings: React.FC = () => {
   const [employees, setEmployees] = useState<any[]>([]);
 
   // Branding States
-  const [storeName, setStoreName] = useState('Tiệm nhà Bơ');
-  const [storeNameColor, setStoreNameColor] = useState('#2563eb');
-  const [storeNameFont, setStoreNameFont] = useState('system-ui, sans-serif');
-  const [storeLogo, setStoreLogo] = useState('');
+  const [storeName, setStoreName] = useState(localStorage.getItem('storeName') || 'Tiệm nhà Bơ');
+  const [storeNameColor, setStoreNameColor] = useState(localStorage.getItem('storeNameColor') || '#2563eb');
+  const [storeNameFont, setStoreNameFont] = useState(localStorage.getItem('storeNameFont') || 'system-ui, sans-serif');
+  const [storeLogo, setStoreLogo] = useState(localStorage.getItem('storeLogo') || '');
   const [localLogoFile, setLocalLogoFile] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState('');
+  const [logoPreview, setLogoPreview] = useState(localStorage.getItem('storeLogo') || '');
   const [isSavingBranding, setIsSavingBranding] = useState(false);
 
   const userRole = localStorage.getItem('userRole') || 'EMPLOYEE';
@@ -128,12 +128,13 @@ const Settings: React.FC = () => {
           } else if (typeof data.lateGracePeriod === 'object') {
             sm = { ...sm, ...data.lateGracePeriod };
           }
-          if (data.storeName) setStoreName(data.storeName);
-          if (data.storeNameColor) setStoreNameColor(data.storeNameColor);
-          if (data.storeNameFont) setStoreNameFont(data.storeNameFont);
+          if (data.storeName) { setStoreName(data.storeName); localStorage.setItem('storeName', data.storeName); }
+          if (data.storeNameColor) { setStoreNameColor(data.storeNameColor); localStorage.setItem('storeNameColor', data.storeNameColor); }
+          if (data.storeNameFont) { setStoreNameFont(data.storeNameFont); localStorage.setItem('storeNameFont', data.storeNameFont); }
           if (data.storeLogo) {
             setStoreLogo(data.storeLogo);
             setLogoPreview(data.storeLogo);
+            localStorage.setItem('storeLogo', data.storeLogo);
           }
         }
         setPenaltyMap(pm);
@@ -245,6 +246,10 @@ const Settings: React.FC = () => {
       }, { merge: true });
       
       setStoreLogo(finalLogo);
+      localStorage.setItem('storeName', storeName);
+      localStorage.setItem('storeNameColor', storeNameColor);
+      localStorage.setItem('storeNameFont', storeNameFont);
+      localStorage.setItem('storeLogo', finalLogo);
       toast.success('Đã cập nhật thông tin thương hiệu!');
     } catch (error) {
       console.error(error);

@@ -60,10 +60,10 @@ const CustomerOrder: React.FC = () => {
   const [isSavingPassword, setIsSavingPassword] = useState(false);
 
   const [branchName, setBranchName] = useState<string>('');
-  const [storeName, setStoreName] = useState<string>('Tiệm nhà Bơ');
-  const [storeNameColor, setStoreNameColor] = useState<string>('#2563eb');
-  const [storeNameFont, setStoreNameFont] = useState<string>('system-ui, sans-serif');
-  const [storeLogo, setStoreLogo] = useState<string>('');
+  const [storeName, setStoreName] = useState<string>(localStorage.getItem('storeName') || 'Tiệm nhà Bơ');
+  const [storeNameColor, setStoreNameColor] = useState<string>(localStorage.getItem('storeNameColor') || '#2563eb');
+  const [storeNameFont, setStoreNameFont] = useState<string>(localStorage.getItem('storeNameFont') || 'system-ui, sans-serif');
+  const [storeLogo, setStoreLogo] = useState<string>(localStorage.getItem('storeLogo') || '');
 
   const navigate = useNavigate();
 
@@ -152,10 +152,10 @@ const CustomerOrder: React.FC = () => {
             setRequiredExitPassword(data.customerOrderExitPassword);
             setNewExitPassword(data.customerOrderExitPassword);
           }
-          if (data.storeName) setStoreName(data.storeName);
-          if (data.storeNameColor) setStoreNameColor(data.storeNameColor);
-          if (data.storeNameFont) setStoreNameFont(data.storeNameFont);
-          if (data.storeLogo) setStoreLogo(data.storeLogo);
+          if (data.storeName) { setStoreName(data.storeName); localStorage.setItem('storeName', data.storeName); }
+          if (data.storeNameColor) { setStoreNameColor(data.storeNameColor); localStorage.setItem('storeNameColor', data.storeNameColor); }
+          if (data.storeNameFont) { setStoreNameFont(data.storeNameFont); localStorage.setItem('storeNameFont', data.storeNameFont); }
+          if (data.storeLogo) { setStoreLogo(data.storeLogo); localStorage.setItem('storeLogo', data.storeLogo); }
         }
       } catch (e) {
         console.error('Error fetching settings:', e);
