@@ -33,6 +33,7 @@ const CustomerOrder: React.FC = () => {
 
   // Synced states
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'TRANSFER'>('CASH');
   const [amountTendered, setAmountTendered] = useState<string>('0');
@@ -387,6 +388,16 @@ const CustomerOrder: React.FC = () => {
             <h2 className="text-xl md:text-2xl font-black">Món đã chọn</h2>
           </div>
           <div className="flex items-center gap-3">
+            {cart.length > 0 && (
+              <button
+                onClick={() => setShowClearConfirm(true)}
+                className="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-1.5 rounded-lg transition-colors flex items-center gap-1"
+                title="Xóa tất cả"
+              >
+                <Trash2 size={16} />
+                <span className="text-xs font-bold hidden sm:inline">Xóa hết</span>
+              </button>
+            )}
             <span className="bg-blue-600 text-white font-bold px-3 py-1 rounded-full text-sm shadow-sm shadow-blue-500/20">
               {cart.reduce((a, b) => a + b.quantity, 0)}
             </span>
@@ -760,6 +771,39 @@ const CustomerOrder: React.FC = () => {
                 className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
               >
                 {isSavingPassword ? 'Đang lưu...' : 'Lưu lại'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Xác nhận Xóa giỏ hàng */}
+      {showClearConfirm && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-scale-up">
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
+                <Trash2 size={32} className="text-red-500" />
+              </div>
+            </div>
+            <h3 className="text-xl font-bold text-center text-gray-800 mb-2">Xóa toàn bộ giỏ hàng?</h3>
+            <p className="text-gray-500 text-center mb-6 text-sm">Thao tác này sẽ xóa toàn bộ món ăn đang có trong giỏ hàng. Bạn có chắc chắn không?</p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowClearConfirm(false)}
+                className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={() => {
+                  updatePosState({ cart: [] });
+                  setShowClearConfirm(false);
+                }}
+                className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors"
+              >
+                Xóa hết
               </button>
             </div>
           </div>
