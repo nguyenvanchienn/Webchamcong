@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon } from 'lucide-react';
+import { Settings as SettingsIcon, X, Image as ImageIcon } from 'lucide-react';
 import { doc, getDoc, setDoc, updateDoc, deleteField, collection, getDocs, addDoc, query, where } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import toast from 'react-hot-toast';
@@ -32,6 +32,43 @@ const calculateHoursWorked = (data: any): number => {
   return Math.max(0, outTime.getTime() - inTime.getTime()) / (1000 * 60 * 60);
 };
 
+const compressImage = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 500;
+        const MAX_HEIGHT = 500;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/png', 0.8));
+      };
+      img.onerror = (error) => reject(error);
+    };
+    reader.onerror = (error) => reject(error);
+  });
+};
+
 const Settings: React.FC = () => {
   const [penaltyMap, setPenaltyMap] = useState<Record<string, number>>({});
   const [lateGracePeriodMap, setLateGracePeriodMap] = useState<Record<string, number>>({});
@@ -51,6 +88,13 @@ const Settings: React.FC = () => {
   const [bonusType, setBonusType] = useState<string>('BONUS');
   const [bonusLoading, setBonusLoading] = useState<boolean>(false);
   const [employees, setEmployees] = useState<any[]>([]);
+
+  // Branding States
+  const [storeName, setStoreName] = useState('Tiệm nhà Bơ');
+  const [storeLogo, setStoreLogo] = useState('');
+  const [localLogoFile, setLocalLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState('');
+  const [isSavingBranding, setIsSavingBranding] = useState(false);
 
   const userRole = localStorage.getItem('userRole') || 'EMPLOYEE';
   const employeeId = localStorage.getItem('employeeId');
@@ -81,6 +125,11 @@ const Settings: React.FC = () => {
             sm = { ALL: data.lateGracePeriod };
           } else if (typeof data.lateGracePeriod === 'object') {
             sm = { ...sm, ...data.lateGracePeriod };
+          }
+          if (data.storeName) setStoreName(data.storeName);
+          if (data.storeLogo) {
+            setStoreLogo(data.storeLogo);
+            setLogoPreview(data.storeLogo);
           }
         }
         setPenaltyMap(pm);
@@ -161,6 +210,41 @@ const Settings: React.FC = () => {
       console.error(error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setLocalLogoFile(file);
+      setLogoPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleSaveBranding = async () => {
+    if (!storeName.trim()) {
+      toast.error('Tên quán không được để trống');
+      return;
+    }
+    setIsSavingBranding(true);
+    try {
+      let finalLogo = storeLogo;
+      if (localLogoFile) {
+        finalLogo = await compressImage(localLogoFile);
+      }
+      
+      await setDoc(doc(db, 'settings', 'general'), {
+        storeName: storeName.trim(),
+        storeLogo: finalLogo
+      }, { merge: true });
+      
+      setStoreLogo(finalLogo);
+      toast.success('Đã cập nhật thông tin thương hiệu!');
+    } catch (error) {
+      console.error(error);
+      toast.error('Có lỗi xảy ra khi lưu thông tin');
+    } finally {
+      setIsSavingBranding(false);
     }
   };
 
@@ -265,8 +349,68 @@ const Settings: React.FC = () => {
         <h2 className="text-xl font-bold text-gray-800 flex items-center">
           <SettingsIcon className="mr-2 text-gray-600" /> Thiết Lập Hệ Thống
         </h2>
-        <p className="text-sm text-gray-500 mt-1">Cấu hình các tham số về chấm công, tính lương.</p>
+        <p className="text-sm text-gray-500 mt-1">Cấu hình các tham số về chấm công, tính lương và thương hiệu.</p>
       </div>
+
+      {userRole === 'SUPER_ADMIN' && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-4 max-w-2xl">
+          <h3 className="text-lg font-semibold text-gray-800 border-b border-gray-100 pb-3">Thông tin thương hiệu (Toàn hệ thống)</h3>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Tên quán / Thương hiệu</label>
+            <input
+              type="text"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+              value={storeName}
+              onChange={e => setStoreName(e.target.value)}
+              placeholder="VD: Tiệm nhà Bơ"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Logo thương hiệu</label>
+            <div className="flex items-center gap-4">
+              {logoPreview ? (
+                <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-gray-200">
+                  <img src={logoPreview} alt="Logo" className="w-full h-full object-cover" />
+                  <button 
+                    onClick={() => {
+                      setLogoPreview('');
+                      setLocalLogoFile(null);
+                      setStoreLogo('');
+                    }}
+                    className="absolute top-1 right-1 bg-white/80 rounded-full p-0.5 text-gray-600 hover:text-red-500 hover:bg-white"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <div className="w-20 h-20 bg-gray-50 border border-gray-200 border-dashed rounded-xl flex items-center justify-center text-gray-400">
+                  <ImageIcon size={24} />
+                </div>
+              )}
+              
+              <div className="flex-1">
+                <label className="cursor-pointer bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-50 inline-block transition-colors text-sm">
+                  Tải ảnh lên
+                  <input type="file" className="hidden" accept="image/*" onChange={handleLogoChange} />
+                </label>
+                <p className="text-xs text-gray-500 mt-2">Nên dùng ảnh vuông tỉ lệ 1:1, nền trong suốt. Ảnh sẽ tự động được thu nhỏ.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <button
+              onClick={handleSaveBranding}
+              disabled={isSavingBranding}
+              className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            >
+              {isSavingBranding ? 'Đang lưu...' : 'Lưu Thông Tin Thương Hiệu'}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-4 max-w-2xl">
         <div className="flex flex-col sm:flex-row gap-4 mb-4">

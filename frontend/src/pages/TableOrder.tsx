@@ -55,6 +55,8 @@ const TableOrder: React.FC = () => {
   
   const [tableName, setTableName] = useState<string>('');
   const [branchName, setBranchName] = useState<string>('');
+  const [storeName, setStoreName] = useState<string>('Tiệm nhà Bơ');
+  const [storeLogo, setStoreLogo] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isOrderExpanded, setIsOrderExpanded] = useState(false);
@@ -93,6 +95,14 @@ const TableOrder: React.FC = () => {
         const branchDoc = await getDoc(doc(db, 'branches', branchId));
         if (branchDoc.exists()) {
           setBranchName(branchDoc.data().name);
+        }
+
+        // Fetch settings/general for storeName and storeLogo
+        const settingsDoc = await getDoc(doc(db, 'settings', 'general'));
+        if (settingsDoc.exists()) {
+          const data = settingsDoc.data();
+          if (data.storeName) setStoreName(data.storeName);
+          if (data.storeLogo) setStoreLogo(data.storeLogo);
         }
 
         // Fetch Menu
@@ -352,7 +362,12 @@ const TableOrder: React.FC = () => {
           <div>
             {branchName && (
               <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1 flex items-center gap-1">
-                <ChefHat size={12} /> Tiệm nhà Bơ - {branchName.toLowerCase().includes('cơ sở') ? branchName : `Cơ sở ${branchName}`}
+                {storeLogo ? (
+                  <img src={storeLogo} alt="Logo" className="w-3.5 h-3.5 rounded-sm object-cover" />
+                ) : (
+                  <ChefHat size={12} />
+                )} 
+                {storeName} - {branchName.toLowerCase().includes('cơ sở') ? branchName : `Cơ sở ${branchName}`}
               </p>
             )}
             <h1 className="text-2xl font-black text-gray-800 tracking-tight">Gọi món</h1>

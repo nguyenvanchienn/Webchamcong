@@ -167,13 +167,14 @@ const Kiosk: React.FC = () => {
 
         const q = query(
           collection(db, "attendance"),
-          where("employeeId", "==", selectedEmp.id),
-          where("date", ">=", pastDateStr)
+          where("employeeId", "==", selectedEmp.id)
         );
         const snap = await getDocs(q);
         
         if (!snap.empty) {
-          const records = snap.docs.map((d) => ({ id: d.id, data: d.data() }));
+          const records = snap.docs
+            .map((d) => ({ id: d.id, data: d.data() }))
+            .filter((r) => r.data.date >= pastDateStr);
           records.sort((a, b) => {
             const timeA = a.data.checkIn?.toMillis
               ? a.data.checkIn.toMillis()

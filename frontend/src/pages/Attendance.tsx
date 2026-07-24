@@ -125,10 +125,14 @@ const Attendance: React.FC = () => {
       });
       setEmployees(empList);
 
-      // 2. Get attendance for the selected date
+      // 2. Get attendance for the selected date and yesterday (for spanning shifts)
+      const dFilter = new Date(filterDate);
+      dFilter.setDate(dFilter.getDate() - 1);
+      const yesterday = dFilter.toLocaleDateString("en-CA");
+
       const attQuery = query(
         collection(db, "attendance"),
-        where("date", "==", filterDate),
+        where("date", "in", [filterDate, yesterday]),
       );
       const attSnap = await getDocs(attQuery);
 
@@ -141,19 +145,44 @@ const Attendance: React.FC = () => {
       schSnap.forEach((d) => schList.push({ id: d.id, ...d.data() }));
 
       const rawAtts: any[] = [];
+      const todayStr = new Date().toLocaleDateString("en-CA");
+      
       attSnap.forEach((d) => {
         const data = d.data();
-        rawAtts.push({
-          id: d.id,
-          ...data,
-          checkIn: data.checkIn?.toDate(),
-          checkOut: data.checkOut?.toDate(),
-          logs:
-            data.logs?.map((l: any) => ({
-              action: l.action,
-              time: l.time?.toDate(),
-            })) || [],
-        });
+        const checkInDate = data.checkIn?.toDate();
+        const checkOutDate = data.checkOut?.toDate();
+        const recordDate = data.date;
+        let shouldInclude = false;
+
+        if (recordDate === filterDate) {
+          shouldInclude = true;
+        } else if (recordDate === yesterday) {
+          if (checkOutDate) {
+            const outDateStr = checkOutDate.toLocaleDateString("en-CA");
+            if (outDateStr === filterDate) {
+              shouldInclude = true; // Ended on the filter date
+            }
+          } else {
+            // Unresolved shift from yesterday
+            if (filterDate <= todayStr) {
+              shouldInclude = true; // Still spanning into filterDate
+            }
+          }
+        }
+
+        if (shouldInclude) {
+          rawAtts.push({
+            id: d.id,
+            ...data,
+            checkIn: checkInDate,
+            checkOut: checkOutDate,
+            logs:
+              data.logs?.map((l: any) => ({
+                action: l.action,
+                time: l.time?.toDate(),
+              })) || [],
+          });
+        }
       });
 
       const attList: AttendanceRecord[] = [];
@@ -432,7 +461,24 @@ const Attendance: React.FC = () => {
         });
         toast.success(`Đã Check-out cho ${emp.fullName}!`);
       } else {
-        // Chưa check-in => Thực hiện check-in
+        // Chưa check-in (tại màn hình hiện tại) => Thực hiện check-in
+        
+        // 0. Kiểm tra xem có ca nào trước đó chưa check-out không (để bắt buộc check-out)
+        const pendingQ = query(
+          collection(db, "attendance"),
+          where("employeeId", "==", emp.id)
+        );
+        const pendingSnap = await getDocs(pendingQ);
+        const unresolved = pendingSnap.docs.find(d => {
+          const data = d.data();
+          return data.checkIn && !data.checkOut;
+        });
+        
+        if (unresolved) {
+          toast.error("Nhân viên này có ca làm việc trước đó chưa Check-out! Vui lòng tìm và Check-out ca cũ trước.");
+          return;
+        }
+
         const checkInTime = new Date();
         const nowM = checkInTime.getHours() * 60 + checkInTime.getMinutes();
 
@@ -832,11 +878,9 @@ const Attendance: React.FC = () => {
           <button
             onClick={handleAction}
             className={`px-4 py-2 rounded-lg font-medium shadow-sm transition-colors text-white w-full sm:w-auto ${(() => {
-              const today = new Date().toLocaleDateString("en-CA");
               const existing = records.find(
                 (r) =>
                   r.employeeId === selectedEmp &&
-                  r.date === today &&
                   r.checkIn &&
                   !r.checkOut,
               );
@@ -846,11 +890,9 @@ const Attendance: React.FC = () => {
             })()}`}
           >
             {(() => {
-              const today = new Date().toLocaleDateString("en-CA");
               const existing = records.find(
                 (r) =>
                   r.employeeId === selectedEmp &&
-                  r.date === today &&
                   r.checkIn &&
                   !r.checkOut,
               );

@@ -77,6 +77,9 @@ const DashboardLayout: React.FC = () => {
   const [enablePersonalSalaryCalc, setEnablePersonalSalaryCalc] =
     useState(true);
 
+  const [storeName, setStoreName] = useState("Tiệm Nhà Bơ");
+  const [storeLogo, setStoreLogo] = useState("");
+
   useEffect(() => {
     const fetchSettings = async () => {
       try {
@@ -89,6 +92,8 @@ const DashboardLayout: React.FC = () => {
           if (data.enablePersonalSalaryCalc !== undefined) {
             setEnablePersonalSalaryCalc(data.enablePersonalSalaryCalc);
           }
+          if (data.storeName) setStoreName(data.storeName);
+          if (data.storeLogo) setStoreLogo(data.storeLogo);
         }
       } catch (e) {
         console.error(e);
@@ -433,12 +438,23 @@ const DashboardLayout: React.FC = () => {
 
         <div className="h-16 flex flex-col items-center justify-center border-b border-gray-200 mt-2 md:mt-0">
           {isSidebarCollapsed ? (
-            <h1 className="hidden md:block text-xl font-bold text-blue-600">
-              NB
-            </h1>
+            storeLogo ? (
+              <img src={storeLogo} alt="Logo" className="hidden md:block w-8 h-8 object-cover rounded-md" />
+            ) : (
+              <h1 className="hidden md:block text-xl font-bold text-blue-600">
+                {storeName.substring(0, 2).toUpperCase()}
+              </h1>
+            )
           ) : (
             <>
-              <h1 className="text-xl font-bold text-blue-600">Tiệm Nhà Bơ</h1>
+              {storeLogo ? (
+                <div className="flex items-center gap-2">
+                  <img src={storeLogo} alt="Logo" className="w-6 h-6 object-cover rounded-md" />
+                  <h1 className="text-xl font-bold text-blue-600">{storeName}</h1>
+                </div>
+              ) : (
+                <h1 className="text-xl font-bold text-blue-600">{storeName}</h1>
+              )}
               <span className="text-xs font-medium text-gray-500 uppercase tracking-widest mt-1">
                 {userRole === "POS"
                   ? "MÁY ORDER"

@@ -59,6 +59,8 @@ const CustomerOrder: React.FC = () => {
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   
   const [branchName, setBranchName] = useState<string>('');
+  const [storeName, setStoreName] = useState<string>('Tiệm nhà Bơ');
+  const [storeLogo, setStoreLogo] = useState<string>('');
   
   const navigate = useNavigate();
 
@@ -138,12 +140,17 @@ const CustomerOrder: React.FC = () => {
 
     fetchMenu();
 
-    const fetchSettings = async () => {
+      const fetchSettings = async () => {
       try {
         const docSnap = await getDoc(doc(db, 'settings', 'general'));
-        if (docSnap.exists() && docSnap.data().customerOrderExitPassword) {
-          setRequiredExitPassword(docSnap.data().customerOrderExitPassword);
-          setNewExitPassword(docSnap.data().customerOrderExitPassword);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.customerOrderExitPassword) {
+            setRequiredExitPassword(data.customerOrderExitPassword);
+            setNewExitPassword(data.customerOrderExitPassword);
+          }
+          if (data.storeName) setStoreName(data.storeName);
+          if (data.storeLogo) setStoreLogo(data.storeLogo);
         }
       } catch (e) {
         console.error('Error fetching settings:', e);
@@ -261,14 +268,23 @@ const CustomerOrder: React.FC = () => {
                 setShowSidebar(true);
               }
             }}
-            className="w-12 h-12 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-lg hover:bg-blue-700 transition-colors cursor-pointer"
+            className="w-12 h-12 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-lg hover:bg-blue-700 transition-colors cursor-pointer overflow-hidden p-0 border-0"
           >
-            <Store size={28} />
+            {storeLogo ? (
+              <img src={storeLogo} alt="Logo" className="w-full h-full object-cover" />
+            ) : (
+              <Store size={28} />
+            )}
           </button>
           <div className="flex-1">
             {branchName && (
               <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1 flex items-center gap-1">
-                <Store size={12} /> Tiệm nhà Bơ - {branchName.toLowerCase().includes('cơ sở') ? branchName : `Cơ sở ${branchName}`}
+                {storeLogo ? (
+                  <img src={storeLogo} alt="Logo" className="w-3.5 h-3.5 rounded-sm object-cover" />
+                ) : (
+                  <Store size={12} />
+                )} 
+                {storeName} - {branchName.toLowerCase().includes('cơ sở') ? branchName : `Cơ sở ${branchName}`}
               </p>
             )}
             <h1 className="text-2xl font-black text-gray-800 tracking-tight">Xin chào Quý khách!</h1>
