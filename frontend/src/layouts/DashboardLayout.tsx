@@ -44,6 +44,8 @@ import {
   QrCode,
   Lock,
   Calculator,
+  Eye,
+  EyeOff
 } from "lucide-react";
 
 const DashboardLayout: React.FC = () => {
@@ -67,6 +69,7 @@ const DashboardLayout: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [logoutPassword, setLogoutPassword] = useState("");
+  const [showLogoutPassword, setShowLogoutPassword] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -465,12 +468,14 @@ const DashboardLayout: React.FC = () => {
           ) : (
             <>
               {storeLogo ? (
-                <div className="flex items-center gap-2">
-                  <img src={storeLogo} alt="Logo" className="w-10 h-10 object-contain rounded-md" />
-                  <h1 className="text-xl font-bold" style={{ color: storeNameColor, fontFamily: storeNameFont }}>{storeName}</h1>
+                <div className="flex items-center gap-2 max-w-full px-4">
+                  <img src={storeLogo} alt="Logo" className="w-10 h-10 object-contain rounded-md shrink-0" />
+                  <h1 className="text-xl font-bold truncate" style={{ color: storeNameColor, fontFamily: storeNameFont }}>{storeName}</h1>
                 </div>
               ) : (
-                <h1 className="text-xl font-bold" style={{ color: storeNameColor, fontFamily: storeNameFont }}>{storeName}</h1>
+                <div className="max-w-full px-4">
+                  <h1 className="text-xl font-bold truncate" style={{ color: storeNameColor, fontFamily: storeNameFont }}>{storeName}</h1>
+                </div>
               )}
               <span className="text-xs font-medium text-gray-500 uppercase tracking-widest mt-1">
                 {userRole === "POS"
@@ -626,15 +631,24 @@ const DashboardLayout: React.FC = () => {
             </p>
 
             {userRole === "POS" && (
-              <input
-                type="password"
-                placeholder="Nhập mật khẩu..."
-                value={logoutPassword}
-                onChange={(e) => setLogoutPassword(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && confirmLogout()}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl mb-6 focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none text-center text-lg tracking-widest"
-                autoFocus
-              />
+              <div className="relative mb-6">
+                <input
+                  type={showLogoutPassword ? "text" : "password"}
+                  placeholder="Nhập mật khẩu..."
+                  value={logoutPassword}
+                  onChange={(e) => setLogoutPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && confirmLogout()}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none text-center text-lg tracking-widest pr-12"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowLogoutPassword(!showLogoutPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                >
+                  {showLogoutPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
             )}
 
             <div className="flex justify-end space-x-3">

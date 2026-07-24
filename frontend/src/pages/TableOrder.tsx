@@ -3,7 +3,20 @@ import { useParams } from 'react-router-dom';
 import { collection, doc, getDoc, getDocs, addDoc, updateDoc, query, where, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
 import { signInAnonymously } from 'firebase/auth';
-import { ShoppingCart, Plus, Minus, Search, Image as ImageIcon, Clock, ChefHat, X, Edit2, ChevronDown, ChevronUp, Bell, Send, MessageSquare } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Search, Image as ImageIcon, Clock, ChefHat, X, Edit2, ChevronDown, ChevronUp, Bell, Send, MessageSquare, Lock, Store, MapPinOff } from 'lucide-react';
+
+function getDistanceFromLatLonInM(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371; // Radius of the earth in km
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const d = R * c; // Distance in km
+  return d * 1000; // Distance in meters
+}
 import toast from 'react-hot-toast';
 
 interface MenuItem {
@@ -59,6 +72,10 @@ const TableOrder: React.FC = () => {
   const [storeNameColor, setStoreNameColor] = useState<string>(localStorage.getItem('storeNameColor') || '#2563eb');
   const [storeNameFont, setStoreNameFont] = useState<string>(localStorage.getItem('storeNameFont') || 'system-ui, sans-serif');
   const [storeLogo, setStoreLogo] = useState<string>(localStorage.getItem('storeLogo') || '');
+  const [isLocked, setIsLocked] = useState(false);
+  const [isClosed, setIsClosed] = useState(false);
+  const [isTooFar, setIsTooFar] = useState(false);
+  const [locationError, setLocationError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isOrderExpanded, setIsOrderExpanded] = useState(false);
@@ -83,12 +100,31 @@ const TableOrder: React.FC = () => {
           }
         }
 
-        // Fetch Table info
-        const tableDoc = await getDoc(doc(db, 'tables', tableId));
-        if (tableDoc.exists()) {
-          setTableName(tableDoc.data().name);
-        } else {
-          toast.error('Không tìm thấy thông tin bàn!');
+        // Fetch Table info with snapshot listener
+        const tableRef = doc(db, 'tables', tableId);
+        onSnapshot(tableRef, (docSnap) => {
+          if (docSnap.exists()) {
+            setTableName(docSnap.data().name);
+            setIsLocked(docSnap.data().isLocked || false);
+          } else {
+            toast.error('Không tìm thấy thông tin bàn!');
+            setLoading(false);
+          }
+        });
+
+        // Check if there are active employees
+        const todayStr = new Date().toLocaleDateString('en-CA');
+        const attQ = query(
+          collection(db, 'attendance'),
+          where('date', '==', todayStr),
+          where('branchId', '==', branchId)
+        );
+
+        const attSnap = await getDocs(attQ);
+        const hasCheckedInEmployees = attSnap.docs.some(d => d.data().checkIn && !d.data().checkOut);
+
+        if (!hasCheckedInEmployees) {
+          setIsClosed(true);
           setLoading(false);
           return;
         }
@@ -96,7 +132,32 @@ const TableOrder: React.FC = () => {
         // Fetch Branch info
         const branchDoc = await getDoc(doc(db, 'branches', branchId));
         if (branchDoc.exists()) {
-          setBranchName(branchDoc.data().name);
+          const bData = branchDoc.data();
+          setBranchName(bData.name);
+
+          // Check Geolocation if branch has coordinates set
+          if (bData.latitude && bData.longitude) {
+            try {
+              const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+                if (!navigator.geolocation) {
+                  reject(new Error("No geolocation"));
+                } else {
+                  navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true });
+                }
+              });
+              const dist = getDistanceFromLatLonInM(bData.latitude, bData.longitude, pos.coords.latitude, pos.coords.longitude);
+              const maxDist = bData.allowedDistance || 200;
+              if (dist > maxDist) {
+                setIsTooFar(true);
+                setLoading(false);
+                return;
+              }
+            } catch (err) {
+              setLocationError(true);
+              setLoading(false);
+              return;
+            }
+          }
         }
 
         // Fetch settings/general for storeName and storeLogo
@@ -354,6 +415,66 @@ const TableOrder: React.FC = () => {
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
         <h2 className="text-xl font-bold text-red-600">Không tìm thấy bàn!</h2>
         <p className="text-gray-500 mt-2">Vui lòng quét lại mã QR trên bàn của bạn.</p>
+      </div>
+    );
+  }
+
+  if (isLocked) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-3xl shadow-lg border border-gray-100 flex flex-col items-center max-w-sm w-full">
+          <div className="w-20 h-20 bg-orange-100 text-orange-500 rounded-full flex items-center justify-center mb-6">
+            <Lock size={40} />
+          </div>
+          <h2 className="text-2xl font-black text-gray-800 text-center mb-3">Tạm Dừng Phục Vụ</h2>
+          <p className="text-gray-500 text-center font-medium">Bàn này hiện đang tạm dừng phục vụ. Vui lòng liên hệ nhân viên để được hỗ trợ.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isClosed) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-3xl shadow-lg border border-gray-100 flex flex-col items-center max-w-sm w-full">
+          <div className="w-20 h-20 bg-gray-100 text-gray-500 rounded-full flex items-center justify-center mb-6">
+            <Store size={40} />
+          </div>
+          <h2 className="text-2xl font-black text-gray-800 text-center mb-3">Chưa Mở Cửa</h2>
+          <p className="text-gray-500 text-center font-medium">Cơ sở hiện tại chưa đến giờ làm việc hoặc không có nhân viên trực. Vui lòng quay lại sau.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isTooFar) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-3xl shadow-lg border border-gray-100 flex flex-col items-center max-w-sm w-full">
+          <div className="w-20 h-20 bg-red-100 text-red-500 rounded-full flex items-center justify-center mb-6">
+            <MapPinOff size={40} />
+          </div>
+          <h2 className="text-2xl font-black text-gray-800 text-center mb-3">Bạn Không Ở Quán?</h2>
+          <p className="text-gray-500 text-center font-medium mb-4">Hệ thống phát hiện bạn đang ở khoảng cách quá xa so với cơ sở này.</p>
+          <p className="text-sm text-gray-400 text-center">Vui lòng quét mã QR khi đang có mặt trực tiếp tại quán để gọi món.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (locationError) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-3xl shadow-lg border border-gray-100 flex flex-col items-center max-w-sm w-full">
+          <div className="w-20 h-20 bg-orange-100 text-orange-500 rounded-full flex items-center justify-center mb-6">
+            <MapPinOff size={40} />
+          </div>
+          <h2 className="text-2xl font-black text-gray-800 text-center mb-3">Cần Quyền Vị Trí</h2>
+          <p className="text-gray-500 text-center font-medium mb-4">Để gọi món, vui lòng cho phép trình duyệt truy cập vị trí của bạn nhằm xác nhận bạn đang ở quán.</p>
+          <button onClick={() => window.location.reload()} className="px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors w-full">
+            Thử Lại
+          </button>
+        </div>
       </div>
     );
   }

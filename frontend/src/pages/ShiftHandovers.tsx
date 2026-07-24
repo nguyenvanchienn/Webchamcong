@@ -201,10 +201,14 @@ const ShiftHandovers = () => {
         const endOfDay = new Date(filterDate);
         endOfDay.setHours(23, 59, 59, 999);
 
-        // Lấy tất cả ca trong ngày và lọc ở client để tránh lỗi thiếu index kép trên Firestore
+        // Lấy các ca bắt đầu từ 2 ngày trước để bao gồm các ca làm qua đêm
+        const startOfSearch = new Date(startOfDay);
+        startOfSearch.setDate(startOfSearch.getDate() - 2);
+
+        // Lấy tất cả ca trong khoảng thời gian và lọc ở client để tránh lỗi thiếu index kép trên Firestore
         const reportsQuery = query(
           collection(db, "shift_reports"),
-          where("startTime", ">=", Timestamp.fromDate(startOfDay)),
+          where("startTime", ">=", Timestamp.fromDate(startOfSearch)),
           where("startTime", "<=", Timestamp.fromDate(endOfDay)),
           orderBy("startTime", "desc"),
         );
@@ -228,6 +232,15 @@ const ShiftHandovers = () => {
           if (userRole === "CASHIER" && data.cashierEmail !== currentUserEmail)
             return;
           if (userRole === "POS" && data.branchId !== currentBranchId) return;
+
+          // Kiểm tra xem ca này có diễn ra trong filterDate không (Overlap)
+          const st = data.startTime.toDate();
+          const et = data.endTime ? data.endTime.toDate() : null;
+          
+          // Nếu ca kết thúc TRƯỚC khi ngày này bắt đầu -> bỏ qua (Ca cũ của hôm qua)
+          if (et && et < startOfDay) return;
+          // Nếu ca bắt đầu SAU khi ngày này kết thúc -> bỏ qua (Chắc chắn không xảy ra do query, nhưng đề phòng)
+          if (st > endOfDay) return;
 
           const editHistory = data.editHistory
             ? data.editHistory.map((eh: any) => ({

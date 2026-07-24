@@ -3,7 +3,7 @@ import { collection, getDocs, getDoc, addDoc, serverTimestamp, query, where, doc
 import { db, auth } from '../config/firebase';
 import { EmailAuthProvider, reauthenticateWithCredential, signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingCart, Trash2, Plus, Minus, Receipt, CheckCircle, Printer, LogOut, Lock, X, Grip, LayoutDashboard, Store, Coffee, QrCode, ClipboardCheck, MonitorSmartphone, MonitorOff, Edit2 } from 'lucide-react';
+import { ShoppingCart, Trash2, Plus, Minus, Receipt, CheckCircle, Printer, LogOut, Lock, X, Grip, LayoutDashboard, Store, Coffee, QrCode, ClipboardCheck, MonitorSmartphone, MonitorOff, Edit2, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface MenuItem {
@@ -78,6 +78,7 @@ const POS: React.FC = () => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [logoutPassword, setLogoutPassword] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [showLogoutPassword, setShowLogoutPassword] = useState(false);
 
   const [showSetPasswordModal, setShowSetPasswordModal] = useState(false);
   const [newExitPassword, setNewExitPassword] = useState('');
@@ -1788,15 +1789,24 @@ const POS: React.FC = () => {
             <h3 className="text-xl font-bold text-center text-gray-800 mb-2">Đăng xuất Máy Order</h3>
             <p className="text-gray-500 text-center mb-6 text-sm">Vui lòng nhập mật khẩu của tài khoản Máy Order để khóa máy và đăng xuất.</p>
 
-            <input
-              type="password"
-              placeholder="Nhập mật khẩu..."
-              value={logoutPassword}
-              onChange={(e) => setLogoutPassword(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleLogout()}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl mb-6 focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none text-center text-lg tracking-widest"
-              autoFocus
-            />
+            <div className="relative mb-6">
+              <input
+                type={showLogoutPassword ? "text" : "password"}
+                placeholder="Nhập mật khẩu..."
+                value={logoutPassword}
+                onChange={(e) => setLogoutPassword(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleLogout()}
+                className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none text-center text-lg tracking-widest"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => setShowLogoutPassword(!showLogoutPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+              >
+                {showLogoutPassword ? <EyeOff size={24} /> : <Eye size={24} />}
+              </button>
+            </div>
 
             <div className="flex gap-3">
               <button

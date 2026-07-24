@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
+import { collection, getDocs, addDoc, deleteDoc, doc, query, where, updateDoc } from 'firebase/firestore';
 import { EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { db, auth } from '../config/firebase';
-import { Plus, Trash2, X, Download, QrCode, Lock } from 'lucide-react';
+import { Plus, Trash2, X, Download, QrCode, Lock, Unlock, Edit2, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -11,6 +11,7 @@ interface Table {
   branchId: string;
   name: string;
   status: 'AVAILABLE' | 'OCCUPIED';
+  isLocked?: boolean;
   createdAt: any;
 }
 
@@ -33,6 +34,17 @@ const TableManager: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [addPassword, setAddPassword] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  const [tableToEdit, setTableToEdit] = useState<Table | null>(null);
+  const [editTableName, setEditTableName] = useState('');
+  const [editPassword, setEditPassword] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [tableToLock, setTableToLock] = useState<Table | null>(null);
+  const [lockPassword, setLockPassword] = useState('');
+  const [isLocking, setIsLocking] = useState(false);
+  const [showAddPassword, setShowAddPassword] = useState(false);
+  const [showDeletePassword, setShowDeletePassword] = useState(false);
+  const [showEditPassword, setShowEditPassword] = useState(false);
+  const [showLockPassword, setShowLockPassword] = useState(false);
 
   const userRole = localStorage.getItem('userRole');
   const userBranchId = localStorage.getItem('branchId');
@@ -207,6 +219,102 @@ const TableManager: React.FC = () => {
     }
   };
 
+  const confirmToggleTableLock = async () => {
+    if (!tableToLock) return;
+    if (requiresPassword && !lockPassword) {
+      toast.error('Vui lòng nhập mật khẩu xác nhận');
+      return;
+    }
+
+    setIsLocking(true);
+    try {
+      if (requiresPassword) {
+        if (auth.currentUser && auth.currentUser.email) {
+          const credential = EmailAuthProvider.credential(auth.currentUser.email, lockPassword);
+          await reauthenticateWithCredential(auth.currentUser, credential);
+        } else {
+          toast.error('Lỗi xác thực người dùng');
+          setIsLocking(false);
+          return;
+        }
+      }
+
+      const newStatus = !tableToLock.isLocked;
+      if (newStatus && tableToLock.status === 'OCCUPIED') {
+        const confirm = window.confirm('Bàn này đang có khách ngồi hoặc có đơn đang xử lý. Bạn có chắc chắn muốn khóa bàn này không?');
+        if (!confirm) {
+          setIsLocking(false);
+          setTableToLock(null);
+          setLockPassword('');
+          return;
+        }
+      }
+      
+      await updateDoc(doc(db, 'tables', tableToLock.id), {
+        isLocked: newStatus
+      });
+      setTables(tables.map(t => t.id === tableToLock.id ? { ...t, isLocked: newStatus } : t));
+      toast.success(newStatus ? 'Đã khóa bàn' : 'Đã mở khóa bàn');
+      setTableToLock(null);
+      setLockPassword('');
+    } catch (error) {
+      console.error(error);
+      toast.error('Mật khẩu không chính xác hoặc có lỗi xảy ra');
+    } finally {
+      setIsLocking(false);
+    }
+  };
+
+  const handleEditTable = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tableToEdit || !editTableName.trim()) return;
+    
+    if (requiresPassword && !editPassword) {
+      toast.error('Vui lòng nhập mật khẩu xác nhận');
+      return;
+    }
+
+    // Check if new name already exists in the same branch
+    if (editTableName.trim().toLowerCase() !== tableToEdit.name.toLowerCase() && 
+        tables.some(t => t.branchId === tableToEdit.branchId && t.id !== tableToEdit.id && t.name.toLowerCase() === editTableName.trim().toLowerCase())) {
+      toast.error(`Bàn "${editTableName}" đã tồn tại ở cơ sở này.`);
+      return;
+    }
+
+    setIsEditing(true);
+    try {
+      if (requiresPassword) {
+        if (auth.currentUser && auth.currentUser.email) {
+          const credential = EmailAuthProvider.credential(auth.currentUser.email, editPassword);
+          await reauthenticateWithCredential(auth.currentUser, credential);
+        } else {
+          toast.error('Lỗi xác thực người dùng');
+          setIsEditing(false);
+          return;
+        }
+      }
+
+      await updateDoc(doc(db, 'tables', tableToEdit.id), {
+        name: editTableName.trim()
+      });
+      setTables(tables.map(t => t.id === tableToEdit.id ? { ...t, name: editTableName.trim() } : t).sort((a, b) => {
+        if (a.branchId === b.branchId) return a.name.localeCompare(b.name);
+        const branchA = branches.find(br => br.id === a.branchId)?.name || '';
+        const branchB = branches.find(br => br.id === b.branchId)?.name || '';
+        return branchA.localeCompare(branchB);
+      }));
+      toast.success('Đổi tên bàn thành công');
+      setTableToEdit(null);
+      setEditTableName('');
+      setEditPassword('');
+    } catch (error) {
+      console.error(error);
+      toast.error('Mật khẩu không chính xác hoặc có lỗi xảy ra');
+    } finally {
+      setIsEditing(false);
+    }
+  };
+
   const confirmDeleteTable = async () => {
     if (!tableToDelete) return;
     if (requiresPassword && !deletePassword) {
@@ -254,13 +362,56 @@ const TableManager: React.FC = () => {
     const img = new Image();
 
     img.onload = () => {
-      // Add padding and white background
-      canvas.width = img.width + 40;
-      canvas.height = img.height + 40;
+      // Canvas dimensions
+      const padding = 40;
+      const topSpacing = 120; // Space for text
+      
+      canvas.width = img.width + (padding * 2);
+      canvas.height = img.height + topSpacing + padding;
+      
       if (ctx) {
+        // 1. Fill white background with rounded corners
         ctx.fillStyle = 'white';
+        // We just fill rect for the background
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 20, 20);
+        
+        // Add a subtle border for the whole card
+        ctx.strokeStyle = '#f3f4f6'; // gray-100
+        ctx.lineWidth = 2;
+        ctx.strokeRect(1, 1, canvas.width - 2, canvas.height - 2);
+
+        // 2. Draw Table Name
+        ctx.fillStyle = '#1f2937'; // gray-800
+        ctx.font = '900 32px system-ui, -apple-system, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(viewingQR?.name || '', canvas.width / 2, 50);
+
+        // 3. Draw Subtitle
+        ctx.fillStyle = '#6b7280'; // gray-500
+        ctx.font = '14px system-ui, -apple-system, sans-serif';
+        ctx.fillText('Quét mã QR dưới đây để xem Menu và Gọi món', canvas.width / 2, 85);
+
+        // 4. Draw rounded blue border behind QR Code
+        const borderX = padding - 16;
+        const borderY = topSpacing - 16;
+        const borderW = img.width + 32;
+        const borderH = img.height + 32;
+        const radius = 16;
+        
+        ctx.beginPath();
+        ctx.moveTo(borderX + radius, borderY);
+        ctx.arcTo(borderX + borderW, borderY, borderX + borderW, borderY + borderH, radius);
+        ctx.arcTo(borderX + borderW, borderY + borderH, borderX, borderY + borderH, radius);
+        ctx.arcTo(borderX, borderY + borderH, borderX, borderY, radius);
+        ctx.arcTo(borderX, borderY, borderX + borderW, borderY, radius);
+        ctx.closePath();
+        
+        ctx.strokeStyle = '#dbeafe'; // blue-100
+        ctx.lineWidth = 4;
+        ctx.stroke();
+
+        // 5. Draw QR Code
+        ctx.drawImage(img, padding, topSpacing);
 
         const pngFile = canvas.toDataURL('image/png');
         const downloadLink = document.createElement('a');
@@ -308,8 +459,13 @@ const TableManager: React.FC = () => {
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-6">
         {tables.map(table => (
-          <div key={table.id} className="bg-white rounded-2xl p-3 md:p-5 shadow-sm border border-gray-100 flex flex-col items-center group hover:shadow-md transition-shadow">
-            <h3 className="text-xl font-bold text-gray-800 mb-1">{table.name}</h3>
+          <div key={table.id} className="bg-white rounded-2xl p-3 md:p-5 shadow-sm border border-gray-100 flex flex-col items-center group hover:shadow-md transition-shadow relative">
+            <div className="flex justify-between items-center w-full mb-1">
+              <h3 className="text-xl font-bold text-gray-800">{table.name}</h3>
+              <button onClick={() => { setTableToEdit(table); setEditTableName(table.name); setEditPassword(''); }} className="text-gray-400 hover:text-blue-600 transition-colors p-1" title="Sửa tên bàn">
+                <Edit2 size={16} />
+              </button>
+            </div>
             {selectedBranch === 'all' && (
               <p className="text-[10px] md:text-xs text-blue-600 font-semibold bg-blue-50 px-2 py-1 rounded-md mb-2 md:mb-3 text-center">
                 {branches.find(b => b.id === table.branchId)?.name || 'Cơ sở không xác định'}
@@ -325,10 +481,13 @@ const TableManager: React.FC = () => {
             </div>
 
             <div className="flex gap-2 w-full mt-auto">
-              <button onClick={() => setViewingQR(table)} className="flex-1 py-2 bg-blue-50 text-blue-600 font-bold rounded-xl hover:bg-blue-100 transition-colors flex justify-center">
+              <button onClick={() => setViewingQR(table)} className="flex-1 py-2 bg-blue-50 text-blue-600 font-bold rounded-xl hover:bg-blue-100 transition-colors flex justify-center items-center">
                 Mã QR
               </button>
-              <button onClick={() => setTableToDelete(table)} className="p-2 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-colors">
+              <button onClick={() => { setTableToLock(table); setLockPassword(''); }} className={`p-2 font-bold rounded-xl transition-colors ${table.isLocked ? 'bg-orange-50 text-orange-600 hover:bg-orange-100' : 'bg-green-50 text-green-600 hover:bg-green-100'}`} title={table.isLocked ? 'Mở khóa bàn' : 'Khóa bàn'}>
+                {table.isLocked ? <Lock size={20} /> : <Unlock size={20} />}
+              </button>
+              <button onClick={() => setTableToDelete(table)} className="p-2 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-colors" title="Xóa bàn">
                 <Trash2 size={20} />
               </button>
             </div>
@@ -365,14 +524,23 @@ const TableManager: React.FC = () => {
               {requiresPassword && (
                 <div className="mb-6">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Mật khẩu tài khoản</label>
-                  <input
-                    type="password"
-                    value={addPassword}
-                    onChange={e => setAddPassword(e.target.value)}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none tracking-widest font-medium text-gray-800"
-                    placeholder="Nhập mật khẩu..."
-                  />
+                  <div className="relative">
+                    <input
+                      type={showAddPassword ? "text" : "password"}
+                      value={addPassword}
+                      onChange={e => setAddPassword(e.target.value)}
+                      required
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none tracking-widest font-medium text-gray-800"
+                      placeholder="Nhập mật khẩu..."
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAddPassword(!showAddPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                    >
+                      {showAddPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
+                  </div>
                 </div>
               )}
               <div className="flex gap-3">
@@ -419,15 +587,24 @@ const TableManager: React.FC = () => {
                 <p className="text-gray-600 text-center mb-4 text-sm">
                   Nhập mật khẩu tài khoản để xác nhận xóa <span className="font-bold text-gray-800">{tableToDelete.name}</span>. Mã QR cũ sẽ bị vô hiệu hóa.
                 </p>
-                <input
-                  type="password"
-                  placeholder="Nhập mật khẩu..."
-                  value={deletePassword}
-                  onChange={(e) => setDeletePassword(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && confirmDeleteTable()}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl mb-6 focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none text-center text-lg tracking-widest"
-                  autoFocus
-                />
+                <div className="relative mb-6">
+                  <input
+                    type={showDeletePassword ? "text" : "password"}
+                    placeholder="Nhập mật khẩu..."
+                    value={deletePassword}
+                    onChange={(e) => setDeletePassword(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && confirmDeleteTable()}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none text-center text-lg tracking-widest pr-12"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowDeletePassword(!showDeletePassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                  >
+                    {showDeletePassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
               </>
             ) : (
               <p className="text-gray-600 text-center mb-6 text-sm">
@@ -449,6 +626,116 @@ const TableManager: React.FC = () => {
                 className="flex-1 py-3 px-4 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors shadow-lg shadow-red-500/30 disabled:bg-gray-300 disabled:shadow-none"
               >
                 {isDeleting ? 'Đang xử lý...' : 'Xóa Bàn'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Table Modal */}
+      {tableToEdit && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+              <h2 className="text-xl font-bold text-gray-800">Đổi Tên Bàn</h2>
+              <button onClick={() => { setTableToEdit(null); setEditPassword(''); }} className="text-gray-400 hover:bg-gray-200 p-2 rounded-full"><X size={20} /></button>
+            </div>
+            <form onSubmit={handleEditTable} className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tên bàn mới</label>
+                <input
+                  type="text"
+                  required
+                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all font-medium"
+                  placeholder="VD: Bàn 1"
+                  value={editTableName}
+                  onChange={(e) => setEditTableName(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              {requiresPassword && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Mật khẩu tài khoản</label>
+                  <div className="relative">
+                    <input
+                      type={showEditPassword ? "text" : "password"}
+                      required
+                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all font-medium tracking-widest pr-10"
+                      placeholder="Nhập mật khẩu..."
+                      value={editPassword}
+                      onChange={(e) => setEditPassword(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEditPassword(!showEditPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                    >
+                      {showEditPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </div>
+              )}
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => { setTableToEdit(null); setEditPassword(''); }} className="flex-1 py-2 font-bold text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">
+                  Hủy
+                </button>
+                <button type="submit" disabled={isEditing || !editTableName.trim() || (editTableName.trim() === tableToEdit.name) || (requiresPassword && !editPassword)} className="flex-1 py-2 font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors flex justify-center items-center">
+                  {isEditing ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : 'Lưu Thay Đổi'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Lock Confirm Modal */}
+      {tableToLock && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-slide-up">
+            <div className={`flex justify-center mb-4 w-16 h-16 rounded-full items-center mx-auto ${tableToLock.isLocked ? 'text-green-500 bg-green-50' : 'text-orange-500 bg-orange-50'}`}>
+              {tableToLock.isLocked ? <Unlock size={32} /> : <Lock size={32} />}
+            </div>
+            <h3 className="text-xl font-bold text-center text-gray-800 mb-2">Xác nhận {tableToLock.isLocked ? 'mở khóa' : 'khóa'} bàn</h3>
+            
+            <p className="text-gray-600 text-center mb-4 text-sm">
+              Bạn có chắc chắn muốn {tableToLock.isLocked ? 'mở khóa' : 'khóa'} <span className="font-bold text-gray-800">{tableToLock.name}</span> không?
+            </p>
+            
+            {requiresPassword && (
+              <div className="relative mb-6">
+                <input
+                  type={showLockPassword ? "text" : "password"}
+                  placeholder="Nhập mật khẩu xác nhận..."
+                  value={lockPassword}
+                  onChange={(e) => setLockPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && confirmToggleTableLock()}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-center text-lg tracking-widest pr-12"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowLockPassword(!showLockPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                >
+                  {showLockPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+            )}
+
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={() => { setTableToLock(null); setLockPassword(''); }}
+                className="flex-1 py-3 px-4 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
+                disabled={isLocking}
+              >
+                Hủy bỏ
+              </button>
+              <button
+                onClick={confirmToggleTableLock}
+                disabled={isLocking || (requiresPassword && !lockPassword)}
+                className={`flex-1 py-3 px-4 font-bold rounded-xl text-white transition-colors shadow-lg shadow-black/10 disabled:bg-gray-300 disabled:shadow-none ${tableToLock.isLocked ? 'bg-green-500 hover:bg-green-600' : 'bg-orange-500 hover:bg-orange-600'}`}
+              >
+                {isLocking ? 'Đang xử lý...' : 'Xác nhận'}
               </button>
             </div>
           </div>

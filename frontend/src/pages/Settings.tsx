@@ -401,6 +401,36 @@ const Settings: React.FC = () => {
                 style={{ fontFamily: storeNameFont }}
               >
                 <option value="system-ui, sans-serif" style={{ fontFamily: 'system-ui, sans-serif' }}>Mặc định hệ thống</option>
+                <option value="'Pacifico', cursive" style={{ fontFamily: "'Pacifico', cursive" }}>Pacifico (Mềm mại)</option>
+                <option value="'Dancing Script', cursive" style={{ fontFamily: "'Dancing Script', cursive" }}>Dancing Script (Viết tay)</option>
+                <option value="'Lobster', cursive" style={{ fontFamily: "'Lobster', cursive" }}>Lobster (Nét đậm cong)</option>
+                <option value="'Caveat', cursive" style={{ fontFamily: "'Caveat', cursive" }}>Caveat (Tự nhiên)</option>
+                <option value="'Great Vibes', cursive" style={{ fontFamily: "'Great Vibes', cursive" }}>Great Vibes (Cổ điển)</option>
+                <option value="'Oswald', sans-serif" style={{ fontFamily: "'Oswald', sans-serif" }}>Oswald (Nét cứng)</option>
+                <option value="'Playfair Display', serif" style={{ fontFamily: "'Playfair Display', serif" }}>Playfair Display (Sang trọng)</option>
+                <option value="'Montserrat', sans-serif" style={{ fontFamily: "'Montserrat', sans-serif" }}>Montserrat (Hiện đại)</option>
+                <option value="'Nunito', sans-serif" style={{ fontFamily: "'Nunito', sans-serif" }}>Nunito (Tròn trịa)</option>
+                <option value="'Comfortaa', cursive" style={{ fontFamily: "'Comfortaa', cursive" }}>Comfortaa (Cực tròn)</option>
+                <option value="'Roboto', sans-serif" style={{ fontFamily: "'Roboto', sans-serif" }}>Roboto (Hiện đại)</option>
+                <option value="'Open Sans', sans-serif" style={{ fontFamily: "'Open Sans', sans-serif" }}>Open Sans (Dễ đọc)</option>
+                <option value="'Lato', sans-serif" style={{ fontFamily: "'Lato', sans-serif" }}>Lato (Thanh lịch)</option>
+                <option value="'Poppins', sans-serif" style={{ fontFamily: "'Poppins', sans-serif" }}>Poppins (Phổ biến)</option>
+                <option value="'Raleway', sans-serif" style={{ fontFamily: "'Raleway', sans-serif" }}>Raleway (Mỏng sang trọng)</option>
+                <option value="'Ubuntu', sans-serif" style={{ fontFamily: "'Ubuntu', sans-serif" }}>Ubuntu (Công nghệ)</option>
+                <option value="'Merriweather', serif" style={{ fontFamily: "'Merriweather', serif" }}>Merriweather (Cổ điển)</option>
+                <option value="'Lora', serif" style={{ fontFamily: "'Lora', serif" }}>Lora (Nghệ thuật)</option>
+                <option value="'PT Serif', serif" style={{ fontFamily: "'PT Serif', serif" }}>PT Serif (Tinh tế)</option>
+                <option value="'Noto Sans', sans-serif" style={{ fontFamily: "'Noto Sans', sans-serif" }}>Noto Sans (Tiêu chuẩn)</option>
+                <option value="'Noto Serif', serif" style={{ fontFamily: "'Noto Serif', serif" }}>Noto Serif (Trang trọng)</option>
+                <option value="'Fira Sans', sans-serif" style={{ fontFamily: "'Fira Sans', sans-serif" }}>Fira Sans (Góc cạnh)</option>
+                <option value="'Quicksand', sans-serif" style={{ fontFamily: "'Quicksand', sans-serif" }}>Quicksand (Đáng yêu)</option>
+                <option value="'Josefin Sans', sans-serif" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>Josefin Sans (Mảnh mai)</option>
+                <option value="'Anton', sans-serif" style={{ fontFamily: "'Anton', sans-serif" }}>Anton (Nét to mạnh mẽ)</option>
+                <option value="'Bebas Neue', sans-serif" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>Bebas Neue (In hoa thon cao)</option>
+                <option value="'Righteous', cursive" style={{ fontFamily: "'Righteous', cursive" }}>Righteous (Cong nghệ thuật)</option>
+                <option value="'Indie Flower', cursive" style={{ fontFamily: "'Indie Flower', cursive" }}>Indie Flower (Viết tay mộc mạc)</option>
+                <option value="'Amatic SC', cursive" style={{ fontFamily: "'Amatic SC', cursive" }}>Amatic SC (Viết tay in hoa)</option>
+                <option value="'Permanent Marker', cursive" style={{ fontFamily: "'Permanent Marker', cursive" }}>Permanent Marker (Bút lông)</option>
                 <option value="Arial, Helvetica, sans-serif" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>Arial</option>
                 <option value="Verdana, Geneva, sans-serif" style={{ fontFamily: 'Verdana, Geneva, sans-serif' }}>Verdana</option>
                 <option value="Tahoma, Geneva, sans-serif" style={{ fontFamily: 'Tahoma, Geneva, sans-serif' }}>Tahoma</option>
