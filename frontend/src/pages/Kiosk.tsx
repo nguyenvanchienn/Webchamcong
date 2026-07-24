@@ -10,6 +10,7 @@ import {
   onSnapshot,
   arrayUnion,
   deleteField,
+  getDoc,
 } from "firebase/firestore";
 import { db } from "../config/firebase";
 import { useNavigate } from "react-router-dom";
@@ -83,6 +84,42 @@ const Kiosk: React.FC = () => {
   const [todayShifts, setTodayShifts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
+
+  const [storeName, setStoreName] = useState<string>(localStorage.getItem('storeName') || 'Hệ Thống Điểm Danh Tự Động');
+  const [storeNameColor, setStoreNameColor] = useState<string>(localStorage.getItem('storeNameColor') || '#1f2937');
+  const [storeNameFont, setStoreNameFont] = useState<string>(localStorage.getItem('storeNameFont') || 'system-ui, sans-serif');
+  const [storeLogo, setStoreLogo] = useState<string>(localStorage.getItem('storeLogo') || '');
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const docSnap = await getDoc(doc(db, "settings", "general"));
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.storeName) { setStoreName(data.storeName); localStorage.setItem('storeName', data.storeName); }
+          if (data.storeNameColor) { setStoreNameColor(data.storeNameColor); localStorage.setItem('storeNameColor', data.storeNameColor); }
+          if (data.storeNameFont) { setStoreNameFont(data.storeNameFont); localStorage.setItem('storeNameFont', data.storeNameFont); }
+          if (data.storeLogo) { setStoreLogo(data.storeLogo); localStorage.setItem('storeLogo', data.storeLogo); }
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    fetchSettings();
+
+    const handleBrandingUpdate = () => {
+      setStoreName(localStorage.getItem('storeName') || 'Hệ Thống Điểm Danh Tự Động');
+      setStoreNameColor(localStorage.getItem('storeNameColor') || '#1f2937');
+      setStoreNameFont(localStorage.getItem('storeNameFont') || 'system-ui, sans-serif');
+      setStoreLogo(localStorage.getItem('storeLogo') || '');
+    };
+
+    window.addEventListener('brandingUpdated', handleBrandingUpdate);
+
+    return () => {
+      window.removeEventListener('brandingUpdated', handleBrandingUpdate);
+    };
+  }, []);
 
   // Lắng nghe lệnh đăng xuất từ xa
   useEffect(() => {
@@ -517,12 +554,16 @@ const Kiosk: React.FC = () => {
       {/* Header */}
       <header className="bg-white shadow-sm p-3 md:p-4 flex justify-center sm:justify-start items-center">
         <div className="flex items-center gap-3">
-          <div className="bg-blue-600 text-white p-2 rounded-lg hidden sm:block">
-            <CheckCircle size={24} />
-          </div>
+          {storeLogo ? (
+            <img src={storeLogo} alt="Logo" className="hidden sm:block w-10 h-10 object-contain rounded-md" />
+          ) : (
+            <div className="bg-blue-600 text-white p-2 rounded-lg hidden sm:block">
+              <CheckCircle size={24} />
+            </div>
+          )}
           <div className="text-center sm:text-left">
-            <h1 className="text-lg md:text-xl font-bold text-gray-800">
-              Hệ Thống Điểm Danh Tự Động
+            <h1 className="text-lg md:text-xl font-bold" style={{ color: storeNameColor, fontFamily: storeNameFont }}>
+              {storeName}
             </h1>
             <p className="text-xs md:text-sm text-gray-500">
               Thiết bị điểm danh dùng chung
